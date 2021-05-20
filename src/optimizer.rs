@@ -20,6 +20,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_zero_loops(&mut program.ops);
         progress |= optimize_inc_dec(&mut program.ops, 0);
         progress |= optimize_arithmethic_loops(&mut program.ops);
+        progress |= optimize_count_loops(&mut program.ops);
     }
 
     count
@@ -28,7 +29,7 @@ pub fn optimize(program: &mut Program) -> u32 {
 // Loops at the beginning of a program will not be taken at all
 fn remove_preceding_loop(ops: &mut Vec<Op>) {
     while !ops.is_empty() {
-        if let OpType::Loop(_) = ops[0].op_type {
+        if let OpType::Loop(_, ..) = ops[0].op_type {
             ops.remove(0);
         } else {
             break;
@@ -55,7 +56,7 @@ fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
     let mut progress = false;
 
     while i < ops.len() {
-        if let OpType::Loop(children) = &mut ops[i].op_type {
+        if let OpType::Loop(children, ..) = &mut ops[i].op_type {
             if children.is_empty() {
                 ops.remove(i);
                 progress = true;
@@ -78,7 +79,7 @@ fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 
     while i < ops.len() {
         let op = &mut ops[i];
-        if let OpType::Loop(children) = &mut op.op_type {
+        if let OpType::Loop(children, ..) = &mut op.op_type {
             let mut optimized = false;
             if children.len() == 1 {
                 if let OpType::Dec(1) = children[0].op_type {
@@ -107,7 +108,7 @@ fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
 
     while i < ops.len() {
         let op = &mut ops[i];
-        if let OpType::Loop(children) = &mut op.op_type {
+        if let OpType::Loop(children, ..) = &mut op.op_type {
             let mut optimized = None;
             if children.len() == 4 {
                 match (&children[0].op_type, &children[1].op_type, &children[2].op_type, &children[3].op_type) {
@@ -170,6 +171,71 @@ fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
     }
 
     progress
+}
+
+// Optimize loops that are known to use the same counting variable
+fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while i < ops.len() {
+        if let OpType::Loop(children, steps) = &mut ops[i].op_type {
+            let mut ptr_inc_count = 0_isize;
+            let mut ignore = false;
+
+            if children.len() >= 3 {
+                for op in children.iter() {
+                    match &op.op_type {
+                        OpType::IncPtr(value) => ptr_inc_count += *value as isize,
+                        OpType::DecPtr(value) => ptr_inc_count -= *value as isize,
+                        OpType::Loop(..) => {
+                            ignore = true;
+                            break;
+                        }
+                        _ => {
+                            // Ignore
+                        }
+                    }
+                }
+            }
+
+
+            if !ignore && ptr_inc_count == 0 {
+                if let Some(v) = get_dec_count(&children[0].op_type) {
+                    children.remove(0);
+                    *steps = Some(v);
+
+                    if children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
+                        children.remove(children.len() - 1);
+                    }
+
+                    progress = true;
+                } else if let Some(v) = get_dec_count(&children[children.len() - 1].op_type) {
+                    children.remove(children.len() - 1);
+                    *steps = Some(v);
+
+                    if children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
+                        children.remove(children.len() - 1);
+                    }
+
+                    progress = true;
+                }
+            }
+
+            progress |= optimize_count_loops(children);
+        }
+        i += 1;
+    }
+
+    progress
+}
+
+fn get_dec_count(op_type: &OpType) -> Option<u8> {
+    match op_type {
+        OpType::Dec(count) => Some(*count),
+        _ => None,
+    }
 }
 
 #[derive(Debug)]
@@ -243,7 +309,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
                 progress = true;
             }
             Mode::Ignore => {
-                if let OpType::Loop(children) = &mut ops[i].op_type {
+                if let OpType::Loop(children, ..) = &mut ops[i].op_type {
                     progress |= optimize_inc_dec(children, depth + 1);
                 }
                 i += 1;
@@ -252,7 +318,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
     }
 
     if let Some(last) = ops.last_mut() {
-        if let OpType::Loop(children) = &mut last.op_type {
+        if let OpType::Loop(children, ..) = &mut last.op_type {
             progress |= optimize_inc_dec(children, depth + 1);
         }
     }
@@ -263,7 +329,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -542,6 +608,52 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::sub(0..5, 1, 2),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_count_loops() {
+        let mut ops = vec![
+            Op::set(0..1, 6),
+            Op::loop_ops(0..1, vec![
+                Op::dec(1..2, 1),
+                Op::inc_ptr(2..3, 1),
+                Op::dec(3..4, 2),
+                Op::dec_ptr(4..5, 1),
+            ])
+        ];
+
+        optimize_count_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(0..1, 6),
+            Op::loop_ops_with_steps(0..1, vec![
+                Op::inc_ptr(2..3, 1),
+                Op::dec(3..4, 2),
+            ], 1)
+        ])
+    }
+
+    #[test]
+    fn test_optimize_count_loops_inv() {
+        let mut ops = vec![
+            Op::set(0..1, 6),
+            Op::loop_ops(0..1, vec![
+                Op::dec_ptr(1..2, 1),
+                Op::dec(2..3, 3),
+                Op::inc_ptr(3..4, 1),
+                Op::dec(4..5, 2),
+            ])
+        ];
+
+        optimize_count_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(0..1, 6),
+            Op::loop_ops_with_steps(0..1, vec![
+                Op::dec_ptr(1..2, 1),
+                Op::dec(2..3, 3),
+            ], 2)
         ])
     }
 }

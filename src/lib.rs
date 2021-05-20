@@ -17,10 +17,12 @@ mod tests {
 
     use crate::interpreter::Interpreter;
     use crate::parser::parse;
+    use crate::optimize;
 
     #[test]
     fn test_out_1() {
-        let program = parse(">+.").unwrap();
+        let mut program = parse(">+.").unwrap();
+        optimize(&mut program);
 
         let input = b"";
         let mut output = Vec::new();
@@ -32,7 +34,8 @@ mod tests {
 
     #[test]
     fn test_out_b() {
-        let program = parse(",++.").unwrap();
+        let mut program = parse(",++.").unwrap();
+        optimize(&mut program);
 
         let input = b"a";
         let mut output = Vec::new();
@@ -44,7 +47,8 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let program = parse("+++[>+<-]>.").unwrap();
+        let mut program = parse("+++[>+<-]>.").unwrap();
+        optimize(&mut program);
 
         let input = b"";
         let mut output = Vec::new();
@@ -56,7 +60,8 @@ mod tests {
 
     #[test]
     fn test_hello_world() {
-        let program = parse(include_str!("test_programs/hello_world.bf")).unwrap();
+        let mut program = parse(include_str!("test_programs/hello_world.bf")).unwrap();
+        optimize(&mut program);
 
         let input = b"";
         let mut output = Vec::new();
@@ -64,5 +69,37 @@ mod tests {
         Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
 
         assert_eq!(output, b"Hello World!\n");
+    }
+
+    #[test]
+    fn test_count_loop() {
+        let mut program = parse("++++[->++<]").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 8);
+    }
+
+    #[test]
+    fn test_count_loop_inv() {
+        let mut program = parse("++++[->++<]").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 8);
     }
 }

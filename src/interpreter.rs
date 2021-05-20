@@ -9,7 +9,7 @@ const MAX_HEAP_SIZE: usize = 16 * 1024 * 1024;
 
 pub struct Interpreter<R: Read, W: Write> {
     max_heap_size: usize,
-    heap: Vec<u8>,
+    pub(crate) heap: Vec<u8>,
     pointer: usize,
     input: R,
     output: W,
@@ -65,9 +65,23 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             }
             OpType::GetChar => self.get_char(&op.span)?,
             OpType::PutChar => self.put_char(&op.span)?,
-            OpType::Loop(ops) => {
-                while *self.heap_value(&op.span)? > 0 {
-                    self.execute_ops(ops)?;
+            OpType::Loop(ops, steps) => {
+                match steps {
+                    Some(steps) => {
+                        let heap_pointer = self.pointer;
+                        let mut left = *self.heap_value(&op.span)?;
+                        while left > 0 {
+                            self.execute_ops(ops)?;
+                            left = left.wrapping_sub(*steps);
+                            self.pointer = heap_pointer;
+                        }
+                        *self.heap_value(&op.span)? = 0;
+                    }
+                    None => {
+                        while *self.heap_value(&op.span)? > 0 {
+                            self.execute_ops(ops)?;
+                        }
+                    }
                 }
             }
         }
@@ -80,7 +94,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             return Err(RuntimeError::MaxHeapSizeReached {
                 span: span.clone(),
                 max_heap_size: self.max_heap_size,
-                required: self.pointer + 1,
+                required: self.pointer.checked_add(1).unwrap_or(usize::MAX),
             });
         }
 
@@ -99,7 +113,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             return Err(RuntimeError::MaxHeapSizeReached {
                 span: span.clone(),
                 max_heap_size: self.max_heap_size,
-                required: pointer + 1,
+                required: self.pointer.checked_add(1).unwrap_or(usize::MAX),
             });
         }
 

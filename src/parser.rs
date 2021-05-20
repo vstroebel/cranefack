@@ -18,7 +18,7 @@ impl Program {
 
         for op in ops {
             op_count += 1;
-            if let OpType::Loop(children) = &op.op_type {
+            if let OpType::Loop(children, ..) = &op.op_type {
                 let (ops, loops) = self.get_ops_statistics(children);
                 op_count += ops;
                 loop_count += 1 + loops;
@@ -59,8 +59,11 @@ impl Program {
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
 
-                OpType::Loop(children) => {
-                    writeln!(output, "LOOP")?;
+                OpType::Loop(children, steps) => {
+                    match steps {
+                        Some(steps) => writeln!(output, "LOOP {}", steps)?,
+                        None => writeln!(output, "LOOP")?,
+                    }
                     self.dump_ops(output, children, indent + 1)?;
                 }
             }
@@ -121,7 +124,13 @@ impl Op {
 
     pub fn loop_ops(span: Range<usize>, ops: Vec<Op>) -> Op {
         Op {
-            op_type: OpType::Loop(ops),
+            op_type: OpType::Loop(ops, None),
+            span,
+        }
+    }
+    pub fn loop_ops_with_steps(span: Range<usize>, ops: Vec<Op>, steps: u8) -> Op {
+        Op {
+            op_type: OpType::Loop(ops, Some(steps)),
             span,
         }
     }
@@ -159,7 +168,13 @@ pub enum OpType {
     Sub(isize, u8),
     PutChar,
     GetChar,
-    Loop(Vec<Op>),
+    Loop(Vec<Op>, Option<u8>),
+}
+
+impl OpType {
+    pub fn is_ptr_inc_or_dec(&self) -> bool {
+        matches!(self, OpType::DecPtr(_) | OpType::IncPtr(_))
+    }
 }
 
 const MAX_LOOP_DEPTH: usize = 1024;
