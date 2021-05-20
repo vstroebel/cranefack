@@ -34,30 +34,30 @@ pub struct Op {
 }
 
 impl Op {
-    pub fn inc_ptr(span: Range<usize>) -> Op {
+    pub fn inc_ptr(span: Range<usize>, count: usize) -> Op {
         Op {
-            op_type: OpType::IncPtr,
+            op_type: OpType::IncPtr(count),
             span,
         }
     }
 
-    pub fn dec_ptr(span: Range<usize>) -> Op {
+    pub fn dec_ptr(span: Range<usize>, count: usize) -> Op {
         Op {
-            op_type: OpType::DecPtr,
+            op_type: OpType::DecPtr(count),
             span,
         }
     }
 
-    pub fn inc(span: Range<usize>) -> Op {
+    pub fn inc(span: Range<usize>, count: u8) -> Op {
         Op {
-            op_type: OpType::Inc,
+            op_type: OpType::Inc(count),
             span,
         }
     }
 
-    pub fn dec(span: Range<usize>) -> Op {
+    pub fn dec(span: Range<usize>, count: u8) -> Op {
         Op {
-            op_type: OpType::Dec,
+            op_type: OpType::Dec(count),
             span,
         }
     }
@@ -86,10 +86,10 @@ impl Op {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum OpType {
-    IncPtr,
-    DecPtr,
-    Inc,
-    Dec,
+    IncPtr(usize),
+    DecPtr(usize),
+    Inc(u8),
+    Dec(u8),
     PutChar,
     GetChar,
     Loop(Vec<Op>),
@@ -150,10 +150,10 @@ impl Parser {
     pub fn parse(&mut self, source: &str) -> Result<Program, ParserError> {
         for (pos, char) in source.chars().enumerate() {
             match char {
-                '>' => self.push_op(Op::inc_ptr(pos..pos + 1)),
-                '<' => self.push_op(Op::dec_ptr(pos..pos + 1)),
-                '+' => self.push_op(Op::inc(pos..pos + 1)),
-                '-' => self.push_op(Op::dec(pos..pos + 1)),
+                '>' => self.push_op(Op::inc_ptr(pos..pos + 1, 1)),
+                '<' => self.push_op(Op::dec_ptr(pos..pos + 1, 1)),
+                '+' => self.push_op(Op::inc(pos..pos + 1, 1)),
+                '-' => self.push_op(Op::dec(pos..pos + 1, 1)),
                 '.' => self.push_op(Op::put_char(pos..pos + 1)),
                 ',' => self.push_op(Op::get_char(pos..pos + 1)),
                 '[' => self.open_loop(pos)?,

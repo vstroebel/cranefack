@@ -40,15 +40,15 @@ impl<R: Read, W: Write> Interpreter<R, W> {
 
     fn execute_op(&mut self, op: &Op) -> Result<(), RuntimeError> {
         match &op.op_type {
-            OpType::IncPtr => self.pointer = self.pointer.wrapping_add(1),
-            OpType::DecPtr => self.pointer = self.pointer.wrapping_sub(1),
-            OpType::Inc => {
+            OpType::IncPtr(count) => self.pointer = self.pointer.wrapping_add(*count),
+            OpType::DecPtr(count) => self.pointer = self.pointer.wrapping_sub(*count),
+            OpType::Inc(count) => {
                 let value = self.heap_value(&op.span)?;
-                *value = value.wrapping_add(1);
+                *value = value.wrapping_add(*count);
             }
-            OpType::Dec => {
+            OpType::Dec(count) => {
                 let value = self.heap_value(&op.span)?;
-                *value = value.wrapping_sub(1);
+                *value = value.wrapping_sub(*count);
             }
             OpType::GetChar => self.get_char(&op.span)?,
             OpType::PutChar => self.put_char(&op.span)?,
