@@ -53,6 +53,8 @@ impl Program {
                 OpType::Inc(value) => writeln!(output, "INC {}", value)?,
                 OpType::Dec(value) => writeln!(output, "DEC {}", value)?,
                 OpType::Set(value) => writeln!(output, "SET {}", value)?,
+                OpType::Add(value, multi) => writeln!(output, "ADD offset: {} multiply: {}", value, multi)?,
+                OpType::Sub(value, multi) => writeln!(output, "SUB offset: {} multiply: {}", value, multi)?,
 
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
@@ -130,6 +132,20 @@ impl Op {
             span,
         }
     }
+
+    pub fn add(span: Range<usize>, ptr_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::Add(ptr_offset, multi),
+            span,
+        }
+    }
+
+    pub fn sub(span: Range<usize>, ptr_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::Sub(ptr_offset, multi),
+            span,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -139,6 +155,8 @@ pub enum OpType {
     Inc(u8),
     Dec(u8),
     Set(u8),
+    Add(isize, u8),
+    Sub(isize, u8),
     PutChar,
     GetChar,
     Loop(Vec<Op>),

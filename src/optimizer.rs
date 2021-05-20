@@ -16,6 +16,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= remove_empty_loops(&mut program.ops);
         progress |= optimize_zero_loops(&mut program.ops);
         progress |= optimize_inc_dec(&mut program.ops, 0);
+        progress |= optimize_arithmethic_loops(&mut program.ops);
     }
 
     count
@@ -76,6 +77,78 @@ fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
                 progress = true;
             } else {
                 progress |= optimize_zero_loops(children);
+            }
+        }
+
+        i += 1;
+    }
+
+    progress
+}
+
+fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while i < ops.len() {
+        let op = &mut ops[i];
+        if let OpType::Loop(children) = &mut op.op_type {
+            let mut optimized = None;
+            if children.len() == 4 {
+                match (&children[0].op_type, &children[1].op_type, &children[2].op_type, &children[3].op_type) {
+                    (OpType::Dec(1), OpType::IncPtr(offset), OpType::Inc(multi), OpType::DecPtr(offset2)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Add(*offset as isize, *multi));
+                        }
+                    }
+                    (OpType::Dec(1), OpType::DecPtr(offset), OpType::Inc(multi), OpType::IncPtr(offset2)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Add(-(*offset as isize), *multi));
+                        }
+                    }
+                    (OpType::IncPtr(offset), OpType::Inc(multi), OpType::DecPtr(offset2), OpType::Dec(1)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Add(*offset as isize, *multi));
+                        }
+                    }
+                    (OpType::DecPtr(offset), OpType::Inc(multi), OpType::IncPtr(offset2), OpType::Dec(1)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Add(-(*offset as isize), *multi));
+                        }
+                    }
+                    (OpType::Dec(1), OpType::IncPtr(offset), OpType::Dec(multi), OpType::DecPtr(offset2)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Sub(*offset as isize, *multi));
+                        }
+                    }
+                    (OpType::Dec(1), OpType::DecPtr(offset), OpType::Dec(multi), OpType::IncPtr(offset2)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Sub(-(*offset as isize), *multi));
+                        }
+                    }
+                    (OpType::IncPtr(offset), OpType::Dec(multi), OpType::DecPtr(offset2), OpType::Dec(1)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Sub(*offset as isize, *multi));
+                        }
+                    }
+                    (OpType::DecPtr(offset), OpType::Dec(multi), OpType::IncPtr(offset2), OpType::Dec(1)) => {
+                        if offset == offset2 {
+                            optimized = Some(OpType::Sub(-(*offset as isize), *multi));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some(new_op) = optimized {
+                ops[i] = Op {
+                    span: op.span.start..children[3].span.end,
+                    op_type: new_op,
+                };
+                progress = true;
+            } else {
+                progress |= optimize_arithmethic_loops(children);
             }
         }
 
@@ -176,7 +249,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -369,6 +442,79 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::set(0..2, 0),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_add() {
+        let mut ops = vec![
+            Op::loop_ops(0..1, vec![
+                Op::inc_ptr(1..2, 1),
+                Op::inc(2..3, 1),
+                Op::dec_ptr(3..4, 1),
+                Op::dec(4..5, 1),
+            ])
+        ];
+
+        optimize_arithmethic_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::add(0..5, 1, 1),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_add_inv() {
+        let mut ops = vec![
+            Op::loop_ops(0..1, vec![
+                Op::dec(1..2, 1),
+                Op::inc_ptr(2..3, 2),
+                Op::inc(3..4, 1),
+                Op::dec_ptr(4..5, 2),
+            ])
+        ];
+
+        optimize_arithmethic_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::add(0..5, 2, 1),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_sub() {
+        let mut ops = vec![
+            Op::loop_ops(0..1, vec![
+                Op::inc_ptr(1..2, 1),
+                Op::dec(2..3, 2),
+                Op::dec_ptr(3..4, 1),
+                Op::dec(4..5, 1),
+            ])
+        ];
+
+        optimize_arithmethic_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::sub(0..5, 1, 2),
+        ])
+    }
+
+
+    #[test]
+    fn test_optimize_sub2() {
+        let mut ops = vec![
+            Op::loop_ops(0..1, vec![
+                Op::dec(1..2, 1),
+                Op::inc_ptr(2..3, 1),
+                Op::dec(3..4, 2),
+                Op::dec_ptr(4..5, 1),
+            ])
+        ];
+
+        optimize_arithmethic_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::sub(0..5, 1, 2),
         ])
     }
 }

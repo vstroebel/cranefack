@@ -51,6 +51,18 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 *value = value.wrapping_sub(*count);
             }
             OpType::Set(value) => *self.heap_value(&op.span)? = *value,
+            OpType::Add(ptr_offset, multi) => {
+                let source = *self.heap_value(&op.span)?;
+                let target = self.heap_value_at_offset(&op.span, *ptr_offset)?;
+                *target = target.wrapping_add(source.wrapping_mul(*multi));
+                *self.heap_value(&op.span)? = 0;
+            }
+            OpType::Sub(ptr_offset, multi) => {
+                let source = *self.heap_value(&op.span)?;
+                let target = self.heap_value_at_offset(&op.span, *ptr_offset)?;
+                *target = target.wrapping_sub(source.wrapping_mul(*multi));
+                *self.heap_value(&op.span)? = 0;
+            }
             OpType::GetChar => self.get_char(&op.span)?,
             OpType::PutChar => self.put_char(&op.span)?,
             OpType::Loop(ops) => {
@@ -76,6 +88,25 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             self.heap.push(0);
         }
         Ok(&mut self.heap[self.pointer])
+    }
+
+    fn heap_value_at_offset(&mut self, span: &Range<usize>, ptr_offset: isize) -> Result<&mut u8, RuntimeError> {
+        let pointer = self.pointer as isize + ptr_offset;
+
+        let pointer = pointer.max(0) as usize;
+
+        if pointer >= self.max_heap_size {
+            return Err(RuntimeError::MaxHeapSizeReached {
+                span: span.clone(),
+                max_heap_size: self.max_heap_size,
+                required: pointer + 1,
+            });
+        }
+
+        while pointer > self.heap.len() - 1 {
+            self.heap.push(0);
+        }
+        Ok(&mut self.heap[pointer])
     }
 
     fn get_char(&mut self, span: &Range<usize>) -> Result<(), RuntimeError> {
