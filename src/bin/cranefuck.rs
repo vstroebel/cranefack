@@ -70,12 +70,21 @@ fn create_clap_app() -> App<'static, 'static> {
         )
 }
 
+fn read_input(path: &OsStr) -> Result<String, Box<dyn Error>> {
+    if path == "-" {
+        let mut source = "".to_owned();
+        stdin().read_to_string(&mut source)?;
+        Ok(source)
+    } else {
+        let mut file = File::open(path)?;
+        let mut source = "".to_owned();
+        file.read_to_string(&mut source)?;
+        Ok(source)
+    }
+}
+
 fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn Error>> {
-    let mut file = File::open(path)?;
-
-    let mut source = "".to_owned();
-
-    file.read_to_string(&mut source)?;
+    let source = read_input(path)?;
 
     let mut ts = SystemTime::now();
 
@@ -138,11 +147,7 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
 }
 
 fn compile_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn Error>> {
-    let mut file = File::open(path)?;
-
-    let mut source = "".to_owned();
-
-    file.read_to_string(&mut source)?;
+    let source = read_input(path)?;
 
     let mut ts = SystemTime::now();
 
