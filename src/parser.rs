@@ -3,60 +3,80 @@ use std::ops::Range;
 
 pub struct Program {
     pub ops: Vec<Op>,
-    pub op_count: usize,
-    pub loop_count: usize,
 }
 
-#[derive(Debug)]
+impl Program {
+    pub fn get_statistics(&self) -> (usize, usize) {
+        self.get_ops_statistics(&self.ops)
+    }
+
+    fn get_ops_statistics(&self, ops: &[Op]) -> (usize, usize) {
+        let mut op_count = 0;
+        let mut loop_count = 0;
+
+        for op in ops {
+            op_count += 1;
+            if let OpType::Loop(children) = &op.op_type {
+                let (ops, loops) = self.get_ops_statistics(children);
+                op_count += ops;
+                loop_count += 1 + loops;
+            }
+        }
+
+        (op_count, loop_count)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct Op {
     pub op_type: OpType,
     pub span: Range<usize>,
 }
 
 impl Op {
-    fn inc_ptr(span: Range<usize>) -> Op {
+    pub fn inc_ptr(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::IncPtr,
             span,
         }
     }
 
-    fn dec_ptr(span: Range<usize>) -> Op {
+    pub fn dec_ptr(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::DecPtr,
             span,
         }
     }
 
-    fn inc(span: Range<usize>) -> Op {
+    pub fn inc(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::Inc,
             span,
         }
     }
 
-    fn dec(span: Range<usize>) -> Op {
+    pub fn dec(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::Dec,
             span,
         }
     }
 
-    fn put_char(span: Range<usize>) -> Op {
+    pub fn put_char(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::PutChar,
             span,
         }
     }
 
-    fn get_char(span: Range<usize>) -> Op {
+    pub fn get_char(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::GetChar,
             span,
         }
     }
 
-    fn loop_ops(span: Range<usize>, ops: Vec<Op>) -> Op {
+    pub fn loop_ops(span: Range<usize>, ops: Vec<Op>) -> Op {
         Op {
             op_type: OpType::Loop(ops),
             span,
@@ -64,7 +84,7 @@ impl Op {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum OpType {
     IncPtr,
     DecPtr,
@@ -79,16 +99,12 @@ const MAX_LOOP_DEPTH: usize = 1024;
 
 struct Parser {
     stack: Vec<(usize, Vec<Op>)>,
-    op_count: usize,
-    loop_count: usize,
 }
 
 impl Parser {
     pub fn new() -> Parser {
         Parser {
             stack: vec![(1, vec![])],
-            op_count: 0,
-            loop_count: 0,
         }
     }
 
@@ -97,7 +113,6 @@ impl Parser {
     }
 
     pub fn push_op(&mut self, op: Op) {
-        self.op_count += 1;
         let tos = self.stack.len() - 1;
         self.stack[tos].1.push(op);
     }
@@ -118,7 +133,6 @@ impl Parser {
         let tos = self.stack.len() - 1;
 
         if tos > 0 {
-            self.loop_count += 1;
             let ops = self.stack.remove(tos);
             self.push_op(Op::loop_ops(position..position + 1, ops.1));
             Ok(())
@@ -158,8 +172,6 @@ impl Parser {
 
         Ok(Program {
             ops: self.stack.remove(0).1,
-            op_count: self.op_count,
-            loop_count: self.loop_count,
         })
     }
 }
