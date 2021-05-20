@@ -204,20 +204,37 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             if !ignore && ptr_inc_count == 0 {
                 if let Some(v) = get_dec_count(&children[0].op_type) {
                     children.remove(0);
-                    *steps = Some(v);
+
 
                     if children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
                         children.remove(children.len() - 1);
                     }
+
+                    let offset = if let Some(offset) = get_ptr_offset(&children[0].op_type) {
+                        children.remove(0);
+                        offset
+                    } else {
+                        0
+                    };
+
+                    *steps = Some((offset, v));
 
                     progress = true;
                 } else if let Some(v) = get_dec_count(&children[children.len() - 1].op_type) {
                     children.remove(children.len() - 1);
-                    *steps = Some(v);
 
                     if children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
                         children.remove(children.len() - 1);
                     }
+
+                    let offset = if let Some(offset) = get_ptr_offset(&children[0].op_type) {
+                        children.remove(0);
+                        offset
+                    } else {
+                        0
+                    };
+
+                    *steps = Some((offset, v));
 
                     progress = true;
                 }
@@ -234,6 +251,14 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
 fn get_dec_count(op_type: &OpType) -> Option<u8> {
     match op_type {
         OpType::Dec(count) => Some(*count),
+        _ => None,
+    }
+}
+
+fn get_ptr_offset(op_type: &OpType) -> Option<isize> {
+    match op_type {
+        OpType::IncPtr(count) => Some(*count as isize),
+        OpType::DecPtr(count) => Some(-(*count as isize)),
         _ => None,
     }
 }
@@ -628,9 +653,8 @@ mod tests {
         assert_eq!(ops, vec![
             Op::set(0..1, 6),
             Op::loop_ops_with_steps(0..1, vec![
-                Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], 1)
+            ], 1, 1)
         ])
     }
 
@@ -651,9 +675,8 @@ mod tests {
         assert_eq!(ops, vec![
             Op::set(0..1, 6),
             Op::loop_ops_with_steps(0..1, vec![
-                Op::dec_ptr(1..2, 1),
                 Op::dec(2..3, 3),
-            ], 2)
+            ], 2, -1)
         ])
     }
 }

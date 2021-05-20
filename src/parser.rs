@@ -61,7 +61,7 @@ impl Program {
 
                 OpType::Loop(children, steps) => {
                     match steps {
-                        Some(steps) => writeln!(output, "LOOP {}", steps)?,
+                        Some((offset, steps)) => writeln!(output, "LOOP offset: {} steps: {}", offset, steps)?,
                         None => writeln!(output, "LOOP")?,
                     }
                     self.dump_ops(output, children, indent + 1)?;
@@ -128,9 +128,9 @@ impl Op {
             span,
         }
     }
-    pub fn loop_ops_with_steps(span: Range<usize>, ops: Vec<Op>, steps: u8) -> Op {
+    pub fn loop_ops_with_steps(span: Range<usize>, ops: Vec<Op>, steps: u8, offset: isize) -> Op {
         Op {
-            op_type: OpType::Loop(ops, Some(steps)),
+            op_type: OpType::Loop(ops, Some((offset, steps))),
             span,
         }
     }
@@ -168,7 +168,7 @@ pub enum OpType {
     Sub(isize, u8),
     PutChar,
     GetChar,
-    Loop(Vec<Op>, Option<u8>),
+    Loop(Vec<Op>, Option<(isize, u8)>),
 }
 
 impl OpType {

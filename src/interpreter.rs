@@ -67,14 +67,18 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             OpType::PutChar => self.put_char(&op.span)?,
             OpType::Loop(ops, steps) => {
                 match steps {
-                    Some(steps) => {
+                    Some((offset, steps)) => {
                         let heap_pointer = self.pointer;
+                        let start_heap_pointer = (self.pointer as isize).wrapping_add(*offset) as usize;
+
                         let mut left = *self.heap_value(&op.span)?;
                         while left > 0 {
+                            self.pointer = start_heap_pointer;
+
                             self.execute_ops(ops)?;
                             left = left.wrapping_sub(*steps);
-                            self.pointer = heap_pointer;
                         }
+                        self.pointer = heap_pointer;
                         *self.heap_value(&op.span)? = 0;
                     }
                     None => {
