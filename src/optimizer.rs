@@ -14,6 +14,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         remove_preceding_loop(&mut program.ops);
 
         progress |= remove_empty_loops(&mut program.ops);
+        progress |= optimize_zero_loops(&mut program.ops);
         progress |= optimize_inc_dec(&mut program.ops, 0);
     }
 
@@ -48,6 +49,36 @@ fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
                 progress |= remove_empty_loops(children);
             }
         }
+        i += 1;
+    }
+
+    progress
+}
+
+// Replace '[-]' that decreases the current point to 0 with set
+fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while i < ops.len() {
+        let op = &mut ops[i];
+        if let OpType::Loop(children) = &mut op.op_type {
+            let mut optimized = false;
+            if children.len() == 1 {
+                if let OpType::Dec(1) = children[0].op_type {
+                    optimized = true;
+                }
+            }
+
+            if optimized {
+                ops[i] = Op::set(op.span.start..children[0].span.end, 0);
+                progress = true;
+            } else {
+                progress |= optimize_zero_loops(children);
+            }
+        }
+
         i += 1;
     }
 
@@ -143,7 +174,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -295,6 +326,19 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::inc(2..3, 3),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_zero_loop() {
+        let mut ops = vec![
+            Op::loop_ops(0..1, vec![Op::dec(1..2, 1)]),
+        ];
+
+        optimize_zero_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(0..2, 0),
         ])
     }
 }

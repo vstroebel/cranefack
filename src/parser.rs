@@ -52,6 +52,7 @@ impl Program {
 
                 OpType::Inc(value) => writeln!(output, "INC {}", value)?,
                 OpType::Dec(value) => writeln!(output, "DEC {}", value)?,
+                OpType::Set(value) => writeln!(output, "SET {}", value)?,
 
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
@@ -122,6 +123,13 @@ impl Op {
             span,
         }
     }
+
+    pub fn set(span: Range<usize>, value: u8) -> Op {
+        Op {
+            op_type: OpType::Set(value),
+            span,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -130,6 +138,7 @@ pub enum OpType {
     DecPtr(usize),
     Inc(u8),
     Dec(u8),
+    Set(u8),
     PutChar,
     GetChar,
     Loop(Vec<Op>),

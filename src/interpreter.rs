@@ -50,6 +50,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 let value = self.heap_value(&op.span)?;
                 *value = value.wrapping_sub(*count);
             }
+            OpType::Set(value) => *self.heap_value(&op.span)? = *value,
             OpType::GetChar => self.get_char(&op.span)?,
             OpType::PutChar => self.put_char(&op.span)?,
             OpType::Loop(ops) => {
