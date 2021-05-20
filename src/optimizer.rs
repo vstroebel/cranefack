@@ -13,6 +13,9 @@ pub fn optimize(program: &mut Program) -> u32 {
         // No progress tracking needed
         remove_preceding_loop(&mut program.ops);
 
+        // No progress tracking needed
+        optimize_first_incs(&mut program.ops);
+
         progress |= remove_empty_loops(&mut program.ops);
         progress |= optimize_zero_loops(&mut program.ops);
         progress |= optimize_inc_dec(&mut program.ops, 0);
@@ -27,6 +30,17 @@ fn remove_preceding_loop(ops: &mut Vec<Op>) {
     while !ops.is_empty() {
         if let OpType::Loop(_) = ops[0].op_type {
             ops.remove(0);
+        } else {
+            break;
+        }
+    }
+}
+
+// Prepare for better optimization of loops with known size
+fn optimize_first_incs(ops: &mut Vec<Op>) {
+    while !ops.is_empty() {
+        if let OpType::Inc(value) = &ops[0].op_type {
+            ops[0].op_type = OpType::Set(*value);
         } else {
             break;
         }
@@ -249,7 +263,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -267,6 +281,19 @@ mod tests {
             Op::inc(2..3, 1),
             Op::loop_ops(3..4, vec![Op::inc(4..5, 1),
             ]),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_first_incs() {
+        let mut ops = vec![
+            Op::inc(0..1, 5),
+        ];
+
+        optimize_first_incs(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(0..1, 5),
         ])
     }
 
