@@ -69,7 +69,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 match steps {
                     Some((offset, steps)) => {
                         let heap_pointer = self.pointer;
-                        let start_heap_pointer = (self.pointer as isize).wrapping_add(*offset) as usize;
+                        let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
                         let mut left = *self.heap_value(&op.span)?;
                         while left > 0 {

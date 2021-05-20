@@ -163,4 +163,37 @@ mod tests {
         assert_eq!(interpreter.heap[0], 0);
         assert_eq!(interpreter.heap[1], 4);
     }
+
+    #[test]
+    fn test_pow_5_3() {
+        let mut program = parse("+++++[>+++++[>+++++<-]<-]").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 0);
+        assert_eq!(interpreter.heap[2], 125);
+    }
+
+    #[test]
+    fn test_bad_count_loop() {
+        let mut program = parse("++++++++[---->+<++]").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 4);
+    }
 }

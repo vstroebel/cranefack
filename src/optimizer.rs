@@ -181,14 +181,33 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
 
     while !ops.is_empty() && !ops.is_empty() && i < ops.len() {
         if let OpType::Loop(children, steps) = &mut ops[i].op_type {
-            let mut ptr_inc_count = 0_isize;
+            let mut ptr_offset = 0_isize;
             let mut ignore = false;
 
-            if children.len() >= 3 {
-                for op in children.iter() {
+            let num_ops = children.len();
+            if num_ops >= 3 {
+                for (i, op) in children.iter().enumerate() {
                     match &op.op_type {
-                        OpType::IncPtr(value) => ptr_inc_count += *value as isize,
-                        OpType::DecPtr(value) => ptr_inc_count -= *value as isize,
+                        OpType::IncPtr(value) => ptr_offset += *value as isize,
+                        OpType::DecPtr(value) => ptr_offset -= *value as isize,
+                        OpType::Add(offset, _) | OpType::Sub(offset, _) => {
+                            if ptr_offset + offset == 0 {
+                                ignore = true;
+                                break;
+                            }
+                        }
+                        OpType::Inc(_) | OpType::Set(_) | OpType::GetChar => {
+                            if ptr_offset == 0 {
+                                ignore = true;
+                                break;
+                            }
+                        }
+                        OpType::Dec(_) => {
+                            if ptr_offset == 0 && i > 0 && i < num_ops - 1 {
+                                ignore = true;
+                                break;
+                            }
+                        }
                         OpType::Loop(..) => {
                             ignore = true;
                             break;
@@ -200,11 +219,9 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                 }
             }
 
-
-            if !ignore && ptr_inc_count == 0 {
+            if !ignore && ptr_offset == 0 {
                 if let Some(v) = get_dec_count(&children[0].op_type) {
                     children.remove(0);
-
 
                     if children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
                         children.remove(children.len() - 1);
