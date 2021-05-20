@@ -3,6 +3,8 @@ use std::ops::Range;
 
 pub struct Program {
     pub ops: Vec<Op>,
+    pub op_count: usize,
+    pub loop_count: usize,
 }
 
 #[derive(Debug)]
@@ -77,12 +79,16 @@ const MAX_LOOP_DEPTH: usize = 1024;
 
 struct Parser {
     stack: Vec<(usize, Vec<Op>)>,
+    op_count: usize,
+    loop_count: usize,
 }
 
 impl Parser {
     pub fn new() -> Parser {
         Parser {
             stack: vec![(1, vec![])],
+            op_count: 0,
+            loop_count: 0,
         }
     }
 
@@ -91,6 +97,7 @@ impl Parser {
     }
 
     pub fn push_op(&mut self, op: Op) {
+        self.op_count += 1;
         let tos = self.stack.len() - 1;
         self.stack[tos].1.push(op);
     }
@@ -111,6 +118,7 @@ impl Parser {
         let tos = self.stack.len() - 1;
 
         if tos > 0 {
+            self.loop_count += 1;
             let ops = self.stack.remove(tos);
             self.push_op(Op::loop_ops(position..position + 1, ops.1));
             Ok(())
@@ -150,6 +158,8 @@ impl Parser {
 
         Ok(Program {
             ops: self.stack.remove(0).1,
+            op_count: self.op_count,
+            loop_count: self.loop_count,
         })
     }
 }
