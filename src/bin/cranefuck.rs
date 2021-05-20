@@ -102,7 +102,7 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
     }
 
     if opt_mode == "1" {
-        optimize(&mut program);
+        let opt_loop_count = optimize(&mut program);
 
         if verbose {
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
@@ -110,10 +110,11 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
 
             let (op_count, loop_count) = program.get_statistics();
 
-            writeln!(writer, "Optimized program with {} instructions and {} loops in {}ms",
+            writeln!(writer, "Optimized program with {} instructions and {} loops in {}ms and {} iterations",
                      op_count,
                      loop_count,
-                     ts.elapsed()?.as_micros() as f32 / 1000.0
+                     ts.elapsed()?.as_micros() as f32 / 1000.0,
+                     opt_loop_count,
             )?;
             writer.reset()?;
             ts = SystemTime::now();
@@ -168,7 +169,7 @@ fn compile_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<d
     }
 
     if opt_mode == "1" {
-        optimize(&mut program);
+        let opt_loop_count = optimize(&mut program);
 
         if verbose {
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
@@ -176,10 +177,11 @@ fn compile_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<d
 
             let (op_count, loop_count) = program.get_statistics();
 
-            writeln!(writer, "Optimized program with {} instructions and {} loops in {}ms",
+            writeln!(writer, "Optimized program with {} instructions and {} loops in {}ms and {} iterations",
                      op_count,
                      loop_count,
-                     ts.elapsed()?.as_micros() as f32 / 1000.0
+                     ts.elapsed()?.as_micros() as f32 / 1000.0,
+                     opt_loop_count,
             )?;
             writer.reset()?;
         }

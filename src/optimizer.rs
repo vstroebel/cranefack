@@ -13,8 +13,8 @@ pub fn optimize(program: &mut Program) -> u32 {
         // No progress tracking needed
         remove_preceding_loop(&mut program.ops);
 
-        progress &= remove_empty_loops(&mut program.ops);
-        progress &= optimize_inc_dec(&mut program.ops);
+        progress |= remove_empty_loops(&mut program.ops);
+        progress |= optimize_inc_dec(&mut program.ops, 0);
     }
 
     count
@@ -45,7 +45,7 @@ fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
                 progress = true;
                 i -= 1;
             } else {
-                progress &= remove_empty_loops(children);
+                progress |= remove_empty_loops(children);
             }
         }
         i += 1;
@@ -54,6 +54,7 @@ fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
+#[derive(Debug)]
 enum Mode {
     Ignore,
     Remove,
@@ -61,7 +62,7 @@ enum Mode {
 }
 
 // Merge multiple inc/dec or inc_ptr dec_ptr ops and remove zero versions
-fn optimize_inc_dec(ops: &mut Vec<Op>) -> bool {
+fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -103,7 +104,6 @@ fn optimize_inc_dec(ops: &mut Vec<Op>) -> bool {
                     Ordering::Less => Mode::Replace(OpType::IncPtr(v2 - v1)),
                 }
             }
-
             _ => Mode::Ignore
         };
 
@@ -111,6 +111,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>) -> bool {
             Mode::Remove => {
                 ops.remove(i);
                 ops.remove(i);
+                progress = true;
             }
             Mode::Replace(op_type) => {
                 let span = op1.span.start..op2.span.end;
@@ -119,13 +120,20 @@ fn optimize_inc_dec(ops: &mut Vec<Op>) -> bool {
                     span,
                 };
                 ops.remove(i + 1);
+                progress = true;
             }
             Mode::Ignore => {
                 if let OpType::Loop(children) = &mut ops[i].op_type {
-                    progress &= optimize_inc_dec(children);
+                    progress |= optimize_inc_dec(children, depth + 1);
                 }
                 i += 1;
             }
+        }
+    }
+
+    if let Some(last) = ops.last_mut() {
+        if let OpType::Loop(children) = &mut last.op_type {
+            progress |= optimize_inc_dec(children, depth + 1);
         }
     }
 
@@ -181,7 +189,7 @@ mod tests {
             Op::inc(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::inc(0..2, 3),
@@ -195,7 +203,7 @@ mod tests {
             Op::dec(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::dec(0..2, 3),
@@ -210,7 +218,7 @@ mod tests {
             Op::dec(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::dec(0..3, 4),
@@ -225,7 +233,7 @@ mod tests {
             Op::inc_ptr(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::inc_ptr(2..3, 3),
@@ -239,7 +247,7 @@ mod tests {
             Op::inc_ptr(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::inc_ptr(0..2, 3),
@@ -253,7 +261,7 @@ mod tests {
             Op::dec_ptr(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::dec_ptr(0..2, 3),
@@ -268,7 +276,7 @@ mod tests {
             Op::dec_ptr(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::dec_ptr(0..3, 4),
@@ -283,7 +291,7 @@ mod tests {
             Op::inc(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops);
+        optimize_inc_dec(&mut ops, 1);
 
         assert_eq!(ops, vec![
             Op::inc(2..3, 3),
