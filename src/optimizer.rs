@@ -55,7 +55,7 @@ fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
 
     let mut progress = false;
 
-    while i < ops.len() {
+    while !ops.is_empty() && i < ops.len() {
         if let OpType::Loop(children, ..) = &mut ops[i].op_type {
             if children.is_empty() {
                 ops.remove(i);
@@ -77,7 +77,7 @@ fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 
     let mut progress = false;
 
-    while i < ops.len() {
+    while !ops.is_empty() && i < ops.len() {
         let op = &mut ops[i];
         if let OpType::Loop(children, ..) = &mut op.op_type {
             let mut optimized = false;
@@ -106,7 +106,7 @@ fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
 
     let mut progress = false;
 
-    while i < ops.len() {
+    while !ops.is_empty() && i < ops.len() {
         let op = &mut ops[i];
         if let OpType::Loop(children, ..) = &mut op.op_type {
             let mut optimized = None;
@@ -179,7 +179,7 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
 
     let mut progress = false;
 
-    while i < ops.len() {
+    while !ops.is_empty() && !ops.is_empty() && i < ops.len() {
         if let OpType::Loop(children, steps) = &mut ops[i].op_type {
             let mut ptr_inc_count = 0_isize;
             let mut ignore = false;
@@ -251,7 +251,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
 
     let mut progress = false;
 
-    while i < ops.len() - 1 {
+    while !ops.is_empty() && i < ops.len() - 1 {
         let op1 = &ops[i];
         let op2 = &ops[i + 1];
 

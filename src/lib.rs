@@ -1,4 +1,3 @@
-
 mod parser;
 mod interpreter;
 mod errors;
@@ -101,5 +100,35 @@ mod tests {
 
         assert_eq!(interpreter.heap[0], 0);
         assert_eq!(interpreter.heap[1], 8);
+    }
+
+    #[test]
+    fn test_totally_empty() {
+        let mut program = parse("").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+    }
+
+    #[test]
+    fn test_optimized_empty() {
+        let mut program = parse("[>+++++<-]").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
     }
 }
