@@ -1,8 +1,9 @@
-use crate::parser::{Program, Op};
-use std::io::Write;
 use std::io::Read;
-use std::error::Error;
-use std::fmt::{Display, Formatter, Debug};
+use std::io::Write;
+
+use crate::errors::RuntimeError;
+use crate::parser::{Op, Program, OpType};
+use std::ops::Range;
 
 const MAX_HEAP_SIZE: usize = 16 * 1024 * 1024;
 
@@ -38,21 +39,21 @@ impl<R: Read, W: Write> Interpreter<R, W> {
     }
 
     fn execute_op(&mut self, op: &Op) -> Result<(), RuntimeError> {
-        match op {
-            Op::IncPtr => self.pointer = self.pointer.wrapping_add(1),
-            Op::DecPtr => self.pointer = self.pointer.wrapping_sub(1),
-            Op::Inc => {
-                let value = self.heap_value()?;
+        match &op.op_type {
+            OpType::IncPtr => self.pointer = self.pointer.wrapping_add(1),
+            OpType::DecPtr => self.pointer = self.pointer.wrapping_sub(1),
+            OpType::Inc => {
+                let value = self.heap_value(&op.span)?;
                 *value = value.wrapping_add(1);
             }
-            Op::Dec => {
-                let value = self.heap_value()?;
+            OpType::Dec => {
+                let value = self.heap_value(&op.span)?;
                 *value = value.wrapping_sub(1);
             }
-            Op::GetChar => self.get_char()?,
-            Op::PutChar => self.put_char()?,
-            Op::Loop(ops) => {
-                while *self.heap_value()? > 0 {
+            OpType::GetChar => self.get_char(&op.span)?,
+            OpType::PutChar => self.put_char(&op.span)?,
+            OpType::Loop(ops) => {
+                while *self.heap_value(&op.span)? > 0 {
                     self.execute_ops(ops)?;
                 }
             }
@@ -61,9 +62,10 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         Ok(())
     }
 
-    fn heap_value(&mut self) -> Result<&mut u8, RuntimeError> {
+    fn heap_value(&mut self, span: &Range<usize>) -> Result<&mut u8, RuntimeError> {
         if self.pointer >= self.max_heap_size {
             return Err(RuntimeError::MaxHeapSizeReached {
+                span: span.clone(),
                 max_heap_size: self.max_heap_size,
                 required: self.pointer + 1,
             });
@@ -75,57 +77,28 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         Ok(&mut self.heap[self.pointer])
     }
 
-    fn get_char(&mut self) -> Result<(), RuntimeError> {
+    fn get_char(&mut self, span: &Range<usize>) -> Result<(), RuntimeError> {
         let mut buf = [0];
-        self.input.read_exact(&mut buf)?;
-        *self.heap_value()? = buf[0];
+        self.input.read_exact(&mut buf).map_err(|error| RuntimeError::IoError {
+            span: span.clone(),
+            error,
+        })?;
+
+        *self.heap_value(span)? = buf[0];
 
         Ok(())
     }
 
-    fn put_char(&mut self) -> Result<(), RuntimeError> {
-        let ch = *self.heap_value()?;
+    fn put_char(&mut self, span: &Range<usize>) -> Result<(), RuntimeError> {
+        let ch = *self.heap_value(span)?;
 
         if ch.is_ascii() {
-            write!(self.output, "{}", ch as char)?;
+            write!(self.output, "{}", ch as char)
         } else {
-            write!(self.output, "\\0x{:x}", ch)?;
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub enum RuntimeError {
-    MaxHeapSizeReached {
-        max_heap_size: usize,
-        required: usize,
-    },
-    IoError(std::io::Error),
-}
-
-impl From<std::io::Error> for RuntimeError {
-    fn from(err: std::io::Error) -> RuntimeError {
-        RuntimeError::IoError(err)
-    }
-}
-
-impl Error for RuntimeError {
-    fn cause(&self) -> Option<&dyn Error> {
-        match self {
-            RuntimeError::IoError(err) => Some(err),
-            _ => None
-        }
-    }
-}
-
-impl Display for RuntimeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RuntimeError::MaxHeapSizeReached { max_heap_size, required } =>
-                write!(f, "Required heap size of {} exceeds limit of {}", max_heap_size, required),
-            RuntimeError::IoError(err) => std::fmt::Display::fmt(&err, f),
-        }
+            write!(self.output, "\\0x{:x}", ch)
+        }.map_err(|error| RuntimeError::IoError {
+            span: span.clone(),
+            error,
+        })
     }
 }

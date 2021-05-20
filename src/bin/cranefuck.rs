@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, stdin, stdout};
-use cranefuck::{parse, Interpreter};
+use cranefuck::{parse, Interpreter, CraneFuckError};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = create_clap_app().get_matches();
@@ -38,7 +38,12 @@ fn run_file(path: &OsStr) -> Result<(), Box<dyn Error>> {
 
     file.read_to_string(&mut source)?;
 
-    let program = parse(&source)?;
+    let program = match parse(&source) {
+        Ok(program) => program,
+        Err(err) => {
+            return err.pretty_print(&source, Some(&path.to_string_lossy()));
+        }
+    };
 
     let mut interpreter = Interpreter::new(stdin(), stdout());
 

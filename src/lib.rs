@@ -1,14 +1,18 @@
+pub use errors::{CraneFuckError, ParserError, RuntimeError};
+
+pub use crate::interpreter::Interpreter;
+pub use crate::parser::parse;
+
 mod parser;
 mod interpreter;
-
-pub use crate::parser::{parse, ParserError};
-pub use crate::interpreter::{Interpreter, RuntimeError};
+mod errors;
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::parse;
-    use crate::interpreter::Interpreter;
     use std::io::Cursor;
+
+    use crate::interpreter::Interpreter;
+    use crate::parser::parse;
 
     #[test]
     fn test_out_1() {
