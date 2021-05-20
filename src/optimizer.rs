@@ -1,4 +1,5 @@
 use crate::parser::{Program, Op, OpType};
+use std::cmp::Ordering;
 
 pub fn optimize(program: &mut Program) -> u32 {
     let mut progress = true;
@@ -73,41 +74,33 @@ fn optimize_inc_dec(ops: &mut Vec<Op>) -> bool {
             (OpType::Inc(v1), OpType::Inc(v2)) => Mode::Replace(OpType::Inc(v1.wrapping_add(*v2))),
             (OpType::Dec(v1), OpType::Dec(v2)) => Mode::Replace(OpType::Dec(v1.wrapping_add(*v2))),
             (OpType::Inc(v1), OpType::Dec(v2)) => {
-                if v1 == v2 {
-                    Mode::Remove
-                } else if v1 > v2 {
-                    Mode::Replace(OpType::Inc(v1 - v2))
-                } else {
-                    Mode::Replace(OpType::Dec(v2 - v1))
+                match v1.cmp(v2) {
+                    Ordering::Equal => Mode::Remove,
+                    Ordering::Greater => Mode::Replace(OpType::Inc(v1 - v2)),
+                    Ordering::Less => Mode::Replace(OpType::Dec(v2 - v1)),
                 }
             }
             (OpType::Dec(v1), OpType::Inc(v2)) => {
-                if v1 == v2 {
-                    Mode::Remove
-                } else if v1 > v2 {
-                    Mode::Replace(OpType::Dec(v1 - v2))
-                } else {
-                    Mode::Replace(OpType::Inc(v2 - v1))
+                match v1.cmp(v2) {
+                    Ordering::Equal => Mode::Remove,
+                    Ordering::Greater => Mode::Replace(OpType::Dec(v1 - v2)),
+                    Ordering::Less => Mode::Replace(OpType::Inc(v2 - v1)),
                 }
             }
             (OpType::IncPtr(v1), OpType::IncPtr(v2)) => Mode::Replace(OpType::IncPtr(v1.wrapping_add(*v2))),
             (OpType::DecPtr(v1), OpType::DecPtr(v2)) => Mode::Replace(OpType::DecPtr(v1.wrapping_add(*v2))),
             (OpType::IncPtr(v1), OpType::DecPtr(v2)) => {
-                if v1 == v2 {
-                    Mode::Remove
-                } else if v1 > v2 {
-                    Mode::Replace(OpType::IncPtr(v1 - v2))
-                } else {
-                    Mode::Replace(OpType::DecPtr(v2 - v1))
+                match v1.cmp(v2) {
+                    Ordering::Equal => Mode::Remove,
+                    Ordering::Greater => Mode::Replace(OpType::IncPtr(v1 - v2)),
+                    Ordering::Less => Mode::Replace(OpType::DecPtr(v2 - v1)),
                 }
             }
             (OpType::DecPtr(v1), OpType::IncPtr(v2)) => {
-                if v1 == v2 {
-                    Mode::Remove
-                } else if v1 > v2 {
-                    Mode::Replace(OpType::DecPtr(v1 - v2))
-                } else {
-                    Mode::Replace(OpType::IncPtr(v2 - v1))
+                match v1.cmp(v2) {
+                    Ordering::Equal => Mode::Remove,
+                    Ordering::Greater => Mode::Replace(OpType::DecPtr(v1 - v2)),
+                    Ordering::Less => Mode::Replace(OpType::IncPtr(v2 - v1)),
                 }
             }
 

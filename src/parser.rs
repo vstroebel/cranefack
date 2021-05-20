@@ -47,17 +47,17 @@ impl Program {
             }
 
             match &op.op_type {
-                OpType::IncPtr(value) => write!(output, "INC_PTR {} \n", value)?,
-                OpType::DecPtr(value) => write!(output, "DEC_PTR {} \n", value)?,
+                OpType::IncPtr(value) => writeln!(output, "INC_PTR {}", value)?,
+                OpType::DecPtr(value) => writeln!(output, "DEC_PTR {}", value)?,
 
-                OpType::Inc(value) => write!(output, "INC {} \n", value)?,
-                OpType::Dec(value) => write!(output, "DEC {} \n", value)?,
+                OpType::Inc(value) => writeln!(output, "INC {}", value)?,
+                OpType::Dec(value) => writeln!(output, "DEC {}", value)?,
 
-                OpType::PutChar => write!(output, "PUT \n")?,
-                OpType::GetChar => write!(output, "GET \n")?,
+                OpType::PutChar => writeln!(output, "PUT")?,
+                OpType::GetChar => writeln!(output, "GET")?,
 
                 OpType::Loop(children) => {
-                    write!(output, "LOOP \n")?;
+                    writeln!(output, "LOOP")?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
             }
