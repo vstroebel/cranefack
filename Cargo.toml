@@ -1,0 +1,8 @@
+[package]
+name = "cranefuck"
+version = "0.1.0"
+authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
+edition = "2018"
+
+[dependencies]
+clap = "2.33.3"
