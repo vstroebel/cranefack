@@ -131,4 +131,36 @@ mod tests {
 
         assert_eq!(interpreter.heap[0], 0);
     }
+
+    #[test]
+    fn test_multiply() {
+        let mut program = parse(">>++<<++[>+++++<-]").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 10);
+    }
+
+    #[test]
+    fn test_divide() {
+        let mut program = parse(">>++<<++++++++++++[>+<---]").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 4);
+    }
 }
