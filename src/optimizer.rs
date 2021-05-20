@@ -8,11 +8,26 @@ pub fn optimize(program: &mut Program) -> u32 {
     while count < 100 && progress {
         progress = false;
         count += 1;
+
+        // No progress tracking needed
+        remove_preceding_loop(&mut program.ops);
+
         progress &= remove_empty_loops(&mut program.ops);
         progress &= optimize_inc_dec(&mut program.ops);
     }
 
     count
+}
+
+// Loops at the beginning of a program will not be taken at all
+fn remove_preceding_loop(ops: &mut Vec<Op>) {
+    while !ops.is_empty() {
+        if let OpType::Loop(_) = ops[0].op_type {
+            ops.remove(0);
+        } else {
+            break;
+        }
+    }
 }
 
 // Remove loops that have no children left
@@ -127,7 +142,26 @@ fn optimize_inc_dec(ops: &mut Vec<Op>) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop};
+
+    #[test]
+    fn test_remove_preceding_loop() {
+        let mut ops = vec![
+            Op::loop_ops(0..1, vec![]),
+            Op::loop_ops(1..2, vec![]),
+            Op::inc(2..3, 1),
+            Op::loop_ops(3..4, vec![Op::inc(4..5, 1),
+            ]),
+        ];
+
+        remove_preceding_loop(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::inc(2..3, 1),
+            Op::loop_ops(3..4, vec![Op::inc(4..5, 1),
+            ]),
+        ])
+    }
 
     #[test]
     fn test_remove_empty_loops() {
