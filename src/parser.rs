@@ -1,5 +1,7 @@
 use crate::errors::ParserError;
 use std::ops::Range;
+use std::io::Write;
+use std::error::Error;
 
 pub struct Program {
     pub ops: Vec<Op>,
@@ -24,6 +26,44 @@ impl Program {
         }
 
         (op_count, loop_count)
+    }
+
+    pub fn dump<W: Write>(&self, mut output: W) -> Result<(), Box<dyn Error>> {
+        self.dump_ops(&mut output, &self.ops, 0)
+    }
+
+    fn dump_ops<W: Write>(&self, output: &mut W, ops: &[Op], indent: usize) -> Result<(), Box<dyn Error>> {
+        for op in ops {
+            let mut pos = format!("0x{:x}..0x{:x}", op.span.start, op.span.end - 1);
+
+            while pos.len() < 16 {
+                pos.push(' ');
+            }
+
+            write!(output, "{}", pos)?;
+
+            for _ in 0..indent {
+                write!(output, "  ")?;
+            }
+
+            match &op.op_type {
+                OpType::IncPtr(value) => write!(output, "INC_PTR {} \n", value)?,
+                OpType::DecPtr(value) => write!(output, "DEC_PTR {} \n", value)?,
+
+                OpType::Inc(value) => write!(output, "INC {} \n", value)?,
+                OpType::Dec(value) => write!(output, "DEC {} \n", value)?,
+
+                OpType::PutChar => write!(output, "PUT \n")?,
+                OpType::GetChar => write!(output, "GET \n")?,
+
+                OpType::Loop(children) => {
+                    write!(output, "LOOP \n")?;
+                    self.dump_ops(output, children, indent + 1)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
