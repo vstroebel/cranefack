@@ -22,7 +22,6 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_arithmethic_loops(&mut program.ops);
         progress |= optimize_count_loops(&mut program.ops);
         progress |= optimize_static_count_loops(&mut program.ops);
-
     }
 
     count
@@ -186,13 +185,20 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
         if let OpType::Loop(children, steps) = &mut ops[i].op_type {
             let mut ptr_offset = 0_isize;
             let mut ignore = false;
+            let mut possible_match = false;
 
             let num_ops = children.len();
             if num_ops >= 3 {
                 for (i, op) in children.iter().enumerate() {
                     match &op.op_type {
-                        OpType::IncPtr(value) => ptr_offset += *value as isize,
-                        OpType::DecPtr(value) => ptr_offset -= *value as isize,
+                        OpType::IncPtr(value) => {
+                            possible_match = true;
+                            ptr_offset += *value as isize;
+                        }
+                        OpType::DecPtr(value) => {
+                            possible_match = true;
+                            ptr_offset -= *value as isize;
+                        }
                         OpType::Add(offset, _) | OpType::Sub(offset, _) => {
                             if ptr_offset + offset == 0 {
                                 ignore = true;
@@ -222,7 +228,7 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                 }
             }
 
-            if !ignore && ptr_offset == 0 {
+            if !ignore && possible_match && ptr_offset == 0 {
                 if let Some(v) = get_dec_count(&children[0].op_type) {
                     children.remove(0);
 
