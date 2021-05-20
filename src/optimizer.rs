@@ -135,6 +135,8 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
                     Ordering::Less => Mode::Replace(OpType::IncPtr(v2 - v1)),
                 }
             }
+            (OpType::Set(v1), OpType::Inc(v2)) => Mode::Replace(OpType::Set(v1.wrapping_add(*v2))),
+            (OpType::Set(v1), OpType::Dec(v2)) => Mode::Replace(OpType::Set(v1.wrapping_sub(*v2))),
             _ => Mode::Ignore
         };
 
@@ -253,6 +255,34 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::dec(0..3, 4),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_set_inc() {
+        let mut ops = vec![
+            Op::set(0..1, 5),
+            Op::inc(1..2, 2),
+        ];
+
+        optimize_inc_dec(&mut ops, 1);
+
+        assert_eq!(ops, vec![
+            Op::set(0..2, 7),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_set_dec() {
+        let mut ops = vec![
+            Op::set(0..1, 5),
+            Op::dec(1..2, 2),
+        ];
+
+        optimize_inc_dec(&mut ops, 1);
+
+        assert_eq!(ops, vec![
+            Op::set(0..2, 3),
         ])
     }
 
