@@ -132,7 +132,9 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
 
     let mut interpreter = Interpreter::new(stdin(), stdout());
 
-    interpreter.execute(&program)?;
+    if let Err(err) = interpreter.execute(&program) {
+        return err.pretty_print(&source, Some(&path.to_string_lossy()));
+    }
 
     if verbose {
         let mut writer = StandardStream::stderr(ColorChoice::Auto);

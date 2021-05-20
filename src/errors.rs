@@ -103,7 +103,7 @@ impl Display for RuntimeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             RuntimeError::MaxHeapSizeReached { max_heap_size, required, .. } =>
-                write!(f, "Required heap size of {} exceeds limit of {}", max_heap_size, required),
+                write!(f, "Required heap size of 0x{:x} exceeds limit of 0x{:x}", required, max_heap_size),
             RuntimeError::IoError { error, .. } => std::fmt::Display::fmt(&error, f),
         }
     }
