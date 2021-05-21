@@ -77,6 +77,10 @@ impl Program {
                     writeln!(output, "CLOOP offset: {} iterations: {}", offset, iterations)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
+                OpType::TNz(children, offset) => {
+                    writeln!(output, "TNZ offset: {} ", offset)?;
+                    self.dump_ops(output, children, indent + 1)?;
+                }
             }
         }
 
@@ -174,6 +178,13 @@ impl Op {
             span,
         }
     }
+
+    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize) -> Op {
+        Op {
+            op_type: OpType::TNz(ops, offset),
+            span,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -195,6 +206,11 @@ pub enum OpType {
 
     /// Loop with compile time known iteration count
     CLoop(Vec<Op>, isize, u8),
+
+    /// Test if not zero.
+    ///
+    /// Executes block if current value is not zero. Similar to `if true { ops }`
+    TNz(Vec<Op>, isize),
 }
 
 impl OpType {
@@ -206,7 +222,8 @@ impl OpType {
         match self {
             OpType::DLoop(children) |
             OpType::ILoop(children, ..) |
-            OpType::CLoop(children, ..) => Some(children),
+            OpType::CLoop(children, ..) |
+            OpType::TNz(children, ..) => Some(children),
             _ => None,
         }
     }

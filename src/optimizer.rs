@@ -22,6 +22,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_arithmethic_loops(&mut program.ops);
         progress |= optimize_count_loops(&mut program.ops);
         progress |= optimize_static_count_loops(&mut program.ops);
+        progress |= optimize_conditional_loops(&mut program.ops);
     }
 
     count
@@ -433,10 +434,69 @@ fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
+// Replace loops only containing constant sets with TNz
+fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &mut ops[i];
+
+        let replace = match &op.op_type {
+            OpType::ILoop(children, ..) |
+            OpType::CLoop(children, ..) => {
+                if contains_only_constant_sets(children) {
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+
+        if replace {
+            let prev = ops.remove(i);
+            let span = prev.span;
+
+            match prev.op_type {
+                OpType::ILoop(children, offset, _) |
+                OpType::CLoop(children, offset, _) => {
+                    ops.insert(i, Op::t_nz(span, children, offset));
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        if let Some(children) = ops[i].op_type.get_children_mut() {
+            progress |= optimize_static_count_loops(children);
+        }
+
+        i += 1;
+    }
+
+    progress
+}
+
+fn contains_only_constant_sets(ops: &[Op]) -> bool {
+    for op in ops {
+        match &op.op_type {
+            OpType::Set(_) |
+            OpType::IncPtr(_) |
+            OpType::DecPtr(_) => {
+                // allowed
+            }
+            _ => return false,
+        }
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -800,5 +860,22 @@ mod tests {
         optimize_static_count_loops(&mut ops);
 
         assert_eq!(ops, vec![])
+    }
+
+    #[test]
+    fn test_optimize_tnz_set() {
+        let mut ops = vec![
+            Op::i_loop(0..2, vec![
+                Op::set(1..2, 1),
+            ], 1, 1)
+        ];
+
+        optimize_conditional_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::t_nz(0..2, vec![
+                Op::set(1..2, 1),
+            ], 1)
+        ])
     }
 }

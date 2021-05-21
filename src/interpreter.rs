@@ -97,6 +97,18 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 self.pointer = heap_pointer;
                 *self.heap_value(&op.span)? = 0;
             }
+            OpType::TNz(ops, offset) => {
+                if *self.heap_value(&op.span)? != 0 {
+                    let heap_pointer = self.pointer;
+                    let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
+
+                    self.pointer = start_heap_pointer;
+                    self.execute_ops(ops)?;
+
+                    self.pointer = heap_pointer;
+                    *self.heap_value(&op.span)? = 0;
+                }
+            }
         }
 
         Ok(())
