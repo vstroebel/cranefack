@@ -24,6 +24,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_count_loops(&mut program.ops);
         progress |= optimize_static_count_loops(&mut program.ops);
         progress |= optimize_conditional_loops(&mut program.ops);
+        progress |= optimize_search_zero(&mut program.ops);
     }
 
     count
@@ -529,10 +530,52 @@ fn contains_only_constant_sets(ops: &[Op]) -> bool {
     true
 }
 
+fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &mut ops[i];
+
+        let replace = match &op.op_type {
+            OpType::DLoop(children) => {
+                if children.len() == 1 {
+                    match children[0].op_type {
+                        // TODO: Find out why this doesn't work...
+                        // OpType::IncPtr(step) => Some((step as isize, children[0].span.end)),
+                        OpType::DecPtr(step) => Some((-(step as isize), children[0].span.end)),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        if let Some((step, end)) = replace {
+            let span = ops[i].span.start..end;
+
+            ops[i] = Op::search_zero(span, step);
+
+            progress = true;
+        } else {
+            if let Some(children) = ops[i].op_type.get_children_mut() {
+                progress |= optimize_search_zero(children);
+            }
+        }
+
+        i += 1;
+    }
+
+    progress
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops, remove_dead_stores_before_set};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops, remove_dead_stores_before_set, optimize_search_zero};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -940,6 +983,74 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::get_char(1..2),
+        ])
+    }
+
+    /*
+    #[test]
+    fn test_optimize_search_zero_inc() {
+        let mut ops = vec![
+            Op::d_loop(0..2, vec![
+                Op::inc_ptr(1..2, 8),
+            ])
+        ];
+
+        optimize_search_zero(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::search_zero(0..2, 8),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_nested_search_zero_inc() {
+        let mut ops = vec![
+            Op::d_loop(0..3, vec![
+                Op::d_loop(1..2, vec![
+                    Op::inc_ptr(2..3, 8),
+                ])])
+        ];
+
+        optimize_search_zero(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::d_loop(0..3, vec![
+                Op::search_zero(1..3, 8),
+            ])
+        ])
+    }
+    */
+
+    #[test]
+    fn test_optimize_search_zero_dec() {
+        let mut ops = vec![
+            Op::d_loop(0..2, vec![
+                Op::dec_ptr(1..2, 8),
+            ])
+        ];
+
+        optimize_search_zero(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::search_zero(0..2, -8),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_nested_search_zero_dec() {
+        let mut ops = vec![
+            Op::d_loop(0..3, vec![
+                Op::d_loop(1..2, vec![
+                    Op::dec_ptr(2..3, 8),
+                ])])
+        ];
+
+        optimize_search_zero(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::d_loop(0..3, vec![
+                Op::search_zero(1..3, -8),
+            ])
         ])
     }
 }

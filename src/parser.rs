@@ -81,6 +81,7 @@ impl Program {
                     writeln!(output, "TNZ offset: {} ", offset)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
+                OpType::SearchZero(step) => writeln!(output, "S_ZERO {} ", step)?,
             }
         }
 
@@ -185,6 +186,13 @@ impl Op {
             span,
         }
     }
+
+    pub fn search_zero(span: Range<usize>, step: isize) -> Op {
+        Op {
+            op_type: OpType::SearchZero(step),
+            span,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -211,6 +219,9 @@ pub enum OpType {
     ///
     /// Executes block if current value is not zero. Similar to `if true { ops }`
     TNz(Vec<Op>, isize),
+
+    /// Move heap pointer to first cell containing zero based on step
+    SearchZero(isize),
 }
 
 impl OpType {

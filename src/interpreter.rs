@@ -109,6 +109,21 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     *self.heap_value(&op.span)? = 0;
                 }
             }
+            OpType::SearchZero(step) => {
+                let mut pointer = self.pointer as isize;
+
+                loop {
+                    let value = self.heap_value_at(&op.span, pointer)?;
+
+                    if *value == 0 {
+                        break;
+                    }
+
+                    pointer += step;
+                }
+
+                self.pointer = pointer as usize;
+            }
         }
 
         Ok(())
@@ -127,6 +142,23 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             self.heap.push(0);
         }
         Ok(&mut self.heap[self.pointer])
+    }
+
+    fn heap_value_at(&mut self, span: &Range<usize>, pointer: isize) -> Result<&mut u8, RuntimeError> {
+        let pointer = pointer.max(0) as usize;
+
+        if pointer >= self.max_heap_size {
+            return Err(RuntimeError::MaxHeapSizeReached {
+                span: span.clone(),
+                max_heap_size: self.max_heap_size,
+                required: self.pointer.checked_add(1).unwrap_or(usize::MAX),
+            });
+        }
+
+        while pointer > self.heap.len() - 1 {
+            self.heap.push(0);
+        }
+        Ok(&mut self.heap[pointer])
     }
 
     fn heap_value_at_offset(&mut self, span: &Range<usize>, ptr_offset: isize) -> Result<&mut u8, RuntimeError> {
