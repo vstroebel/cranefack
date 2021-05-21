@@ -232,6 +232,8 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                     }
                 }
             }
+
+            #[allow(clippy::manual_map)]
             if !ignore && possible_match && ptr_offset == 0 {
                 if let Some(step) = get_dec_count(&children[0].op_type) {
                     Some((0, step))
@@ -392,7 +394,8 @@ fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
         let op1 = &ops[i];
         let op2 = &ops[i + 1];
 
-        let remove = match (&op1.op_type, &op2.op_type) {
+        #[allow(clippy::match_like_matches_macro)]
+            let remove = match (&op1.op_type, &op2.op_type) {
             (OpType::Inc(_), OpType::Set(_)) |
             (OpType::Dec(_), OpType::Set(_)) |
             (OpType::Set(_), OpType::Set(_)) |
@@ -482,13 +485,8 @@ fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
 
         let replace = match &op.op_type {
             OpType::ILoop(children, ..) |
-            OpType::CLoop(children, ..) => {
-                if contains_only_constant_sets(children) {
-                    true
-                } else {
-                    false
-                }
-            }
+            OpType::CLoop(children, ..) =>
+                contains_only_constant_sets(children),
             _ => false,
         };
 
@@ -560,10 +558,8 @@ fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
             ops[i] = Op::search_zero(span, step);
 
             progress = true;
-        } else {
-            if let Some(children) = ops[i].op_type.get_children_mut() {
-                progress |= optimize_search_zero(children);
-            }
+        } else if let Some(children) = ops[i].op_type.get_children_mut() {
+            progress |= optimize_search_zero(children);
         }
 
         i += 1;

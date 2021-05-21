@@ -134,7 +134,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             return Err(RuntimeError::MaxHeapSizeReached {
                 span: span.clone(),
                 max_heap_size: self.max_heap_size,
-                required: self.pointer.checked_add(1).unwrap_or(usize::MAX),
+                required: self.pointer.saturating_add(1),
             });
         }
 
@@ -151,7 +151,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             return Err(RuntimeError::MaxHeapSizeReached {
                 span: span.clone(),
                 max_heap_size: self.max_heap_size,
-                required: self.pointer.checked_add(1).unwrap_or(usize::MAX),
+                required: self.pointer.saturating_add(1),
             });
         }
 
@@ -170,7 +170,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             return Err(RuntimeError::MaxHeapSizeReached {
                 span: span.clone(),
                 max_heap_size: self.max_heap_size,
-                required: self.pointer.checked_add(1).unwrap_or(usize::MAX),
+                required: self.pointer.saturating_add(1),
             });
         }
 
