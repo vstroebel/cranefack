@@ -398,7 +398,7 @@ fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
 
 
         if let Some(&count) = count {
-            ops.remove(i);
+            let prev = ops.remove(i);
             if count == 0 {
                 ops.remove(i);
             } else {
@@ -407,6 +407,7 @@ fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
                 } else {
                     unreachable!();
                 }
+                ops[i].span = prev.span.start..ops[i].span.end;
                 i += 1;
             }
         } else if let OpType::Loop(children, ..) = &mut ops[i].op_type {
