@@ -216,7 +216,7 @@ impl Parser {
 
         if tos > 0 {
             let ops = self.stack.remove(tos);
-            self.push_op(Op::loop_ops(position..position + 1, ops.1));
+            self.push_op(Op::loop_ops(ops.0..position + 1, ops.1));
             Ok(())
         } else {
             Err(ParserError::BadlyClosedLoop {
