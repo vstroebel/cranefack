@@ -18,10 +18,16 @@ impl Program {
 
         for op in ops {
             op_count += 1;
-            if let OpType::Loop(children, ..) = &op.op_type {
-                let (ops, loops) = self.get_ops_statistics(children);
-                op_count += ops;
-                loop_count += 1 + loops;
+            match &op.op_type {
+                OpType::DLoop(children)
+                | OpType::ILoop(children, ..)
+                | OpType::CLoop(children, ..)
+                => {
+                    let (ops, loops) = self.get_ops_statistics(children);
+                    op_count += ops;
+                    loop_count += 1 + loops;
+                }
+                _ => {}
             }
         }
 
@@ -59,11 +65,16 @@ impl Program {
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
 
-                OpType::Loop(children, steps) => {
-                    match steps {
-                        Some((offset, count, steps)) => writeln!(output, "LOOP offset: {} count: {}, steps: {}", offset, count, steps)?,
-                        None => writeln!(output, "LOOP")?,
-                    }
+                OpType::DLoop(children) => {
+                    writeln!(output, "DLOOP")?;
+                    self.dump_ops(output, children, indent + 1)?;
+                }
+                OpType::ILoop(children, offset, step) => {
+                    writeln!(output, "ILOOP offset: {} step: {}", offset, step)?;
+                    self.dump_ops(output, children, indent + 1)?;
+                }
+                OpType::CLoop(children, offset, iterations) => {
+                    writeln!(output, "CLOOP offset: {} iterations: {}", offset, iterations)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
             }
@@ -122,15 +133,23 @@ impl Op {
         }
     }
 
-    pub fn loop_ops(span: Range<usize>, ops: Vec<Op>) -> Op {
+    pub fn d_loop(span: Range<usize>, ops: Vec<Op>) -> Op {
         Op {
-            op_type: OpType::Loop(ops, None),
+            op_type: OpType::DLoop(ops),
             span,
         }
     }
-    pub fn loop_ops_with_steps(span: Range<usize>, ops: Vec<Op>, count: u8, steps: u8, offset: isize) -> Op {
+
+    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8) -> Op {
         Op {
-            op_type: OpType::Loop(ops, Some((offset, count, steps))),
+            op_type: OpType::ILoop(ops, offset, step),
+            span,
+        }
+    }
+
+    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8) -> Op {
+        Op {
+            op_type: OpType::CLoop(ops, offset, iterations),
             span,
         }
     }
@@ -168,12 +187,28 @@ pub enum OpType {
     Sub(isize, u8),
     PutChar,
     GetChar,
-    Loop(Vec<Op>, Option<(isize, u8, u8)>),
+    /// Dynamic loop as defined in raw brainfuck source
+    DLoop(Vec<Op>),
+
+    /// Loop with an iterator variable
+    ILoop(Vec<Op>, isize, u8),
+
+    /// Loop with compile time known iteration count
+    CLoop(Vec<Op>, isize, u8),
 }
 
 impl OpType {
     pub fn is_ptr_inc_or_dec(&self) -> bool {
         matches!(self, OpType::DecPtr(_) | OpType::IncPtr(_))
+    }
+
+    pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
+        match self {
+            OpType::DLoop(children) |
+            OpType::ILoop(children, ..) |
+            OpType::CLoop(children, ..) => Some(children),
+            _ => None,
+        }
     }
 }
 
@@ -216,7 +251,7 @@ impl Parser {
 
         if tos > 0 {
             let ops = self.stack.remove(tos);
-            self.push_op(Op::loop_ops(ops.0..position + 1, ops.1));
+            self.push_op(Op::d_loop(ops.0..position + 1, ops.1));
             Ok(())
         } else {
             Err(ParserError::BadlyClosedLoop {
