@@ -19,6 +19,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= remove_empty_loops(&mut program.ops);
         progress |= optimize_zero_loops(&mut program.ops);
         progress |= optimize_inc_dec(&mut program.ops, 0);
+        progress |= remove_dead_stores_before_set(&mut program.ops);
         progress |= optimize_arithmethic_loops(&mut program.ops);
         progress |= optimize_count_loops(&mut program.ops);
         progress |= optimize_static_count_loops(&mut program.ops);
@@ -381,6 +382,41 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
     progress
 }
 
+fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while !ops.is_empty() && i < ops.len() - 1 {
+        let op1 = &ops[i];
+        let op2 = &ops[i + 1];
+
+        let remove = match (&op1.op_type, &op2.op_type) {
+            (OpType::Inc(_), OpType::Set(_)) |
+            (OpType::Dec(_), OpType::Set(_)) |
+            (OpType::Set(_), OpType::Set(_)) |
+            (OpType::Inc(_), OpType::GetChar) |
+            (OpType::Dec(_), OpType::GetChar) |
+            (OpType::Set(_), OpType::GetChar) => true,
+            _ => false,
+        };
+
+        if remove {
+            ops.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+
+    if let Some(last) = ops.last_mut() {
+        if let Some(children) = last.op_type.get_children_mut() {
+            progress |= remove_dead_stores_before_set(children);
+        }
+    }
+
+    progress
+}
+
 fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
@@ -496,7 +532,7 @@ fn contains_only_constant_sets(ops: &[Op]) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops, remove_dead_stores_before_set};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -876,6 +912,34 @@ mod tests {
             Op::t_nz(0..2, vec![
                 Op::set(1..2, 1),
             ], 1)
+        ])
+    }
+
+    #[test]
+    fn test_dead_store_set() {
+        let mut ops = vec![
+            Op::inc(0..1, 1),
+            Op::set(1..2, 2),
+        ];
+
+        remove_dead_stores_before_set(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(1..2, 2),
+        ])
+    }
+
+    #[test]
+    fn test_dead_store_get_char() {
+        let mut ops = vec![
+            Op::inc(0..1, 1),
+            Op::get_char(1..2),
+        ];
+
+        remove_dead_stores_before_set(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::get_char(1..2),
         ])
     }
 }

@@ -213,4 +213,19 @@ mod tests {
         assert_eq!(interpreter.heap[1], 6);
         assert_eq!(interpreter.heap[2], 2);
     }
+
+    #[test]
+    fn test_overwrite_prev_set() {
+        let mut program = parse("++++[-]++").unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 2);
+    }
 }
