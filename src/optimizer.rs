@@ -220,12 +220,17 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                                 break;
                             }
                         }
-                        OpType::DLoop(..) |
-                        OpType::ILoop(..) |
-                        OpType::CLoop(..) |
-                        OpType::TNz(..) => {
+                        OpType::DLoop(..) => {
                             ignore = true;
                             break;
+                        }
+                        OpType::ILoop(children, offset, ..) |
+                        OpType::CLoop(children, offset, ..) |
+                        OpType::TNz(children, offset) => {
+                            if !is_ops_block_local(children, &[-ptr_offset - *offset]) {
+                                ignore = true;
+                                break;
+                            }
                         }
                         OpType::SearchZero(..) => {
                             ignore = true;
@@ -285,6 +290,57 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
     }
 
     progress
+}
+
+fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
+    let mut ptr_offset = 0_isize;
+
+    for op in ops {
+        match &op.op_type {
+            OpType::IncPtr(value) => {
+                ptr_offset += *value as isize;
+            }
+            OpType::DecPtr(value) => {
+                ptr_offset -= *value as isize;
+            }
+            OpType::Add(offset, _) | OpType::Sub(offset, _) => {
+                for parent_offset in parent_offsets {
+                    if ptr_offset + offset == *parent_offset {
+                        return false;
+                    }
+                }
+            }
+            OpType::Inc(_) | OpType::Dec(_) | OpType::Set(_) | OpType::GetChar => {
+                for parent_offset in parent_offsets {
+                    if ptr_offset == *parent_offset {
+                        return false;
+                    }
+                }
+            }
+            OpType::ILoop(children, offset, ..) |
+            OpType::CLoop(children, offset, ..) |
+            OpType::TNz(children, offset) => {
+                let mut offsets = parent_offsets.iter().map(|o| {
+                    o - *offset
+                }).collect::<Vec<_>>();
+
+                offsets.push(-ptr_offset - *offset);
+
+                if !is_ops_block_local(children, &offsets) {
+                    return false;
+                }
+            }
+            OpType::DLoop(_) |
+            OpType::SearchZero(..) => {
+                return false;
+            }
+            OpType::PutChar => {
+                // ignore
+            }
+        }
+    }
+
+    true
 }
 
 fn get_dec_count(op_type: &OpType) -> Option<u8> {
