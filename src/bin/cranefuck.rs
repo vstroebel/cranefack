@@ -44,7 +44,7 @@ fn create_clap_app() -> App<'static, 'static> {
                 .help("Brainfuck source file"))
             .arg(Arg::with_name("OPT_MODE")
                 .short("O")
-                .possible_values(&["0", "1"])
+                .possible_values(&["0", "1", "2", "3"])
                 .value_names(&["mode"])
                 .default_value("1")
                 .help("Optimization mode")
@@ -60,7 +60,7 @@ fn create_clap_app() -> App<'static, 'static> {
                 .help("Brainfuck source file"))
             .arg(Arg::with_name("OPT_MODE")
                 .short("O")
-                .possible_values(&["0", "1"])
+                .possible_values(&["0", "1", "2", "3"])
                 .value_names(&["mode"])
                 .default_value("1")
                 .help("Optimization mode"))
@@ -193,7 +193,7 @@ fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Re
         ts = SystemTime::now();
     }
 
-    if opt_mode == "1" {
+    if opt_mode != "0" {
         let opt_loop_count = optimize(&mut program);
 
         if verbose {
@@ -216,7 +216,7 @@ fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Re
     }
 
     match format {
-        "rust" => println!("{}", cranefuck::backends::rust::build_file(&program)),
+        "rust" => println!("{}", cranefuck::backends::rust::build_file(&program, opt_mode)),
         _ => program.dump(stdout())?
     }
 

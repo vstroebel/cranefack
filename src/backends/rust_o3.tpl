@@ -18,27 +18,12 @@ impl Runtime {
     }
 
     fn heap_value(&mut self) -> &mut u8 {
-        if self.pointer >= MAX_HEAP_SIZE {
-            panic!("Max heap size reached: {}", self.pointer);
-        }
-
-        while self.pointer > self.heap.len() - 1 {
-            self.heap.push(0);
-        }
-        &mut self.heap[self.pointer]
+        unsafe { self.heap.get_unchecked_mut(self.pointer) }
     }
 
     fn heap_value_at(&mut self, pointer: isize) -> &mut u8 {
         let pointer = pointer.max(0) as usize;
-
-        if pointer >= MAX_HEAP_SIZE {
-            panic!("Max heap size reached: {}", self.pointer);
-        }
-
-        while pointer > self.heap.len() - 1 {
-            self.heap.push(0);
-        }
-        &mut self.heap[pointer]
+        unsafe { self.heap.get_unchecked_mut(pointer) }
     }
 
     fn heap_value_at_offset(&mut self, ptr_offset: isize) -> &mut u8 {
@@ -46,15 +31,7 @@ impl Runtime {
 
         let pointer = pointer.max(0) as usize;
 
-        if pointer >= MAX_HEAP_SIZE {
-            panic!("Max heap size reached: {}", self.pointer);
-        }
-
-        while pointer > self.heap.len() - 1 {
-            self.heap.push(0);
-        }
-
-        &mut self.heap[pointer]
+        unsafe { self.heap.get_unchecked_mut(pointer) }
     }
 
     fn inc_ptr(&mut self, count: usize) {
