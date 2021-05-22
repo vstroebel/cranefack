@@ -13,9 +13,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         // No progress tracking needed
         remove_preceding_loop(&mut program.ops);
 
-        // No progress tracking needed
-        optimize_first_incs(&mut program.ops);
-
+        progress |= optimize_heap_initialization(&mut program.ops);
         progress |= remove_empty_loops(&mut program.ops);
         progress |= optimize_zero_loops(&mut program.ops);
         progress |= optimize_inc_dec(&mut program.ops, 0);
@@ -23,6 +21,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_arithmethic_loops(&mut program.ops);
         progress |= optimize_count_loops(&mut program.ops);
         progress |= optimize_static_count_loops(&mut program.ops);
+        progress |= optimize_constant_arithmetic_loop(&mut program.ops);
         progress |= optimize_conditional_loops(&mut program.ops);
         progress |= optimize_search_zero(&mut program.ops);
     }
@@ -35,17 +34,6 @@ fn remove_preceding_loop(ops: &mut Vec<Op>) {
     while !ops.is_empty() {
         if let OpType::DLoop(_) = ops[0].op_type {
             ops.remove(0);
-        } else {
-            break;
-        }
-    }
-}
-
-// Prepare for better optimization of loops with known size
-fn optimize_first_incs(ops: &mut Vec<Op>) {
-    while !ops.is_empty() {
-        if let OpType::Inc(value) = &ops[0].op_type {
-            ops[0].op_type = OpType::Set(*value);
         } else {
             break;
         }
@@ -342,13 +330,6 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
     true
 }
 
-fn get_dec_count(op_type: &OpType) -> Option<u8> {
-    match op_type {
-        OpType::Dec(count) => Some(*count),
-        _ => None,
-    }
-}
-
 fn get_ptr_offset(op_type: &OpType) -> Option<isize> {
     match op_type {
         OpType::IncPtr(count) => Some(*count as isize),
@@ -564,7 +545,7 @@ fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
         }
 
         if let Some(children) = ops[i].op_type.get_children_mut() {
-            progress |= optimize_static_count_loops(children);
+            progress |= optimize_conditional_loops(children);
         }
 
         i += 1;
@@ -627,10 +608,171 @@ fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
+fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &mut ops[i];
+
+        let replace = if let OpType::CLoop(children, ..) = &op.op_type {
+            contains_only_arithmetics(children)
+        } else {
+            false
+        };
+
+        if replace {
+            let prev = ops.remove(i);
+            let span = prev.span;
+
+            match prev.op_type {
+                OpType::CLoop(children, offset, iterations) => {
+                    let mut ptr_offset = offset;
+
+                    let mut pos = i;
+
+                    if ptr_offset > 0 {
+                        ops.insert(pos, Op::inc_ptr(span.start..span.start + 1, ptr_offset as usize));
+                        pos += 1;
+                    } else if offset < 0 {
+                        ops.insert(pos, Op::dec_ptr(span.start..span.start + 1, -ptr_offset as usize));
+                        pos += 1;
+                    }
+
+                    for mut child in children {
+                        match &mut child.op_type {
+                            OpType::Inc(v) |
+                            OpType::Dec(v) => *v = *v * iterations,
+                            OpType::IncPtr(v) => ptr_offset += *v as isize,
+                            OpType::DecPtr(v) => ptr_offset -= *v as isize,
+                            _ => {
+                                // ignore
+                            }
+                        }
+
+                        ops.insert(pos, child);
+
+                        pos += 1;
+                    }
+
+                    if ptr_offset > 0 {
+                        ops.insert(pos, Op::dec_ptr(span.end - 1..span.end, ptr_offset as usize));
+                    } else if offset < 0 {
+                        ops.insert(pos, Op::inc_ptr(span.end - 1..span.end, -ptr_offset as usize));
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        if let Some(children) = ops[i].op_type.get_children_mut() {
+            progress |= optimize_constant_arithmetic_loop(children);
+        }
+
+        i += 1;
+    }
+
+
+    progress
+}
+
+fn contains_only_arithmetics(ops: &[Op]) -> bool {
+    for op in ops {
+        match &op.op_type {
+            OpType::Set(_) |
+            OpType::Inc(_) |
+            OpType::Dec(_) |
+            OpType::IncPtr(_) |
+            OpType::DecPtr(_) => {
+                // allowed
+            }
+            _ => return false,
+        }
+    }
+
+    true
+}
+
+fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    let mut heap: Vec<Option<usize>> = vec![];
+
+    let mut ptr = 0;
+
+    while !ops.is_empty() && i < ops.len() {
+        let replace = {
+            let mut op = &mut ops[i];
+
+            if let Some(offset) = get_ptr_offset(&op.op_type) {
+                ptr += offset;
+                None
+            } else if let OpType::Inc(value) = &op.op_type {
+                if ptr < 0 {
+                    break;
+                }
+
+                while ptr > heap.len() as isize - 1 {
+                    heap.push(None);
+                }
+
+                progress = true;
+
+                if let Some(index) = &heap[ptr as usize] {
+                    Some((index, *value as i16))
+                } else {
+                    op.op_type = OpType::Set(*value);
+                    heap[ptr as usize] = Some(i);
+                    None
+                }
+            } else if let OpType::Dec(value) = &op.op_type {
+                if ptr < 0 {
+                    break;
+                }
+
+                while ptr > heap.len() as isize - 1 {
+                    heap.push(None);
+                }
+
+                progress = true;
+
+                if let Some(index) = &heap[ptr as usize] {
+                    Some((index, -(*value as i16)))
+                } else {
+                    op.op_type = OpType::Set(0u8.wrapping_sub(*value));
+                    heap[ptr as usize] = Some(i);
+                    None
+                }
+            } else {
+                break;
+            }
+        };
+
+        if let Some((&index, value)) = replace {
+            if let OpType::Set(set_v) = &mut ops[index].op_type {
+                if value < 0 {
+                    *set_v = set_v.wrapping_sub(-value as u8);
+                } else {
+                    *set_v = set_v.wrapping_add(value as u8);
+                }
+            }
+            ops.remove(i);
+            i -= 1;
+        }
+
+        i += 1;
+    }
+
+    progress
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops, remove_dead_stores_before_set, optimize_search_zero};
+    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops, remove_dead_stores_before_set, optimize_search_zero, optimize_constant_arithmetic_loop, optimize_heap_initialization};
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -1041,7 +1183,6 @@ mod tests {
         ])
     }
 
-    /*
     #[test]
     fn test_optimize_search_zero_inc() {
         let mut ops = vec![
@@ -1061,7 +1202,7 @@ mod tests {
     fn test_optimize_nested_search_zero_inc() {
         let mut ops = vec![
             Op::d_loop(0..3, vec![
-                Op::d_loop(1..2, vec![
+                Op::d_loop(1..3, vec![
                     Op::inc_ptr(2..3, 8),
                 ])])
         ];
@@ -1074,7 +1215,6 @@ mod tests {
             ])
         ])
     }
-    */
 
     #[test]
     fn test_optimize_search_zero_dec() {
@@ -1095,7 +1235,7 @@ mod tests {
     fn test_optimize_nested_search_zero_dec() {
         let mut ops = vec![
             Op::d_loop(0..3, vec![
-                Op::d_loop(1..2, vec![
+                Op::d_loop(1..3, vec![
                     Op::dec_ptr(2..3, 8),
                 ])])
         ];
@@ -1106,6 +1246,51 @@ mod tests {
             Op::d_loop(0..3, vec![
                 Op::search_zero(1..3, -8),
             ])
+        ])
+    }
+
+    #[test]
+    fn test_optimize_constant_arithmetic_loop() {
+        let mut ops = vec![
+            Op::c_loop(0..3, vec![
+                Op::inc(1..2, 3)
+            ], 2, 5)
+        ];
+
+        optimize_constant_arithmetic_loop(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::inc_ptr(0..1, 2),
+            Op::inc(1..2, 15),
+            Op::dec_ptr(2..3, 2),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_heap_initialization() {
+        let mut ops = vec![
+            Op::inc_ptr(0..1, 1),
+            Op::inc(1..2, 26),
+            Op::inc_ptr(2..3, 3),
+            Op::inc(3..4, 65),
+            Op::dec_ptr(4..5, 3),
+            Op::inc(5..6, 1),
+            Op::inc_ptr(6..7, 5),
+            Op::get_char(8..9),
+            Op::inc(9..10, 1),
+        ];
+
+        optimize_heap_initialization(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::inc_ptr(0..1, 1),
+            Op::set(1..2, 27),
+            Op::inc_ptr(2..3, 3),
+            Op::set(3..4, 65),
+            Op::dec_ptr(4..5, 3),
+            Op::inc_ptr(6..7, 5),
+            Op::get_char(8..9),
+            Op::inc(9..10, 1),
         ])
     }
 }
