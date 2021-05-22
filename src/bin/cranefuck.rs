@@ -99,11 +99,14 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
         let mut writer = StandardStream::stderr(ColorChoice::Auto);
         writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-        let (op_count, loop_count) = program.get_statistics();
+        let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-        writeln!(writer, "Parsed program with {} instructions and {} loops in {}ms",
+        writeln!(writer, "Parsed program with {} instructions ({},{},{}) loops and {} ifs in {}ms",
                  op_count,
-                 loop_count,
+                 dloop_count,
+                 iloop_count,
+                 cloop_count,
+                 if_count,
                  ts.elapsed()?.as_micros() as f32 / 1000.0
         )?;
         writer.reset()?;
@@ -117,13 +120,16 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
             writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-            let (op_count, loop_count) = program.get_statistics();
+            let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-            writeln!(writer, "Optimized program with {} instructions and {} loops in {}ms and {} iterations",
+            writeln!(writer, "Optimized program with {} instructions ({},{},{}) loops and {} ifs in {}ms and {} iterations",
                      op_count,
-                     loop_count,
+                     dloop_count,
+                     iloop_count,
+                     cloop_count,
+                     if_count,
                      ts.elapsed()?.as_micros() as f32 / 1000.0,
-                     opt_loop_count,
+                     opt_loop_count
             )?;
             writer.reset()?;
             ts = SystemTime::now();
@@ -164,13 +170,17 @@ fn compile_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<d
         let mut writer = StandardStream::stderr(ColorChoice::Auto);
         writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-        let (op_count, loop_count) = program.get_statistics();
+        let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-        writeln!(writer, "Parsed program with {} instructions and {} loops in {}ms",
+        writeln!(writer, "Parsed program with {} instructions ({},{},{}) loops and {} ifs in {}ms",
                  op_count,
-                 loop_count,
+                 dloop_count,
+                 iloop_count,
+                 cloop_count,
+                 if_count,
                  ts.elapsed()?.as_micros() as f32 / 1000.0
         )?;
+
         writer.reset()?;
         ts = SystemTime::now();
     }
@@ -182,13 +192,16 @@ fn compile_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<d
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
             writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-            let (op_count, loop_count) = program.get_statistics();
+            let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-            writeln!(writer, "Optimized program with {} instructions and {} loops in {}ms and {} iterations",
+            writeln!(writer, "Optimized program with {} instructions ({},{},{}) loops and {} ifs in {}ms and {} iterations",
                      op_count,
-                     loop_count,
+                     dloop_count,
+                     iloop_count,
+                     cloop_count,
+                     if_count,
                      ts.elapsed()?.as_micros() as f32 / 1000.0,
-                     opt_loop_count,
+                     opt_loop_count
             )?;
             writer.reset()?;
         }

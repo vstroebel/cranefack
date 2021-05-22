@@ -8,30 +8,61 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn get_statistics(&self) -> (usize, usize) {
+    pub fn get_statistics(&self) -> (usize, usize, usize, usize, usize) {
         self.get_ops_statistics(&self.ops)
     }
 
-    fn get_ops_statistics(&self, ops: &[Op]) -> (usize, usize) {
+    fn get_ops_statistics(&self, ops: &[Op]) -> (usize, usize, usize, usize, usize) {
         let mut op_count = 0;
-        let mut loop_count = 0;
+        let mut dloop_count = 0;
+        let mut iloop_count = 0;
+        let mut cloop_count = 0;
+        let mut if_count = 0;
 
         for op in ops {
             op_count += 1;
             match &op.op_type {
-                OpType::DLoop(children)
-                | OpType::ILoop(children, ..)
-                | OpType::CLoop(children, ..)
-                => {
-                    let (ops, loops) = self.get_ops_statistics(children);
+                OpType::DLoop(children) => {
+                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
                     op_count += ops;
-                    loop_count += 1 + loops;
+                    dloop_count += 1;
+                    dloop_count += dloops;
+                    iloop_count += iloops;
+                    cloop_count += cloops;
+                    if_count += ifs;
+                }
+                OpType::ILoop(children, ..) => {
+                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    op_count += ops;
+                    iloop_count += 1;
+                    dloop_count += dloops;
+                    iloop_count += iloops;
+                    cloop_count += cloops;
+                    if_count += ifs;
+                }
+                OpType::CLoop(children, ..) => {
+                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    op_count += ops;
+                    cloop_count += 1;
+                    dloop_count += dloops;
+                    iloop_count += iloops;
+                    cloop_count += cloops;
+                    if_count += ifs;
+                }
+                OpType::TNz(children, ..) => {
+                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    op_count += ops;
+                    if_count += 1;
+                    dloop_count += dloops;
+                    iloop_count += iloops;
+                    cloop_count += cloops;
+                    if_count += ifs;
                 }
                 _ => {}
             }
         }
 
-        (op_count, loop_count)
+        (op_count, dloop_count, iloop_count, cloop_count, if_count)
     }
 
     pub fn dump<W: Write>(&self, mut output: W) -> Result<(), Box<dyn Error>> {
