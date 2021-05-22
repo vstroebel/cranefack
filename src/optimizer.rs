@@ -189,6 +189,7 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             let mut ptr_offset = 0_isize;
             let mut ignore = false;
             let mut possible_match = false;
+            let mut counter_decrements = vec![];
 
             let num_ops = children.len();
             if num_ops >= 3 {
@@ -214,10 +215,9 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                                 break;
                             }
                         }
-                        OpType::Dec(_) => {
-                            if ptr_offset == 0 && i > 0 && i < num_ops - 1 {
-                                ignore = true;
-                                break;
+                        OpType::Dec(v) => {
+                            if ptr_offset == 0 {
+                                counter_decrements.push((i, *v));
                             }
                         }
                         OpType::DLoop(..) => {
@@ -244,14 +244,8 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             }
 
             #[allow(clippy::manual_map)]
-            if !ignore && possible_match && ptr_offset == 0 {
-                if let Some(step) = get_dec_count(&children[0].op_type) {
-                    Some((0, step))
-                } else if let Some(step) = get_dec_count(&children[children.len() - 1].op_type) {
-                    Some((children.len() - 1, step))
-                } else {
-                    None
-                }
+            if !ignore && possible_match && ptr_offset == 0 && !counter_decrements.is_empty() {
+                Some(counter_decrements)
             } else {
                 None
             }
@@ -259,14 +253,19 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             None
         };
 
-        if let Some((inc_index, step)) = replace {
+        if let Some(counter_decrements) = replace {
             let prev = ops.remove(i);
             let span = prev.span;
 
             if let OpType::DLoop(mut children) = prev.op_type {
-                children.remove(inc_index);
+                let mut step = 0;
 
-                if children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
+                for (index, amount) in counter_decrements.iter().rev() {
+                    step += *amount;
+                    children.remove(*index);
+                }
+
+                while !children.is_empty() && children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
                     children.remove(children.len() - 1);
                 }
 
