@@ -222,7 +222,12 @@ fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         }
                         OpType::DLoop(..) |
                         OpType::ILoop(..) |
-                        OpType::CLoop(..) => {
+                        OpType::CLoop(..) |
+                        OpType::TNz(..) => {
+                            ignore = true;
+                            break;
+                        }
+                        OpType::SearchZero(..) => {
                             ignore = true;
                             break;
                         }
@@ -540,9 +545,8 @@ fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
             OpType::DLoop(children) => {
                 if children.len() == 1 {
                     match children[0].op_type {
-                        // TODO: Find out why this doesn't work...
-                        // OpType::IncPtr(step) => Some((step as isize, children[0].span.end)),
-                        OpType::DecPtr(step) => Some((-(step as isize), children[0].span.end)),
+                        OpType::IncPtr(step) => Some(step as isize),
+                        OpType::DecPtr(step) => Some(-(step as isize)),
                         _ => None,
                     }
                 } else {
@@ -552,8 +556,8 @@ fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
             _ => None,
         };
 
-        if let Some((step, end)) = replace {
-            let span = ops[i].span.start..end;
+        if let Some(step) = replace {
+            let span = ops[i].span.clone();
 
             ops[i] = Op::search_zero(span, step);
 
