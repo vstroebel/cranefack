@@ -22,6 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             compile_file(
                 arg_matches.value_of("OPT_MODE").unwrap_or("1"),
                 arg_matches.is_present("VERBOSE"),
+                arg_matches.value_of("FORMAT").unwrap_or("dump"),
                 arg_matches.value_of_os("FILE").unwrap(),
             )
         }
@@ -62,7 +63,14 @@ fn create_clap_app() -> App<'static, 'static> {
                 .possible_values(&["0", "1"])
                 .value_names(&["mode"])
                 .default_value("1")
-                .help("Optimization mode")
+                .help("Optimization mode"))
+            .arg(Arg::with_name("FORMAT")
+                .short("f")
+                .long("format")
+                .possible_values(&["dump", "rust"])
+                .value_names(&["format"])
+                .default_value("dump")
+                .help("Format of compiled code")
             )
             .arg(Arg::with_name("VERBOSE")
                 .short("v")
@@ -154,7 +162,7 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
     Ok(())
 }
 
-fn compile_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn Error>> {
+fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Result<(), Box<dyn Error>> {
     let source = read_input(path)?;
 
     let mut ts = SystemTime::now();
@@ -207,7 +215,11 @@ fn compile_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<d
         }
     }
 
-    program.dump(stdout())?;
+    match format {
+        "rust" => println!("{}", cranefuck::backends::rust::build_file(&program)),
+        _ => program.dump(stdout())?
+    }
+
 
     Ok(())
 }
