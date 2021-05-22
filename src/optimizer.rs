@@ -24,6 +24,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_constant_arithmetic_loop(&mut program.ops);
         progress |= optimize_conditional_loops(&mut program.ops);
         progress |= optimize_search_zero(&mut program.ops);
+        progress |= optimize_constant_arithmetics(&mut program.ops);
     }
 
     count
@@ -296,6 +297,10 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                         return false;
                     }
                 }
+            }
+            OpType::CAdd(..) | OpType::CSub(..) => {
+                // TODO:  Check if this changes the counter
+                return false;
             }
             OpType::Inc(_) | OpType::Dec(_) | OpType::Set(_) | OpType::GetChar => {
                 for parent_offset in parent_offsets {
@@ -769,10 +774,62 @@ fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
+fn optimize_constant_arithmetics(ops: &mut Vec<Op>) -> bool {
+    let mut i = 0;
+
+    let mut progress = false;
+
+    while !ops.is_empty() && i < ops.len() - 1 {
+        let op1 = &ops[i];
+        let op2 = &ops[i + 1];
+
+        let mode = match (&op1.op_type, &op2.op_type) {
+            (OpType::Set(value), OpType::Add(offset, multi)) => {
+                Mode::Replace(OpType::CAdd(*offset, value * multi))
+            }
+            (OpType::Set(value), OpType::Sub(offset, multi)) => {
+                Mode::Replace(OpType::CSub(*offset, value * multi))
+            }
+            _ => Mode::Ignore
+        };
+
+        match mode {
+            Mode::Remove => {
+                ops.remove(i);
+                ops.remove(i);
+                progress = true;
+            }
+            Mode::Replace(op_type) => {
+                let span = op1.span.start..op2.span.end;
+                ops[i] = Op {
+                    op_type,
+                    span,
+                };
+                ops.remove(i + 1);
+                progress = true;
+            }
+            Mode::Ignore => {
+                if let Some(children) = ops[i].op_type.get_children_mut() {
+                    progress |= optimize_constant_arithmetics(children);
+                }
+                i += 1;
+            }
+        }
+    }
+
+    if let Some(last) = ops.last_mut() {
+        if let Some(children) = last.op_type.get_children_mut() {
+            progress |= optimize_constant_arithmetics(children);
+        }
+    }
+
+    progress
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::{remove_empty_loops, optimize_inc_dec, remove_preceding_loop, optimize_zero_loops, optimize_arithmethic_loops, optimize_first_incs, optimize_count_loops, optimize_static_count_loops, optimize_conditional_loops, remove_dead_stores_before_set, optimize_search_zero, optimize_constant_arithmetic_loop, optimize_heap_initialization};
+    use crate::optimizer::*;
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -790,19 +847,6 @@ mod tests {
             Op::inc(2..3, 1),
             Op::d_loop(3..4, vec![Op::inc(4..5, 1),
             ]),
-        ])
-    }
-
-    #[test]
-    fn test_optimize_first_incs() {
-        let mut ops = vec![
-            Op::inc(0..1, 5),
-        ];
-
-        optimize_first_incs(&mut ops);
-
-        assert_eq!(ops, vec![
-            Op::set(0..1, 5),
         ])
     }
 
@@ -1291,6 +1335,35 @@ mod tests {
             Op::inc_ptr(6..7, 5),
             Op::get_char(8..9),
             Op::inc(9..10, 1),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_constant_arithmetic_loop_add() {
+        let mut ops = vec![
+            Op::set(0..1, 3),
+            Op::add(1..2, 1, 3),
+        ];
+
+        optimize_constant_arithmetics(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::c_add(0..2, 1, 9),
+        ])
+    }
+
+
+    #[test]
+    fn test_optimize_constant_arithmetic_loop_sub() {
+        let mut ops = vec![
+            Op::set(0..1, 3),
+            Op::sub(1..2, 1, 2),
+        ];
+
+        optimize_constant_arithmetics(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::c_sub(0..2, 1, 6),
         ])
     }
 }

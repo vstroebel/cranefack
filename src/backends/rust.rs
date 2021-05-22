@@ -24,7 +24,9 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
             OpType::Dec(count) => writeln!(out, "rt.dec({});", count)?,
             OpType::Set(value) => writeln!(out, "rt.set({});", value)?,
             OpType::Add(ptr_offset, multi) => writeln!(out, "rt.add({}, {});", ptr_offset, multi)?,
+            OpType::CAdd(ptr_offset, count) => writeln!(out, "rt.c_add({}, {});", ptr_offset, count)?,
             OpType::Sub(ptr_offset, multi) => writeln!(out, "rt.sub({}, {});", ptr_offset, multi)?,
+            OpType::CSub(ptr_offset, count) => writeln!(out, "rt.c_sub({}, {});", ptr_offset, count)?,
             OpType::GetChar => writeln!(out, "rt.get_char();")?,
             OpType::PutChar => writeln!(out, "rt.put_char();")?,
             OpType::DLoop(children) => {

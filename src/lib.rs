@@ -59,6 +59,23 @@ mod tests {
 
     #[test]
     fn test_hello_world() {
+        let mut program = parse("
+                >+++++++++[<++++++++>-]<.>+++++++[<++++>-]<+.+++++++..+++.[-]
+                >++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++
+                .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++."
+        ).unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, b"Hello world!\n");
+    }
+
+    #[test]
+    fn test_hello_world_v2() {
         let mut program = parse(include_str!("test_programs/hello_world.bf")).unwrap();
         optimize(&mut program);
 

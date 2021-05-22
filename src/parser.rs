@@ -89,9 +89,12 @@ impl Program {
 
                 OpType::Inc(value) => writeln!(output, "INC {}", value)?,
                 OpType::Dec(value) => writeln!(output, "DEC {}", value)?,
-                OpType::Set(value) => writeln!(output, "SET {}", value)?,
-                OpType::Add(value, multi) => writeln!(output, "ADD offset: {} multiply: {}", value, multi)?,
-                OpType::Sub(value, multi) => writeln!(output, "SUB offset: {} multiply: {}", value, multi)?,
+                OpType::Set(value) => writeln!(output, "SET {}", value)?
+                ,
+                OpType::Add(offset, multi) => writeln!(output, "ADD offset: {} multiply: {}", offset, multi)?,
+                OpType::CAdd(offset, value) => writeln!(output, "CADD offset: {} value: {}", offset, value)?,
+                OpType::Sub(offset, multi) => writeln!(output, "SUB offset: {} multiply: {}", offset, multi)?,
+                OpType::CSub(offset, value) => writeln!(output, "CSUB offset: {} value: {}", offset, value)?,
 
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
@@ -204,9 +207,23 @@ impl Op {
         }
     }
 
+    pub fn c_add(span: Range<usize>, ptr_offset: isize, value: u8) -> Op {
+        Op {
+            op_type: OpType::CAdd(ptr_offset, value),
+            span,
+        }
+    }
+
     pub fn sub(span: Range<usize>, ptr_offset: isize, multi: u8) -> Op {
         Op {
             op_type: OpType::Sub(ptr_offset, multi),
+            span,
+        }
+    }
+
+    pub fn c_sub(span: Range<usize>, ptr_offset: isize, value: u8) -> Op {
+        Op {
+            op_type: OpType::CSub(ptr_offset, value),
             span,
         }
     }
@@ -233,8 +250,19 @@ pub enum OpType {
     Inc(u8),
     Dec(u8),
     Set(u8),
+
+    /// Add current value to value at offset and reset current value to 0
     Add(isize, u8),
+
+    /// Add constant value to value at offset and reset current value to 0
+    CAdd(isize, u8),
+
+    /// Subtract current value to value at offset and reset current value to 0
     Sub(isize, u8),
+
+    /// Subtract constant value to value at offset and reset current value to 0
+    CSub(isize, u8),
+
     PutChar,
     GetChar,
     /// Dynamic loop as defined in raw brainfuck source
