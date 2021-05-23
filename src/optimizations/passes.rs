@@ -14,6 +14,7 @@ pub fn remove_preceding_loop(ops: &mut Vec<Op>) {
 }
 
 // Replace '[-]' that decreases the current point to 0 with set
+// [+] can be optimized too assuming a wrapping overflow to 0
 pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
@@ -24,9 +25,7 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
         if let Some(children) = op.op_type.get_children_mut() {
             let mut optimized = false;
             if children.len() == 1 {
-                if let OpType::Dec(1) = children[0].op_type {
-                    optimized = true;
-                }
+                optimized = matches!(children[0].op_type, OpType::Dec(1) | OpType::Inc(1))
             }
 
             if optimized {
@@ -844,6 +843,19 @@ mod tests {
     fn test_optimize_zero_loop() {
         let mut ops = vec![
             Op::d_loop(0..1, vec![Op::dec(1..2, 1)]),
+        ];
+
+        optimize_zero_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(0..2, 0),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_zero_loop_inc() {
+        let mut ops = vec![
+            Op::d_loop(0..1, vec![Op::inc(1..2, 1)]),
         ];
 
         optimize_zero_loops(&mut ops);
