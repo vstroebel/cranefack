@@ -44,7 +44,12 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 
 pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
     if let OpType::ILoop(children, loop_offset, step) = &ops[0].op_type {
-        if *step == 1 {
+        /*
+         * TODO: Allow loops with more than 1 child
+         * This will not work correctly with multiple ADD and SUB because they reset
+         * the current heap cell to zero
+         */
+        if *step == 1 && children.len() == 1 {
             let mut replacement_indices = vec![];
             let mut replacements = vec![];
 
