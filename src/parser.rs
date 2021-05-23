@@ -151,9 +151,23 @@ impl Op {
         }
     }
 
+    pub fn inc_with_offset(span: Range<usize>, offset: isize, count: u8) -> Op {
+        Op {
+            op_type: OpType::Inc(offset, count),
+            span,
+        }
+    }
+
     pub fn dec(span: Range<usize>, count: u8) -> Op {
         Op {
             op_type: OpType::Dec(0, count),
+            span,
+        }
+    }
+
+    pub fn dec_with_offset(span: Range<usize>, offset: isize, count: u8) -> Op {
+        Op {
+            op_type: OpType::Dec(offset, count),
             span,
         }
     }
@@ -196,6 +210,13 @@ impl Op {
     pub fn set(span: Range<usize>, value: u8) -> Op {
         Op {
             op_type: OpType::Set(0, value),
+            span,
+        }
+    }
+
+    pub fn set_with_offset(span: Range<usize>, offset: isize, value: u8) -> Op {
+        Op {
+            op_type: OpType::Set(offset, value),
             span,
         }
     }
@@ -328,6 +349,16 @@ impl OpType {
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
             OpType::TNz(children, ..) => Some(children),
+            _ => None,
+        }
+    }
+
+    pub fn get_children_with_offset_mut(&mut self) -> Option<(isize, &mut Vec<Op>)> {
+        match self {
+            OpType::DLoop(children) => Some((0, children)),
+            OpType::ILoop(children, offset, ..) |
+            OpType::CLoop(children, offset, ..) |
+            OpType::TNz(children, offset) => Some((*offset, children)),
             _ => None,
         }
     }

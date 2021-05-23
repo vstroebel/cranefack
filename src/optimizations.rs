@@ -29,6 +29,7 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_conditional_loops(&mut program.ops);
         progress |= optimize_search_zero(&mut program.ops);
         progress |= run_peephole_pass(&mut program.ops, optimize_constant_arithmetics);
+        progress |= optimize_offsets(&mut program.ops, 0);
     }
 
     count

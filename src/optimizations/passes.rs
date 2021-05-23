@@ -128,7 +128,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             let mut counter_decrements = vec![];
 
             let num_ops = children.len();
-            if num_ops >= 3 {
+            if num_ops >= 2 {
                 for (i, op) in children.iter().enumerate() {
                     match &op.op_type {
                         OpType::IncPtr(value) => {
@@ -168,6 +168,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         }
                         OpType::Dec(offset, v) => {
                             if ptr_offset + offset == 0 {
+                                possible_match = true;
                                 counter_decrements.push((i, *v));
                             }
                         }
@@ -748,6 +749,83 @@ pub fn optimize_constant_arithmetics(ops: [&Op; 2]) -> Change {
     }
 }
 
+pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
+    if ops.is_empty() {
+        return false;
+    }
+
+    let mut i = 0;
+
+    let mut progress = false;
+
+    let mut ptr_offset = start_offset;
+
+    let start = ops[0].span.start;
+    let mut end = start + 1;
+
+    let mut num_ptr_changes = 0;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &mut ops[i];
+
+        let remove = match &mut op.op_type {
+            OpType::Set(offset, _) |
+            OpType::Inc(offset, _) |
+            OpType::Dec(offset, _) => {
+                let op_offset = ptr_offset + *offset - start_offset;
+                if *offset != op_offset {
+                    *offset = op_offset;
+                    progress = true;
+                }
+                false
+            }
+            OpType::IncPtr(v) => {
+                ptr_offset += *v as isize;
+                num_ptr_changes += 1;
+                true
+            }
+            OpType::DecPtr(v) => {
+                ptr_offset -= *v as isize;
+                num_ptr_changes += 1;
+                true
+            }
+            _ => break
+        };
+
+        end = op.span.end;
+
+        if remove {
+            ops.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+
+    if (num_ptr_changes != 0 || progress) && ptr_offset != start_offset {
+        let span = start..end;
+
+        let offset = ptr_offset - start_offset;
+
+        if offset > 0 {
+            ops.insert(i, Op::inc_ptr(span, offset as usize));
+        } else {
+            ops.insert(i, Op::dec_ptr(span, -offset as usize));
+        }
+
+        if num_ptr_changes > 1 {
+            progress = true;
+        }
+    }
+
+    for op in ops {
+        if let Some((offset, children)) = op.op_type.get_children_with_offset_mut() {
+            progress |= optimize_offsets(children, offset);
+        }
+    }
+
+    progress
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
@@ -1297,6 +1375,29 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::c_sub(0..2, 1, 6),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_offsets() {
+        let mut ops = vec![
+            Op::set(0..1, 3),
+            Op::inc_ptr(1..2, 3),
+            Op::inc(2..3, 2),
+            Op::dec_ptr(3..4, 1),
+            Op::dec(4..5, 5),
+            Op::dec_ptr(5..6, 1),
+            Op::d_loop(6..8, vec![]),
+        ];
+
+        optimize_offsets(&mut ops, 0);
+
+        assert_eq!(ops, vec![
+            Op::set(0..1, 3),
+            Op::inc_with_offset(2..3, 3, 2),
+            Op::dec_with_offset(4..5, 2, 5),
+            Op::inc_ptr(0..6, 1),
+            Op::d_loop(6..8, vec![]),
         ])
     }
 }
