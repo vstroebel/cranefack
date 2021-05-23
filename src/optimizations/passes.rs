@@ -1,37 +1,8 @@
-use crate::parser::{Program, Op, OpType};
+use crate::parser::{Op, OpType};
 use std::cmp::Ordering;
 
-pub fn optimize(program: &mut Program) -> u32 {
-    let mut progress = true;
-
-    let mut count = 0;
-
-    while count < 100 && progress {
-        progress = false;
-        count += 1;
-
-        // No progress tracking needed
-        remove_preceding_loop(&mut program.ops);
-
-        progress |= optimize_heap_initialization(&mut program.ops);
-        progress |= remove_empty_loops(&mut program.ops);
-        progress |= optimize_zero_loops(&mut program.ops);
-        progress |= optimize_inc_dec(&mut program.ops, 0);
-        progress |= remove_dead_stores_before_set(&mut program.ops);
-        progress |= optimize_arithmethic_loops(&mut program.ops);
-        progress |= optimize_count_loops(&mut program.ops);
-        progress |= optimize_static_count_loops(&mut program.ops);
-        progress |= optimize_constant_arithmetic_loop(&mut program.ops);
-        progress |= optimize_conditional_loops(&mut program.ops);
-        progress |= optimize_search_zero(&mut program.ops);
-        progress |= optimize_constant_arithmetics(&mut program.ops);
-    }
-
-    count
-}
-
 // Loops at the beginning of a program will not be taken at all
-fn remove_preceding_loop(ops: &mut Vec<Op>) {
+pub fn remove_preceding_loop(ops: &mut Vec<Op>) {
     while !ops.is_empty() {
         if let OpType::DLoop(_) = ops[0].op_type {
             ops.remove(0);
@@ -43,7 +14,7 @@ fn remove_preceding_loop(ops: &mut Vec<Op>) {
 
 // Remove loops that have no children left
 // This is common for loop based comments
-fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
+pub fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -66,7 +37,7 @@ fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
 }
 
 // Replace '[-]' that decreases the current point to 0 with set
-fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -95,7 +66,7 @@ fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -168,7 +139,7 @@ fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
 }
 
 // Optimize loops that are known to use the same counting variable
-fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -351,7 +322,7 @@ enum Mode {
 }
 
 // Merge multiple inc/dec or inc_ptr dec_ptr ops and remove zero versions
-fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
+pub fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -431,7 +402,7 @@ fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
     progress
 }
 
-fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
+pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -467,7 +438,7 @@ fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -521,7 +492,7 @@ fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
 }
 
 // Replace loops only containing constant sets with TNz
-fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -574,7 +545,7 @@ fn contains_only_constant_sets(ops: &[Op]) -> bool {
     true
 }
 
-fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -613,7 +584,7 @@ fn optimize_search_zero(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -699,7 +670,7 @@ fn contains_only_arithmetics(ops: &[Op]) -> bool {
     true
 }
 
-fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -774,7 +745,7 @@ fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn optimize_constant_arithmetics(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_constant_arithmetics(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -829,7 +800,7 @@ fn optimize_constant_arithmetics(ops: &mut Vec<Op>) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
-    use crate::optimizer::*;
+    use super::*;
 
     #[test]
     fn test_remove_preceding_loop() {

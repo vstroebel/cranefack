@@ -1,14 +1,14 @@
 mod parser;
 mod interpreter;
 mod errors;
-mod optimizer;
+mod optimizations;
 pub mod backends;
 
 pub use errors::{CraneFuckError, ParserError, RuntimeError};
 
 pub use crate::interpreter::Interpreter;
 pub use crate::parser::parse;
-pub use crate::optimizer::optimize;
+pub use crate::optimizations::optimize;
 
 #[cfg(test)]
 mod tests {
@@ -16,7 +16,7 @@ mod tests {
 
     use crate::interpreter::Interpreter;
     use crate::parser::parse;
-    use crate::optimize;
+    use crate::optimizations::optimize;
 
     #[test]
     fn test_out_1() {
