@@ -42,15 +42,15 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         match &op.op_type {
             OpType::IncPtr(count) => self.pointer = self.pointer.wrapping_add(*count),
             OpType::DecPtr(count) => self.pointer = self.pointer.wrapping_sub(*count),
-            OpType::Inc(count) => {
-                let value = self.heap_value(&op.span)?;
+            OpType::Inc(offset, count) => {
+                let value = self.heap_value_at_offset(&op.span, *offset)?;
                 *value = value.wrapping_add(*count);
             }
-            OpType::Dec(count) => {
-                let value = self.heap_value(&op.span)?;
+            OpType::Dec(offset, count) => {
+                let value = self.heap_value_at_offset(&op.span, *offset)?;
                 *value = value.wrapping_sub(*count);
             }
-            OpType::Set(value) => *self.heap_value(&op.span)? = *value,
+            OpType::Set(offset, value) => *self.heap_value_at_offset(&op.span, *offset)? = *value,
             OpType::Add(ptr_offset, multi) => {
                 let source = *self.heap_value(&op.span)?;
                 let target = self.heap_value_at_offset(&op.span, *ptr_offset)?;

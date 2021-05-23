@@ -20,9 +20,9 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
         match &op.op_type {
             OpType::IncPtr(count) => writeln!(out, "rt.inc_ptr({});", count)?,
             OpType::DecPtr(count) => writeln!(out, "rt.dec_ptr({});", count)?,
-            OpType::Inc(count) => writeln!(out, "rt.inc({});", count)?,
-            OpType::Dec(count) => writeln!(out, "rt.dec({});", count)?,
-            OpType::Set(value) => writeln!(out, "rt.set({});", value)?,
+            OpType::Inc(offset, count) => writeln!(out, "rt.inc({}, {});", offset, count)?,
+            OpType::Dec(offset, count) => writeln!(out, "rt.dec({}, {});", offset, count)?,
+            OpType::Set(offset, value) => writeln!(out, "rt.set({}, {});", offset, value)?,
             OpType::Add(ptr_offset, multi) => writeln!(out, "rt.add({}, {});", ptr_offset, multi)?,
             OpType::CAdd(ptr_offset, count) => writeln!(out, "rt.c_add({}, {});", ptr_offset, count)?,
             OpType::Sub(ptr_offset, multi) => writeln!(out, "rt.sub({}, {});", ptr_offset, multi)?,

@@ -87,9 +87,9 @@ impl Program {
                 OpType::IncPtr(value) => writeln!(output, "INC_PTR {}", value)?,
                 OpType::DecPtr(value) => writeln!(output, "DEC_PTR {}", value)?,
 
-                OpType::Inc(value) => writeln!(output, "INC {}", value)?,
-                OpType::Dec(value) => writeln!(output, "DEC {}", value)?,
-                OpType::Set(value) => writeln!(output, "SET {}", value)?
+                OpType::Inc(offset, value) => writeln!(output, "INC {} offset: {}", value, offset)?,
+                OpType::Dec(offset, value) => writeln!(output, "DEC {} offset: {}", value, offset)?,
+                OpType::Set(offset, value) => writeln!(output, "SET {} offset: {}", value, offset)?
                 ,
                 OpType::Add(offset, multi) => writeln!(output, "ADD offset: {} multiply: {}", offset, multi)?,
                 OpType::CAdd(offset, value) => writeln!(output, "CADD offset: {} value: {}", offset, value)?,
@@ -146,14 +146,14 @@ impl Op {
 
     pub fn inc(span: Range<usize>, count: u8) -> Op {
         Op {
-            op_type: OpType::Inc(count),
+            op_type: OpType::Inc(0, count),
             span,
         }
     }
 
     pub fn dec(span: Range<usize>, count: u8) -> Op {
         Op {
-            op_type: OpType::Dec(count),
+            op_type: OpType::Dec(0, count),
             span,
         }
     }
@@ -195,7 +195,7 @@ impl Op {
 
     pub fn set(span: Range<usize>, value: u8) -> Op {
         Op {
-            op_type: OpType::Set(value),
+            op_type: OpType::Set(0, value),
             span,
         }
     }
@@ -247,9 +247,9 @@ impl Op {
 pub enum OpType {
     IncPtr(usize),
     DecPtr(usize),
-    Inc(u8),
-    Dec(u8),
-    Set(u8),
+    Inc(isize, u8),
+    Dec(isize, u8),
+    Set(isize, u8),
 
     /// Add current value to value at offset and reset current value to 0
     Add(isize, u8),
@@ -300,9 +300,9 @@ impl OpType {
     /// Test for arithmetic ops without offsets
     pub fn is_simple_arithmetic(&self) -> bool {
         matches!(self,
-            OpType::Set(_) |
-            OpType::Inc(_) |
-            OpType::Dec(_) |
+            OpType::Set(0, _) |
+            OpType::Inc(0, _) |
+            OpType::Dec(0, _) |
             OpType::IncPtr(_) |
             OpType::DecPtr(_)
         )

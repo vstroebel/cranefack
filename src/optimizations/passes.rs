@@ -25,7 +25,7 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
         if let Some(children) = op.op_type.get_children_mut() {
             let mut optimized = false;
             if children.len() == 1 {
-                optimized = matches!(children[0].op_type, OpType::Dec(1) | OpType::Inc(1))
+                optimized = matches!(children[0].op_type, OpType::Dec(0, 1) | OpType::Inc(0, 1))
             }
 
             if optimized {
@@ -53,42 +53,42 @@ pub fn optimize_arithmetic_loops(ops: &mut Vec<Op>) -> bool {
             let mut optimized = None;
             if children.len() == 4 {
                 match (&children[0].op_type, &children[1].op_type, &children[2].op_type, &children[3].op_type) {
-                    (OpType::Dec(1), OpType::IncPtr(offset), OpType::Inc(multi), OpType::DecPtr(offset2)) => {
+                    (OpType::Dec(0, 1), OpType::IncPtr(offset), OpType::Inc(0, multi), OpType::DecPtr(offset2)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Add(*offset as isize, *multi));
                         }
                     }
-                    (OpType::Dec(1), OpType::DecPtr(offset), OpType::Inc(multi), OpType::IncPtr(offset2)) => {
+                    (OpType::Dec(0, 1), OpType::DecPtr(offset), OpType::Inc(0, multi), OpType::IncPtr(offset2)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Add(-(*offset as isize), *multi));
                         }
                     }
-                    (OpType::IncPtr(offset), OpType::Inc(multi), OpType::DecPtr(offset2), OpType::Dec(1)) => {
+                    (OpType::IncPtr(offset), OpType::Inc(0, multi), OpType::DecPtr(offset2), OpType::Dec(0, 1)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Add(*offset as isize, *multi));
                         }
                     }
-                    (OpType::DecPtr(offset), OpType::Inc(multi), OpType::IncPtr(offset2), OpType::Dec(1)) => {
+                    (OpType::DecPtr(offset), OpType::Inc(0, multi), OpType::IncPtr(offset2), OpType::Dec(0, 1)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Add(-(*offset as isize), *multi));
                         }
                     }
-                    (OpType::Dec(1), OpType::IncPtr(offset), OpType::Dec(multi), OpType::DecPtr(offset2)) => {
+                    (OpType::Dec(0, 1), OpType::IncPtr(offset), OpType::Dec(0, multi), OpType::DecPtr(offset2)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Sub(*offset as isize, *multi));
                         }
                     }
-                    (OpType::Dec(1), OpType::DecPtr(offset), OpType::Dec(multi), OpType::IncPtr(offset2)) => {
+                    (OpType::Dec(0, 1), OpType::DecPtr(offset), OpType::Dec(0, multi), OpType::IncPtr(offset2)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Sub(-(*offset as isize), *multi));
                         }
                     }
-                    (OpType::IncPtr(offset), OpType::Dec(multi), OpType::DecPtr(offset2), OpType::Dec(1)) => {
+                    (OpType::IncPtr(offset), OpType::Dec(0, multi), OpType::DecPtr(offset2), OpType::Dec(0, 1)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Sub(*offset as isize, *multi));
                         }
                     }
-                    (OpType::DecPtr(offset), OpType::Dec(multi), OpType::IncPtr(offset2), OpType::Dec(1)) => {
+                    (OpType::DecPtr(offset), OpType::Dec(0, multi), OpType::IncPtr(offset2), OpType::Dec(0, 1)) => {
                         if offset == offset2 {
                             optimized = Some(OpType::Sub(-(*offset as isize), *multi));
                         }
@@ -154,14 +154,20 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                                 break;
                             }
                         }
-                        OpType::Inc(_) | OpType::Set(_) | OpType::GetChar => {
+                        OpType::Inc(offset, _) | OpType::Set(offset, _) => {
+                            if ptr_offset + offset == 0 {
+                                ignore = true;
+                                break;
+                            }
+                        }
+                        OpType::GetChar => {
                             if ptr_offset == 0 {
                                 ignore = true;
                                 break;
                             }
                         }
-                        OpType::Dec(v) => {
-                            if ptr_offset == 0 {
+                        OpType::Dec(offset, v) => {
+                            if ptr_offset + offset == 0 {
                                 counter_decrements.push((i, *v));
                             }
                         }
@@ -264,7 +270,14 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                     }
                 }
             }
-            OpType::Inc(_) | OpType::Dec(_) | OpType::Set(_) | OpType::GetChar => {
+            OpType::Inc(offset, _) | OpType::Dec(offset, _) | OpType::Set(offset, _) => {
+                for parent_offset in parent_offsets {
+                    if ptr_offset + offset == *parent_offset {
+                        return false;
+                    }
+                }
+            }
+            OpType::GetChar => {
                 for parent_offset in parent_offsets {
                     if ptr_offset == *parent_offset {
                         return false;
@@ -300,20 +313,40 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
 // Merge multiple inc/dec or inc_ptr dec_ptr ops and remove zero versions
 pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
     match (&ops[0].op_type, &ops[1].op_type) {
-        (OpType::Inc(v1), OpType::Inc(v2)) => Change::Replace(vec![OpType::Inc(v1.wrapping_add(*v2))]),
-        (OpType::Dec(v1), OpType::Dec(v2)) => Change::Replace(vec![OpType::Dec(v1.wrapping_add(*v2))]),
-        (OpType::Inc(v1), OpType::Dec(v2)) => {
-            match v1.cmp(v2) {
-                Ordering::Equal => Change::Remove,
-                Ordering::Greater => Change::Replace(vec![OpType::Inc(v1 - v2)]),
-                Ordering::Less => Change::Replace(vec![OpType::Dec(v2 - v1)]),
+        (OpType::Inc(offset, v1), OpType::Inc(offset2, v2)) => {
+            if *offset == *offset2 {
+                Change::Replace(vec![OpType::Inc(*offset, v1.wrapping_add(*v2))])
+            } else {
+                Change::Ignore
             }
         }
-        (OpType::Dec(v1), OpType::Inc(v2)) => {
-            match v1.cmp(v2) {
-                Ordering::Equal => Change::Remove,
-                Ordering::Greater => Change::Replace(vec![OpType::Dec(v1 - v2)]),
-                Ordering::Less => Change::Replace(vec![OpType::Inc(v2 - v1)]),
+        (OpType::Dec(offset, v1), OpType::Dec(offset2, v2)) => {
+            if *offset == *offset2 {
+                Change::Replace(vec![OpType::Dec(*offset, v1.wrapping_add(*v2))])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::Inc(offset, v1), OpType::Dec(offset2, v2)) => {
+            if *offset == *offset2 {
+                match v1.cmp(v2) {
+                    Ordering::Equal => Change::Remove,
+                    Ordering::Greater => Change::Replace(vec![OpType::Inc(*offset, v1 - v2)]),
+                    Ordering::Less => Change::Replace(vec![OpType::Dec(*offset, v2 - v1)]),
+                }
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::Dec(offset, v1), OpType::Inc(offset2, v2)) => {
+            if *offset == *offset2 {
+                match v1.cmp(v2) {
+                    Ordering::Equal => Change::Remove,
+                    Ordering::Greater => Change::Replace(vec![OpType::Dec(*offset, v1 - v2)]),
+                    Ordering::Less => Change::Replace(vec![OpType::Inc(*offset, v2 - v1)]),
+                }
+            } else {
+                Change::Ignore
             }
         }
         (OpType::IncPtr(v1), OpType::IncPtr(v2)) => Change::Replace(vec![OpType::IncPtr(v1.wrapping_add(*v2))]),
@@ -332,18 +365,30 @@ pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
                 Ordering::Less => Change::Replace(vec![OpType::IncPtr(v2 - v1)]),
             }
         }
-        (OpType::Set(v1), OpType::Inc(v2)) => Change::Replace(vec![OpType::Set(v1.wrapping_add(*v2))]),
-        (OpType::Set(v1), OpType::Dec(v2)) => Change::Replace(vec![OpType::Set(v1.wrapping_sub(*v2))]),
-        (op_type, OpType::Inc(v)) => {
-            if op_type.is_zeroing() {
-                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(*v)])
+        (OpType::Set(offset, v1), OpType::Inc(offset2, v2)) => {
+            if *offset == *offset2 {
+                Change::Replace(vec![OpType::Set(*offset, v1.wrapping_add(*v2))])
             } else {
                 Change::Ignore
             }
         }
-        (op_type, OpType::Dec(v)) => {
+        (OpType::Set(offset, v1), OpType::Dec(offset2, v2)) => {
+            if *offset == *offset2 {
+                Change::Replace(vec![OpType::Set(*offset, v1.wrapping_sub(*v2))])
+            } else {
+                Change::Ignore
+            }
+        }
+        (op_type, OpType::Inc(0, v)) => {
             if op_type.is_zeroing() {
-                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(0u8.wrapping_sub(*v))])
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(0, *v)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (op_type, OpType::Dec(0, v)) => {
+            if op_type.is_zeroing() {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(0, 0u8.wrapping_sub(*v))])
             } else {
                 Change::Ignore
             }
@@ -363,12 +408,12 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
 
         #[allow(clippy::match_like_matches_macro)]
             let remove = match (&op1.op_type, &op2.op_type) {
-            (OpType::Inc(_), OpType::Set(_)) |
-            (OpType::Dec(_), OpType::Set(_)) |
-            (OpType::Set(_), OpType::Set(_)) |
-            (OpType::Inc(_), OpType::GetChar) |
-            (OpType::Dec(_), OpType::GetChar) |
-            (OpType::Set(_), OpType::GetChar) => true,
+            (OpType::Inc(0, _), OpType::Set(0, _)) |
+            (OpType::Dec(0, _), OpType::Set(0, _)) |
+            (OpType::Set(0, _), OpType::Set(0, _)) |
+            (OpType::Inc(0, _), OpType::GetChar) |
+            (OpType::Dec(0, _), OpType::GetChar) |
+            (OpType::Set(0, _), OpType::GetChar) => true,
             _ => false,
         };
 
@@ -398,7 +443,7 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
         let op2 = &ops[i + 1];
 
         let count = match (&op1.op_type, &op2.op_type) {
-            (OpType::Set(v), OpType::ILoop(_, _, step)) =>
+            (OpType::Set(0, v), OpType::ILoop(_, _, step)) =>
                 if v % step == 0 {
                     Some(v / step)
                 } else {
@@ -483,7 +528,7 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
 fn contains_only_constant_sets(ops: &[Op]) -> bool {
     for op in ops {
         match &op.op_type {
-            OpType::Set(_) |
+            OpType::Set(_, _) |
             OpType::IncPtr(_) |
             OpType::DecPtr(_) => {
                 // allowed
@@ -568,8 +613,8 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
 
                     for mut child in children {
                         match &mut child.op_type {
-                            OpType::Inc(v) |
-                            OpType::Dec(v) => *v *= iterations,
+                            OpType::Inc(_, v) |
+                            OpType::Dec(_, v) => *v *= iterations,
                             OpType::IncPtr(v) => ptr_offset += *v as isize,
                             OpType::DecPtr(v) => ptr_offset -= *v as isize,
                             _ => {
@@ -628,40 +673,44 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
             if let Some(offset) = op.op_type.get_ptr_offset() {
                 ptr += offset;
                 None
-            } else if let OpType::Inc(value) = &op.op_type {
-                if ptr < 0 {
+            } else if let OpType::Inc(offset, value) = &op.op_type {
+                let op_ptr = ptr + offset;
+
+                if op_ptr < 0 {
                     break;
                 }
 
-                while ptr > heap.len() as isize - 1 {
+                while op_ptr > heap.len() as isize - 1 {
                     heap.push(None);
                 }
 
                 progress = true;
 
-                if let Some(index) = &heap[ptr as usize] {
+                if let Some(index) = &heap[op_ptr as usize] {
                     Some((index, *value as i16))
                 } else {
-                    op.op_type = OpType::Set(*value);
-                    heap[ptr as usize] = Some(i);
+                    op.op_type = OpType::Set(*offset, *value);
+                    heap[op_ptr as usize] = Some(i);
                     None
                 }
-            } else if let OpType::Dec(value) = &op.op_type {
-                if ptr < 0 {
+            } else if let OpType::Dec(offset, value) = &op.op_type {
+                let op_ptr = ptr + offset;
+
+                if op_ptr < 0 {
                     break;
                 }
 
-                while ptr > heap.len() as isize - 1 {
+                while op_ptr > heap.len() as isize - 1 {
                     heap.push(None);
                 }
 
                 progress = true;
 
-                if let Some(index) = &heap[ptr as usize] {
+                if let Some(index) = &heap[op_ptr as usize] {
                     Some((index, -(*value as i16)))
                 } else {
-                    op.op_type = OpType::Set(0u8.wrapping_sub(*value));
-                    heap[ptr as usize] = Some(i);
+                    op.op_type = OpType::Set(*offset, 0u8.wrapping_sub(*value));
+                    heap[op_ptr as usize] = Some(i);
                     None
                 }
             } else {
@@ -670,7 +719,7 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
         };
 
         if let Some((&index, value)) = replace {
-            if let OpType::Set(set_v) = &mut ops[index].op_type {
+            if let OpType::Set(_, set_v) = &mut ops[index].op_type {
                 if value < 0 {
                     *set_v = set_v.wrapping_sub(-value as u8);
                 } else {
@@ -689,10 +738,10 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
 
 pub fn optimize_constant_arithmetics(ops: [&Op; 2]) -> Change {
     match (&ops[0].op_type, &ops[1].op_type) {
-        (OpType::Set(value), OpType::Add(offset, multi)) => {
+        (OpType::Set(0, value), OpType::Add(offset, multi)) => {
             Change::Replace(vec![OpType::CAdd(*offset, value * multi)])
         }
-        (OpType::Set(value), OpType::Sub(offset, multi)) => {
+        (OpType::Set(0, value), OpType::Sub(offset, multi)) => {
             Change::Replace(vec![OpType::CSub(*offset, value * multi)])
         }
         _ => Change::Ignore

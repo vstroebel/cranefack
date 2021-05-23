@@ -65,17 +65,17 @@ impl Runtime {
         self.pointer = self.pointer.wrapping_sub(count)
     }
 
-    fn inc(&mut self, count: u8) {
-        let value = self.heap_value();
+    fn inc(&mut self, offset: isize, count: u8) {
+        let value = self.heap_value_at_offset(offset);
         *value = value.wrapping_add(count);
     }
 
-    fn set(&mut self, value: u8) {
-        *self.heap_value() = value;
+    fn set(&mut self, offset: isize, value: u8) {
+        *self.heap_value_at_offset(offset) = value;
     }
 
-    fn dec(&mut self, count: u8) {
-        let value = self.heap_value();
+    fn dec(&mut self, offset: isize, count: u8) {
+        let value = self.heap_value_at_offset(offset);
         *value = value.wrapping_sub(count);
     }
 
