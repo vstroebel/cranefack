@@ -839,9 +839,51 @@ pub fn optimize_arithmetic_offsets(ops: [&Op; 3]) -> Change {
                 Change::Ignore
             }
         }
+        (OpType::DecPtr(i1), OpType::Add(src_offset, dest_offset, value), OpType::IncPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::Add(src_offset - *i1 as isize, dest_offset - *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
         (OpType::IncPtr(i1), OpType::CAdd(src_offset, dest_offset, value), OpType::DecPtr(i2)) => {
             if *i1 == *i2 {
                 Change::Replace(vec![OpType::CAdd(src_offset + *i1 as isize, dest_offset + *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::DecPtr(i1), OpType::CAdd(src_offset, dest_offset, value), OpType::IncPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::CAdd(src_offset - *i1 as isize, dest_offset - *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::IncPtr(i1), OpType::Sub(src_offset, dest_offset, value), OpType::DecPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::Sub(src_offset + *i1 as isize, dest_offset + *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::DecPtr(i1), OpType::Sub(src_offset, dest_offset, value), OpType::IncPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::Sub(src_offset - *i1 as isize, dest_offset - *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::IncPtr(i1), OpType::CSub(src_offset, dest_offset, value), OpType::DecPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::CSub(src_offset + *i1 as isize, dest_offset + *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::DecPtr(i1), OpType::CSub(src_offset, dest_offset, value), OpType::IncPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::CSub(src_offset - *i1 as isize, dest_offset - *i1 as isize, *value)])
             } else {
                 Change::Ignore
             }
