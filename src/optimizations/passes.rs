@@ -758,63 +758,69 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
 
     let mut progress = false;
 
-    let mut ptr_offset = start_offset;
-
-    let start = ops[0].span.start;
-    let mut end = start + 1;
-
-    let mut num_ptr_changes = 0;
-
     while !ops.is_empty() && i < ops.len() {
-        let op = &mut ops[i];
+        let mut inner_progress = false;
 
-        let remove = match &mut op.op_type {
-            OpType::Set(offset, _) |
-            OpType::Inc(offset, _) |
-            OpType::Dec(offset, _) => {
-                let op_offset = ptr_offset + *offset - start_offset;
-                if *offset != op_offset {
-                    *offset = op_offset;
-                    progress = true;
+        let mut ptr_offset = start_offset;
+
+        let start = ops[0].span.start;
+        let mut end = start + 1;
+
+        let mut num_ptr_changes = 0;
+
+        while !ops.is_empty() && i < ops.len() {
+            let op = &mut ops[i];
+
+            let remove = match &mut op.op_type {
+                OpType::Set(offset, _) |
+                OpType::Inc(offset, _) |
+                OpType::Dec(offset, _) => {
+                    let op_offset = ptr_offset + *offset - start_offset;
+                    if *offset != op_offset {
+                        *offset = op_offset;
+                        inner_progress = true;
+                    }
+                    false
                 }
-                false
-            }
-            OpType::IncPtr(v) => {
-                ptr_offset += *v as isize;
-                num_ptr_changes += 1;
-                true
-            }
-            OpType::DecPtr(v) => {
-                ptr_offset -= *v as isize;
-                num_ptr_changes += 1;
-                true
-            }
-            _ => break
-        };
+                OpType::IncPtr(v) => {
+                    ptr_offset += *v as isize;
+                    num_ptr_changes += 1;
+                    true
+                }
+                OpType::DecPtr(v) => {
+                    ptr_offset -= *v as isize;
+                    num_ptr_changes += 1;
+                    true
+                }
+                _ => break
+            };
 
-        end = op.span.end;
+            end = op.span.end;
 
-        if remove {
-            ops.remove(i);
-        } else {
-            i += 1;
+            if remove {
+                ops.remove(i);
+            } else {
+                i += 1;
+            }
         }
-    }
 
-    if (num_ptr_changes != 0 || progress) && ptr_offset != start_offset {
-        let span = start..end;
+        if (num_ptr_changes != 0 || inner_progress) && ptr_offset != start_offset {
+            let span = start..end;
 
-        let offset = ptr_offset - start_offset;
+            let offset = ptr_offset - start_offset;
 
-        if offset > 0 {
-            ops.insert(i, Op::inc_ptr(span, offset as usize));
-        } else {
-            ops.insert(i, Op::dec_ptr(span, -offset as usize));
+            if offset > 0 {
+                ops.insert(i, Op::inc_ptr(span, offset as usize));
+            } else {
+                ops.insert(i, Op::dec_ptr(span, -offset as usize));
+            }
         }
 
         if num_ptr_changes > 1 {
             progress = true;
         }
+
+        i += 1;
     }
 
     for op in ops {
