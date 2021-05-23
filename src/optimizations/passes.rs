@@ -767,6 +767,19 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
                     }
                     false
                 }
+                OpType::Add(src_offset, dest_offset, _) |
+                OpType::CAdd(src_offset, dest_offset, _) |
+                OpType::Sub(src_offset, dest_offset, _) |
+                OpType::CSub(src_offset, dest_offset, _) => {
+                    let op_src_offset = ptr_offset + *src_offset - start_offset;
+                    let op_dest_offset = ptr_offset + *dest_offset - start_offset;
+                    if *src_offset != op_src_offset || *dest_offset != op_dest_offset {
+                        *src_offset = op_src_offset;
+                        *dest_offset = op_dest_offset;
+                        inner_progress = true;
+                    }
+                    false
+                }
                 OpType::IncPtr(v) => {
                     ptr_offset += *v as isize;
                     num_ptr_changes += 1;
