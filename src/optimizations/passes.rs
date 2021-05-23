@@ -381,11 +381,13 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
         let op1 = &ops[i];
         let op2 = &ops[i + 1];
 
-        #[allow(clippy::match_like_matches_macro)]
-            let remove = match (&op1.op_type, &op2.op_type) {
-            (OpType::Inc(0, _), OpType::Set(0, _)) |
-            (OpType::Dec(0, _), OpType::Set(0, _)) |
-            (OpType::Set(0, _), OpType::Set(0, _)) |
+
+        let remove = match (&op1.op_type, &op2.op_type) {
+            (OpType::Inc(offset, _), OpType::Set(offset2, _)) |
+            (OpType::Dec(offset, _), OpType::Set(offset2, _)) |
+            (OpType::Set(offset, _), OpType::Set(offset2, _)) => {
+                *offset == *offset2
+            }
             (OpType::Inc(0, _), OpType::GetChar) |
             (OpType::Dec(0, _), OpType::GetChar) |
             (OpType::Set(0, _), OpType::GetChar) => true,
@@ -394,13 +396,14 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
 
         if remove {
             ops.remove(i);
+            progress = true;
         } else {
             i += 1;
         }
     }
 
-    if let Some(last) = ops.last_mut() {
-        if let Some(children) = last.op_type.get_children_mut() {
+    for op in ops {
+        if let Some(children) = op.op_type.get_children_mut() {
             progress |= remove_dead_stores_before_set(children);
         }
     }
