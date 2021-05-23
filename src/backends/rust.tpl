@@ -97,7 +97,7 @@ impl Runtime {
     fn c_add(&mut self, ptr_offset: isize, value: u8) {
         let target = self.heap_value_at_offset(ptr_offset);
         *target = target.wrapping_add(value);
-        *self.heap_value(&op.span) = 0;
+        *self.heap_value() = 0;
     }
 
     fn sub(&mut self, ptr_offset: isize, multi: u8) {
@@ -110,7 +110,7 @@ impl Runtime {
     fn c_sub(&mut self, ptr_offset: isize, value: u8) {
         let target = self.heap_value_at_offset(ptr_offset);
         *target = target.wrapping_sub(value);
-        *self.heap_value(&op.span) = 0;
+        *self.heap_value() = 0;
     }
 
     fn search_zero(&mut self, step: isize) {
