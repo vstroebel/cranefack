@@ -354,10 +354,10 @@ impl OpType {
             OpType::ILoop(..) |
             OpType::CLoop(..) |
             OpType::TNz(..) |
-            OpType::Add(..) |
-            OpType::CAdd(..) |
-            OpType::Sub(..) |
-            OpType::CSub(..) |
+            OpType::Add(0, ..) |
+            OpType::CAdd(0, ..) |
+            OpType::Sub(0, ..) |
+            OpType::CSub(0, ..) |
             OpType::SearchZero(..)
         )
     }
