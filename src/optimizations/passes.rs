@@ -319,6 +319,20 @@ pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
         }
         (OpType::Set(v1), OpType::Inc(v2)) => Change::Replace(vec![OpType::Set(v1.wrapping_add(*v2))]),
         (OpType::Set(v1), OpType::Dec(v2)) => Change::Replace(vec![OpType::Set(v1.wrapping_sub(*v2))]),
+        (op_type, OpType::Inc(v)) => {
+            if op_type.is_zeroing() {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(*v)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (op_type, OpType::Dec(v)) => {
+            if op_type.is_zeroing() {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(0u8.wrapping_sub(*v))])
+            } else {
+                Change::Ignore
+            }
+        }
         _ => Change::Ignore
     }
 }
@@ -836,6 +850,21 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::inc(2..3, 3),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_inc_dec_zeroing_inc() {
+        let mut ops = vec![
+            Op::c_loop(0..2, vec![], 1, 1),
+            Op::inc(2..3, 3),
+        ];
+
+        run_peephole_pass(&mut ops, optimize_inc_dec);
+
+        assert_eq!(ops, vec![
+            Op::c_loop(0..2, vec![], 1, 1),
+            Op::set(2..3, 3),
         ])
     }
 

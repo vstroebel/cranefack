@@ -1,12 +1,14 @@
 use crate::parser::{OpType, Op};
 
 use std::mem::MaybeUninit;
+use std::ops::Range;
 
 #[derive(Debug)]
 pub enum Change {
     Ignore,
     Remove,
     Replace(Vec<OpType>),
+    ReplaceOffset(usize, Range<usize>, Vec<OpType>),
 }
 
 pub fn run_peephole_pass<F, const WINDOW: usize>(ops: &mut Vec<Op>, func: F) -> bool
@@ -48,6 +50,21 @@ pub fn run_peephole_pass<F, const WINDOW: usize>(ops: &mut Vec<Op>, func: F) -> 
 
                 for op_type in op_types.into_iter().rev() {
                     ops.insert(i, Op {
+                        op_type,
+                        span: span.clone(),
+                    });
+                }
+
+                progress = true;
+            }
+            Change::ReplaceOffset(offset, span, op_types) => {
+
+                for _ in offset..WINDOW {
+                    ops.remove(i + offset);
+                }
+
+                for op_type in op_types.into_iter().rev() {
+                    ops.insert(i + offset, Op {
                         op_type,
                         span: span.clone(),
                     });

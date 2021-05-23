@@ -308,6 +308,20 @@ impl OpType {
         )
     }
 
+    pub fn is_zeroing(&self) -> bool {
+        matches!(self,
+            OpType::DLoop(..) |
+            OpType::ILoop(..) |
+            OpType::CLoop(..) |
+            OpType::TNz(..) |
+            OpType::Add(..) |
+            OpType::CAdd(..) |
+            OpType::Sub(..) |
+            OpType::CSub(..) |
+            OpType::SearchZero(..)
+        )
+    }
+
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
         match self {
             OpType::DLoop(children) |
