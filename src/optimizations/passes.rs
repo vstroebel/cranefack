@@ -12,30 +12,6 @@ pub fn remove_preceding_loop(ops: &mut Vec<Op>) {
     }
 }
 
-// Remove loops that have no children left
-// This is common for loop based comments
-pub fn remove_empty_loops(ops: &mut Vec<Op>) -> bool {
-    let mut i = 0;
-
-    let mut progress = false;
-
-    while !ops.is_empty() && i < ops.len() {
-        if let Some(children) = ops[i].op_type.get_children_mut() {
-            if children.is_empty() {
-                ops.remove(i);
-                progress = true;
-            } else {
-                progress |= remove_empty_loops(children);
-                i += 1;
-            }
-        } else {
-            i += 1;
-        }
-    }
-
-    progress
-}
-
 // Replace '[-]' that decreases the current point to 0 with set
 pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;

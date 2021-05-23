@@ -17,7 +17,6 @@ pub fn optimize(program: &mut Program) -> u32 {
         remove_preceding_loop(&mut program.ops);
 
         progress |= optimize_heap_initialization(&mut program.ops);
-        progress |= remove_empty_loops(&mut program.ops);
         progress |= optimize_zero_loops(&mut program.ops);
         progress |= optimize_inc_dec(&mut program.ops, 0);
         progress |= remove_dead_stores_before_set(&mut program.ops);
