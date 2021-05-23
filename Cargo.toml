@@ -1,5 +1,5 @@
 [package]
-name = "cranefuck"
+name = "cranefack"
 version = "0.1.0"
 authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
 edition = "2018"
