@@ -30,6 +30,8 @@ pub fn optimize(program: &mut Program) -> u32 {
         progress |= optimize_search_zero(&mut program.ops);
         progress |= run_peephole_pass(&mut program.ops, optimize_constant_arithmetics);
         progress |= optimize_offsets(&mut program.ops, 0);
+        progress |= run_peephole_pass(&mut program.ops, optimize_arithmetic_offsets);
+        progress |= remove_trailing_pointer_ops(&mut program.ops, true);
     }
 
     count

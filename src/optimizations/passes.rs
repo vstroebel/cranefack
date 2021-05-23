@@ -806,6 +806,55 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
     progress
 }
 
+pub fn optimize_arithmetic_offsets(ops: [&Op; 3]) -> Change {
+    match (&ops[0].op_type, &ops[1].op_type, &ops[2].op_type) {
+        (OpType::IncPtr(i1), OpType::Add(src_offset, dest_offset, value), OpType::DecPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::Add(src_offset + *i1 as isize, dest_offset + *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::IncPtr(i1), OpType::CAdd(src_offset, dest_offset, value), OpType::DecPtr(i2)) => {
+            if *i1 == *i2 {
+                Change::Replace(vec![OpType::CAdd(src_offset + *i1 as isize, dest_offset + *i1 as isize, *value)])
+            } else {
+                Change::Ignore
+            }
+        }
+        _ => Change::Ignore
+    }
+}
+
+pub fn remove_trailing_pointer_ops(ops: &mut Vec<Op>, in_framed_block: bool) -> bool {
+    let mut progress = false;
+
+    if in_framed_block {
+        while !ops.is_empty() && ops[ops.len() - 1].op_type.is_ptr_inc_or_dec() {
+            ops.remove(ops.len() - 1);
+            progress = true;
+        }
+    }
+
+    for op in ops {
+        match &mut op.op_type {
+            OpType::ILoop(children, ..) |
+            OpType::CLoop(children, ..) |
+            OpType::TNz(children, ..) => {
+                progress |= remove_trailing_pointer_ops(children, true);
+            }
+            OpType::DLoop(children) => {
+                progress |= remove_trailing_pointer_ops(children, false);
+            }
+            _ => {
+                //ignore
+            }
+        }
+    }
+
+    progress
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
@@ -1382,6 +1431,41 @@ mod tests {
             Op::dec_with_offset(4..5, 2, 5),
             Op::inc_ptr(0..6, 1),
             Op::d_loop(6..8, vec![]),
+        ])
+    }
+
+
+    #[test]
+    fn test_optimize_arithmetic_offsets() {
+        let mut ops = vec![
+            Op::inc_ptr(0..1, 1),
+            Op::c_add(1..2, -1, 72),
+            Op::dec_ptr(2..3, 1),
+        ];
+
+        run_peephole_pass(&mut ops, optimize_arithmetic_offsets);
+
+        assert_eq!(ops, vec![
+            Op::c_add_with_offset(0..3, 1, 0, 72),
+        ])
+    }
+
+    #[test]
+    fn test_remove_trailing_pointer_ops() {
+        let mut ops = vec![
+            Op::i_loop(0..3, vec![
+                Op::c_add(1..2, -1, 72),
+                Op::dec_ptr(2..3, 1),
+            ], 1, 5),
+            Op::inc_ptr(3..4, 1),
+        ];
+
+        remove_trailing_pointer_ops(&mut ops, true);
+
+        assert_eq!(ops, vec![
+            Op::i_loop(0..3, vec![
+                Op::c_add(1..2, -1, 72),
+            ], 1, 5),
         ])
     }
 }

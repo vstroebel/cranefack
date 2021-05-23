@@ -18,7 +18,7 @@ pub fn run_peephole_pass<F, const WINDOW: usize>(ops: &mut Vec<Op>, func: F) -> 
 
     let mut progress = false;
 
-    while !ops.is_empty() && i < ops.len() - (WINDOW - 1) {
+    while ops.len() >= WINDOW && i < ops.len() - (WINDOW - 1) {
         let window = unsafe {
             // Unsafe hackery to initialize window array with parameterized length
             let window: MaybeUninit<[&Op; WINDOW]> = MaybeUninit::uninit().assume_init();
@@ -58,7 +58,6 @@ pub fn run_peephole_pass<F, const WINDOW: usize>(ops: &mut Vec<Op>, func: F) -> 
                 progress = true;
             }
             Change::ReplaceOffset(offset, span, op_types) => {
-
                 for _ in offset..WINDOW {
                     ops.remove(i + offset);
                 }

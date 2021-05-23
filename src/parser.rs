@@ -238,6 +238,12 @@ impl Op {
             span,
         }
     }
+    pub fn c_add_with_offset(span: Range<usize>, src_offset: isize, dest_offset: isize, value: u8) -> Op {
+        Op {
+            op_type: OpType::CAdd(src_offset, dest_offset, value),
+            span,
+        }
+    }
 
     pub fn sub(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
         Op {
