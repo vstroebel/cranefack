@@ -55,7 +55,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                             return Change::Ignore;
                         } else {
                             replacement_indices.push(*offset);
-                            replacements.push(OpType::Add(loop_offset + *offset as isize, *multi));
+                            replacements.push(OpType::Add(0, loop_offset + *offset as isize, *multi));
                         }
                     }
                     OpType::Dec(offset, multi) => {
@@ -63,7 +63,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                             return Change::Ignore;
                         } else {
                             replacement_indices.push(*offset);
-                            replacements.push(OpType::Sub(loop_offset + *offset as isize, *multi));
+                            replacements.push(OpType::Sub(0, loop_offset + *offset as isize, *multi));
                         }
                     }
                     _ => {
@@ -108,17 +108,17 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             possible_match = true;
                             ptr_offset -= *value as isize;
                         }
-                        OpType::Add(offset, _) |
-                        OpType::Sub(offset, _) |
-                        OpType::CAdd(offset, _) |
-                        OpType::CSub(offset, _)
+                        OpType::Add(src_offset, dest_offset, _) |
+                        OpType::Sub(src_offset, dest_offset, _) |
+                        OpType::CAdd(src_offset, dest_offset, _) |
+                        OpType::CSub(src_offset, dest_offset, _)
                         => {
-                            if ptr_offset == 0 {
+                            if ptr_offset + src_offset == 0 {
                                 ignore = true;
                                 break;
                             }
 
-                            if ptr_offset + offset == 0 {
+                            if ptr_offset + dest_offset == 0 {
                                 ignore = true;
                                 break;
                             }
@@ -223,19 +223,19 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::DecPtr(value) => {
                 ptr_offset -= *value as isize;
             }
-            OpType::Add(offset, _) |
-            OpType::Sub(offset, _) |
-            OpType::CAdd(offset, _) |
-            OpType::CSub(offset, _)
+            OpType::Add(src_offset, dest_offset, _) |
+            OpType::Sub(src_offset, dest_offset, _) |
+            OpType::CAdd(src_offset, dest_offset, _) |
+            OpType::CSub(src_offset, dest_offset, _)
             => {
                 for parent_offset in parent_offsets {
-                    if ptr_offset == *parent_offset {
+                    if ptr_offset + src_offset == *parent_offset {
                         return false;
                     }
                 }
 
                 for parent_offset in parent_offsets {
-                    if ptr_offset + offset == *parent_offset {
+                    if ptr_offset + dest_offset == *parent_offset {
                         return false;
                     }
                 }
@@ -708,11 +708,11 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
 
 pub fn optimize_constant_arithmetics(ops: [&Op; 2]) -> Change {
     match (&ops[0].op_type, &ops[1].op_type) {
-        (OpType::Set(0, value), OpType::Add(offset, multi)) => {
-            Change::Replace(vec![OpType::CAdd(*offset, value * multi)])
+        (OpType::Set(0, value), OpType::Add(src_offset, dest_offset, multi)) => {
+            Change::Replace(vec![OpType::CAdd(*src_offset, *dest_offset, value * multi)])
         }
-        (OpType::Set(0, value), OpType::Sub(offset, multi)) => {
-            Change::Replace(vec![OpType::CSub(*offset, value * multi)])
+        (OpType::Set(0, value), OpType::Sub(src_offset, dest_offset, multi)) => {
+            Change::Replace(vec![OpType::CSub(*src_offset, *dest_offset, value * multi)])
         }
         _ => Change::Ignore
     }

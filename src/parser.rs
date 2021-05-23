@@ -91,10 +91,14 @@ impl Program {
                 OpType::Dec(offset, value) => writeln!(output, "DEC {} offset: {}", value, offset)?,
                 OpType::Set(offset, value) => writeln!(output, "SET {} offset: {}", value, offset)?
                 ,
-                OpType::Add(offset, multi) => writeln!(output, "ADD offset: {} multiply: {}", offset, multi)?,
-                OpType::CAdd(offset, value) => writeln!(output, "CADD offset: {} value: {}", offset, value)?,
-                OpType::Sub(offset, multi) => writeln!(output, "SUB offset: {} multiply: {}", offset, multi)?,
-                OpType::CSub(offset, value) => writeln!(output, "CSUB offset: {} value: {}", offset, value)?,
+                OpType::Add(src_offset, dest_offset, multi) =>
+                    writeln!(output, "ADD src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
+                OpType::CAdd(src_offset, dest_offset, value) =>
+                    writeln!(output, "CADD src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
+                OpType::Sub(src_offset, dest_offset, multi) =>
+                    writeln!(output, "SUB src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
+                OpType::CSub(src_offset, dest_offset, value) =>
+                    writeln!(output, "CSUB src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
 
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
@@ -221,30 +225,30 @@ impl Op {
         }
     }
 
-    pub fn add(span: Range<usize>, ptr_offset: isize, multi: u8) -> Op {
+    pub fn add(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
         Op {
-            op_type: OpType::Add(ptr_offset, multi),
+            op_type: OpType::Add(0, dest_offset, multi),
             span,
         }
     }
 
-    pub fn c_add(span: Range<usize>, ptr_offset: isize, value: u8) -> Op {
+    pub fn c_add(span: Range<usize>, dest_offset: isize, value: u8) -> Op {
         Op {
-            op_type: OpType::CAdd(ptr_offset, value),
+            op_type: OpType::CAdd(0, dest_offset, value),
             span,
         }
     }
 
-    pub fn sub(span: Range<usize>, ptr_offset: isize, multi: u8) -> Op {
+    pub fn sub(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
         Op {
-            op_type: OpType::Sub(ptr_offset, multi),
+            op_type: OpType::Sub(0, dest_offset, multi),
             span,
         }
     }
 
-    pub fn c_sub(span: Range<usize>, ptr_offset: isize, value: u8) -> Op {
+    pub fn c_sub(span: Range<usize>, dest_offset: isize, value: u8) -> Op {
         Op {
-            op_type: OpType::CSub(ptr_offset, value),
+            op_type: OpType::CSub(0, dest_offset, value),
             span,
         }
     }
@@ -273,16 +277,16 @@ pub enum OpType {
     Set(isize, u8),
 
     /// Add current value to value at offset and reset current value to 0
-    Add(isize, u8),
+    Add(isize, isize, u8),
 
     /// Add constant value to value at offset and reset current value to 0
-    CAdd(isize, u8),
+    CAdd(isize, isize, u8),
 
     /// Subtract current value to value at offset and reset current value to 0
-    Sub(isize, u8),
+    Sub(isize, isize, u8),
 
     /// Subtract constant value to value at offset and reset current value to 0
-    CSub(isize, u8),
+    CSub(isize, isize, u8),
 
     PutChar,
     GetChar,

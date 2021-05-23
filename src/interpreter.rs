@@ -51,27 +51,27 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 *value = value.wrapping_sub(*count);
             }
             OpType::Set(offset, value) => *self.heap_value_at_offset(&op.span, *offset)? = *value,
-            OpType::Add(ptr_offset, multi) => {
-                let source = *self.heap_value(&op.span)?;
-                let target = self.heap_value_at_offset(&op.span, *ptr_offset)?;
+            OpType::Add(src_offset, dest_offset, multi) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_add(source.wrapping_mul(*multi));
-                *self.heap_value(&op.span)? = 0;
+                *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
             }
-            OpType::CAdd(ptr_offset, value) => {
-                let target = self.heap_value_at_offset(&op.span, *ptr_offset)?;
+            OpType::CAdd(src_offset, dest_offset, value) => {
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_add(*value);
-                *self.heap_value(&op.span)? = 0;
+                *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
             }
-            OpType::Sub(ptr_offset, multi) => {
-                let source = *self.heap_value(&op.span)?;
-                let target = self.heap_value_at_offset(&op.span, *ptr_offset)?;
+            OpType::Sub(src_offset, dest_offset, multi) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_sub(source.wrapping_mul(*multi));
-                *self.heap_value(&op.span)? = 0;
+                *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
             }
-            OpType::CSub(ptr_offset, value) => {
-                let target = self.heap_value_at_offset(&op.span, *ptr_offset)?;
+            OpType::CSub(src_offset, dest_offset, value) => {
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_sub(*value);
-                *self.heap_value(&op.span)? = 0;
+                *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
             }
             OpType::GetChar => self.get_char(&op.span)?,
             OpType::PutChar => self.put_char(&op.span)?,
