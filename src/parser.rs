@@ -288,6 +288,26 @@ impl OpType {
         matches!(self, OpType::DecPtr(_) | OpType::IncPtr(_))
     }
 
+    /// Return offset of pointer increments and decrements
+    pub fn get_ptr_offset(&self) -> Option<isize> {
+        match self {
+            OpType::IncPtr(count) => Some(*count as isize),
+            OpType::DecPtr(count) => Some(-(*count as isize)),
+            _ => None,
+        }
+    }
+
+    /// Test for arithmetic ops without offsets
+    pub fn is_simple_arithmetic(&self) -> bool {
+        matches!(self,
+            OpType::Set(_) |
+            OpType::Inc(_) |
+            OpType::Dec(_) |
+            OpType::IncPtr(_) |
+            OpType::DecPtr(_)
+        )
+    }
+
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
         match self {
             OpType::DLoop(children) |

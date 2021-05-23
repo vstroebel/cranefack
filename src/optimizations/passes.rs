@@ -66,7 +66,7 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-pub fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
+pub fn optimize_arithmetic_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     let mut progress = false;
@@ -128,7 +128,7 @@ pub fn optimize_arithmethic_loops(ops: &mut Vec<Op>) -> bool {
                 };
                 progress = true;
             } else {
-                progress |= optimize_arithmethic_loops(children);
+                progress |= optimize_arithmetic_loops(children);
             }
         }
 
@@ -229,7 +229,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                     children.remove(children.len() - 1);
                 }
 
-                let offset = if let Some(offset) = get_ptr_offset(&children[0].op_type) {
+                let offset = if let Some(offset) = children[0].op_type.get_ptr_offset() {
                     children.remove(0);
                     offset
                 } else {
@@ -304,14 +304,6 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
     }
 
     true
-}
-
-fn get_ptr_offset(op_type: &OpType) -> Option<isize> {
-    match op_type {
-        OpType::IncPtr(count) => Some(*count as isize),
-        OpType::DecPtr(count) => Some(-(*count as isize)),
-        _ => None,
-    }
 }
 
 #[derive(Debug)]
@@ -655,18 +647,10 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
 
 fn contains_only_arithmetics(ops: &[Op]) -> bool {
     for op in ops {
-        match &op.op_type {
-            OpType::Set(_) |
-            OpType::Inc(_) |
-            OpType::Dec(_) |
-            OpType::IncPtr(_) |
-            OpType::DecPtr(_) => {
-                // allowed
-            }
-            _ => return false,
+        if !op.op_type.is_simple_arithmetic() {
+            return false;
         }
     }
-
     true
 }
 
@@ -683,7 +667,7 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
         let replace = {
             let mut op = &mut ops[i];
 
-            if let Some(offset) = get_ptr_offset(&op.op_type) {
+            if let Some(offset) = op.op_type.get_ptr_offset() {
                 ptr += offset;
                 None
             } else if let OpType::Inc(value) = &op.op_type {
@@ -1007,7 +991,7 @@ mod tests {
             ])
         ];
 
-        optimize_arithmethic_loops(&mut ops);
+        optimize_arithmetic_loops(&mut ops);
 
         assert_eq!(ops, vec![
             Op::add(0..5, 1, 1),
@@ -1025,7 +1009,7 @@ mod tests {
             ])
         ];
 
-        optimize_arithmethic_loops(&mut ops);
+        optimize_arithmetic_loops(&mut ops);
 
         assert_eq!(ops, vec![
             Op::add(0..5, 2, 1),
@@ -1043,7 +1027,7 @@ mod tests {
             ])
         ];
 
-        optimize_arithmethic_loops(&mut ops);
+        optimize_arithmetic_loops(&mut ops);
 
         assert_eq!(ops, vec![
             Op::sub(0..5, 1, 2),
@@ -1062,7 +1046,7 @@ mod tests {
             ])
         ];
 
-        optimize_arithmethic_loops(&mut ops);
+        optimize_arithmetic_loops(&mut ops);
 
         assert_eq!(ops, vec![
             Op::sub(0..5, 1, 2),
