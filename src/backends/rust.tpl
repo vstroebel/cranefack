@@ -87,30 +87,30 @@ impl Runtime {
         *self.heap_value() = buf[0];
     }
 
-    fn add(&mut self, ptr_offset: isize, multi: u8) {
-        let source = *self.heap_value();
-        let target = self.heap_value_at_offset(ptr_offset);
+    fn add(&mut self, src_offset: isize, dest_offset: isize, multi: u8) {
+        let source = *self.heap_value_at_offset(src_offset);
+        let target = self.heap_value_at_offset(dest_offset);
         *target = target.wrapping_add(source.wrapping_mul(multi));
-        *self.heap_value() = 0;
+        *self.heap_value_at_offset(src_offset) = 0;
     }
 
-    fn c_add(&mut self, ptr_offset: isize, value: u8) {
-        let target = self.heap_value_at_offset(ptr_offset);
+    fn c_add(&mut self, src_offset: isize, dest_offset: isize, value: u8) {
+        let target = self.heap_value_at_offset(dest_offset);
         *target = target.wrapping_add(value);
-        *self.heap_value() = 0;
+        *self.heap_value_at_offset(src_offset) = 0;
     }
 
-    fn sub(&mut self, ptr_offset: isize, multi: u8) {
-        let source = *self.heap_value();
-        let target = self.heap_value_at_offset(ptr_offset);
+    fn sub(&mut self, src_offset: isize, dest_offset: isize, multi: u8) {
+        let source = *self.heap_value_at_offset(src_offset);
+        let target = self.heap_value_at_offset(dest_offset);
         *target = target.wrapping_sub(source.wrapping_mul(multi));
-        *self.heap_value() = 0;
+        *self.heap_value_at_offset(src_offset) = 0;
     }
 
-    fn c_sub(&mut self, ptr_offset: isize, value: u8) {
-        let target = self.heap_value_at_offset(ptr_offset);
+    fn c_sub(&mut self, src_offset: isize, dest_offset: isize, value: u8) {
+        let target = self.heap_value_at_offset(dest_offset);
         *target = target.wrapping_sub(value);
-        *self.heap_value() = 0;
+        *self.heap_value_at_offset(src_offset) = 0;
     }
 
     fn search_zero(&mut self, step: isize) {
