@@ -66,14 +66,6 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                             replacements.push(OpType::Sub(loop_offset + *offset as isize, *multi));
                         }
                     }
-                    OpType::Set(offset, value) => {
-                        if replacement_indices.contains(offset) {
-                            return Change::Ignore;
-                        } else {
-                            replacement_indices.push(*offset);
-                            replacements.push(OpType::Set(loop_offset + *offset as isize, *value));
-                        }
-                    }
                     _ => {
                         return Change::Ignore;
                     }
