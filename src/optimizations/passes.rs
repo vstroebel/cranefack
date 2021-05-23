@@ -1,5 +1,6 @@
 use crate::parser::{Op, OpType};
 use std::cmp::Ordering;
+use crate::optimizations::peephole::Change;
 
 // Loops at the beginning of a program will not be taken at all
 pub fn remove_preceding_loop(ops: &mut Vec<Op>) {
@@ -282,92 +283,45 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
     true
 }
 
-#[derive(Debug)]
-enum Mode {
-    Ignore,
-    Remove,
-    Replace(OpType),
-}
-
 // Merge multiple inc/dec or inc_ptr dec_ptr ops and remove zero versions
-pub fn optimize_inc_dec(ops: &mut Vec<Op>, depth: usize) -> bool {
-    let mut i = 0;
-
-    let mut progress = false;
-
-    while !ops.is_empty() && i < ops.len() - 1 {
-        let op1 = &ops[i];
-        let op2 = &ops[i + 1];
-
-        let mode = match (&op1.op_type, &op2.op_type) {
-            (OpType::Inc(v1), OpType::Inc(v2)) => Mode::Replace(OpType::Inc(v1.wrapping_add(*v2))),
-            (OpType::Dec(v1), OpType::Dec(v2)) => Mode::Replace(OpType::Dec(v1.wrapping_add(*v2))),
-            (OpType::Inc(v1), OpType::Dec(v2)) => {
-                match v1.cmp(v2) {
-                    Ordering::Equal => Mode::Remove,
-                    Ordering::Greater => Mode::Replace(OpType::Inc(v1 - v2)),
-                    Ordering::Less => Mode::Replace(OpType::Dec(v2 - v1)),
-                }
-            }
-            (OpType::Dec(v1), OpType::Inc(v2)) => {
-                match v1.cmp(v2) {
-                    Ordering::Equal => Mode::Remove,
-                    Ordering::Greater => Mode::Replace(OpType::Dec(v1 - v2)),
-                    Ordering::Less => Mode::Replace(OpType::Inc(v2 - v1)),
-                }
-            }
-            (OpType::IncPtr(v1), OpType::IncPtr(v2)) => Mode::Replace(OpType::IncPtr(v1.wrapping_add(*v2))),
-            (OpType::DecPtr(v1), OpType::DecPtr(v2)) => Mode::Replace(OpType::DecPtr(v1.wrapping_add(*v2))),
-            (OpType::IncPtr(v1), OpType::DecPtr(v2)) => {
-                match v1.cmp(v2) {
-                    Ordering::Equal => Mode::Remove,
-                    Ordering::Greater => Mode::Replace(OpType::IncPtr(v1 - v2)),
-                    Ordering::Less => Mode::Replace(OpType::DecPtr(v2 - v1)),
-                }
-            }
-            (OpType::DecPtr(v1), OpType::IncPtr(v2)) => {
-                match v1.cmp(v2) {
-                    Ordering::Equal => Mode::Remove,
-                    Ordering::Greater => Mode::Replace(OpType::DecPtr(v1 - v2)),
-                    Ordering::Less => Mode::Replace(OpType::IncPtr(v2 - v1)),
-                }
-            }
-            (OpType::Set(v1), OpType::Inc(v2)) => Mode::Replace(OpType::Set(v1.wrapping_add(*v2))),
-            (OpType::Set(v1), OpType::Dec(v2)) => Mode::Replace(OpType::Set(v1.wrapping_sub(*v2))),
-            _ => Mode::Ignore
-        };
-
-        match mode {
-            Mode::Remove => {
-                ops.remove(i);
-                ops.remove(i);
-                progress = true;
-            }
-            Mode::Replace(op_type) => {
-                let span = op1.span.start..op2.span.end;
-                ops[i] = Op {
-                    op_type,
-                    span,
-                };
-                ops.remove(i + 1);
-                progress = true;
-            }
-            Mode::Ignore => {
-                if let Some(children) = ops[i].op_type.get_children_mut() {
-                    progress |= optimize_inc_dec(children, depth + 1);
-                }
-                i += 1;
+pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
+    match (&ops[0].op_type, &ops[1].op_type) {
+        (OpType::Inc(v1), OpType::Inc(v2)) => Change::Replace(vec![OpType::Inc(v1.wrapping_add(*v2))]),
+        (OpType::Dec(v1), OpType::Dec(v2)) => Change::Replace(vec![OpType::Dec(v1.wrapping_add(*v2))]),
+        (OpType::Inc(v1), OpType::Dec(v2)) => {
+            match v1.cmp(v2) {
+                Ordering::Equal => Change::Remove,
+                Ordering::Greater => Change::Replace(vec![OpType::Inc(v1 - v2)]),
+                Ordering::Less => Change::Replace(vec![OpType::Dec(v2 - v1)]),
             }
         }
-    }
-
-    if let Some(last) = ops.last_mut() {
-        if let Some(children) = last.op_type.get_children_mut() {
-            progress |= optimize_inc_dec(children, depth + 1);
+        (OpType::Dec(v1), OpType::Inc(v2)) => {
+            match v1.cmp(v2) {
+                Ordering::Equal => Change::Remove,
+                Ordering::Greater => Change::Replace(vec![OpType::Dec(v1 - v2)]),
+                Ordering::Less => Change::Replace(vec![OpType::Inc(v2 - v1)]),
+            }
         }
+        (OpType::IncPtr(v1), OpType::IncPtr(v2)) => Change::Replace(vec![OpType::IncPtr(v1.wrapping_add(*v2))]),
+        (OpType::DecPtr(v1), OpType::DecPtr(v2)) => Change::Replace(vec![OpType::DecPtr(v1.wrapping_add(*v2))]),
+        (OpType::IncPtr(v1), OpType::DecPtr(v2)) => {
+            match v1.cmp(v2) {
+                Ordering::Equal => Change::Remove,
+                Ordering::Greater => Change::Replace(vec![OpType::IncPtr(v1 - v2)]),
+                Ordering::Less => Change::Replace(vec![OpType::DecPtr(v2 - v1)]),
+            }
+        }
+        (OpType::DecPtr(v1), OpType::IncPtr(v2)) => {
+            match v1.cmp(v2) {
+                Ordering::Equal => Change::Remove,
+                Ordering::Greater => Change::Replace(vec![OpType::DecPtr(v1 - v2)]),
+                Ordering::Less => Change::Replace(vec![OpType::IncPtr(v2 - v1)]),
+            }
+        }
+        (OpType::Set(v1), OpType::Inc(v2)) => Change::Replace(vec![OpType::Set(v1.wrapping_add(*v2))]),
+        (OpType::Set(v1), OpType::Dec(v2)) => Change::Replace(vec![OpType::Set(v1.wrapping_sub(*v2))]),
+        _ => Change::Ignore
     }
-
-    progress
 }
 
 pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
@@ -705,62 +659,23 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-pub fn optimize_constant_arithmetics(ops: &mut Vec<Op>) -> bool {
-    let mut i = 0;
-
-    let mut progress = false;
-
-    while !ops.is_empty() && i < ops.len() - 1 {
-        let op1 = &ops[i];
-        let op2 = &ops[i + 1];
-
-        let mode = match (&op1.op_type, &op2.op_type) {
-            (OpType::Set(value), OpType::Add(offset, multi)) => {
-                Mode::Replace(OpType::CAdd(*offset, value * multi))
-            }
-            (OpType::Set(value), OpType::Sub(offset, multi)) => {
-                Mode::Replace(OpType::CSub(*offset, value * multi))
-            }
-            _ => Mode::Ignore
-        };
-
-        match mode {
-            Mode::Remove => {
-                ops.remove(i);
-                ops.remove(i);
-                progress = true;
-            }
-            Mode::Replace(op_type) => {
-                let span = op1.span.start..op2.span.end;
-                ops[i] = Op {
-                    op_type,
-                    span,
-                };
-                ops.remove(i + 1);
-                progress = true;
-            }
-            Mode::Ignore => {
-                if let Some(children) = ops[i].op_type.get_children_mut() {
-                    progress |= optimize_constant_arithmetics(children);
-                }
-                i += 1;
-            }
+pub fn optimize_constant_arithmetics(ops: [&Op; 2]) -> Change {
+    match (&ops[0].op_type, &ops[1].op_type) {
+        (OpType::Set(value), OpType::Add(offset, multi)) => {
+            Change::Replace(vec![OpType::CAdd(*offset, value * multi)])
         }
-    }
-
-    if let Some(last) = ops.last_mut() {
-        if let Some(children) = last.op_type.get_children_mut() {
-            progress |= optimize_constant_arithmetics(children);
+        (OpType::Set(value), OpType::Sub(offset, multi)) => {
+            Change::Replace(vec![OpType::CSub(*offset, value * multi)])
         }
+        _ => Change::Ignore
     }
-
-    progress
 }
 
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
     use super::*;
+    use crate::optimizations::peephole::run_peephole_pass;
 
     #[test]
     fn test_remove_preceding_loop() {
@@ -782,31 +697,13 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_empty_loops() {
-        let mut ops = vec![
-            Op::inc(0..0, 1),
-            Op::d_loop(0..0, vec![]),
-            Op::d_loop(0..0, vec![Op::inc(0..0, 1),
-            ]),
-        ];
-
-        remove_empty_loops(&mut ops);
-
-        assert_eq!(ops, vec![
-            Op::inc(0..0, 1),
-            Op::d_loop(0..0, vec![Op::inc(0..0, 1),
-            ]),
-        ])
-    }
-
-    #[test]
     fn test_optimize_inc() {
         let mut ops = vec![
             Op::inc(0..1, 1),
             Op::inc(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::inc(0..2, 3),
@@ -820,7 +717,7 @@ mod tests {
             Op::dec(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::dec(0..2, 3),
@@ -835,7 +732,7 @@ mod tests {
             Op::dec(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::dec(0..3, 4),
@@ -849,7 +746,7 @@ mod tests {
             Op::inc(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::set(0..2, 7),
@@ -863,7 +760,7 @@ mod tests {
             Op::dec(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::set(0..2, 3),
@@ -878,7 +775,7 @@ mod tests {
             Op::inc_ptr(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::inc_ptr(2..3, 3),
@@ -892,7 +789,7 @@ mod tests {
             Op::inc_ptr(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::inc_ptr(0..2, 3),
@@ -906,7 +803,7 @@ mod tests {
             Op::dec_ptr(1..2, 2),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::dec_ptr(0..2, 3),
@@ -921,7 +818,7 @@ mod tests {
             Op::dec_ptr(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::dec_ptr(0..3, 4),
@@ -936,7 +833,7 @@ mod tests {
             Op::inc(2..3, 3),
         ];
 
-        optimize_inc_dec(&mut ops, 1);
+        run_peephole_pass(&mut ops, optimize_inc_dec);
 
         assert_eq!(ops, vec![
             Op::inc(2..3, 3),
@@ -1276,7 +1173,7 @@ mod tests {
             Op::add(1..2, 1, 3),
         ];
 
-        optimize_constant_arithmetics(&mut ops);
+        run_peephole_pass(&mut ops, optimize_constant_arithmetics);
 
         assert_eq!(ops, vec![
             Op::c_add(0..2, 1, 9),
@@ -1291,7 +1188,7 @@ mod tests {
             Op::sub(1..2, 1, 2),
         ];
 
-        optimize_constant_arithmetics(&mut ops);
+        run_peephole_pass(&mut ops, optimize_constant_arithmetics);
 
         assert_eq!(ops, vec![
             Op::c_sub(0..2, 1, 6),
