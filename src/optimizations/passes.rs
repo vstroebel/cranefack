@@ -139,7 +139,16 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             possible_match = true;
                             ptr_offset -= *value as isize;
                         }
-                        OpType::Add(offset, _) | OpType::Sub(offset, _) => {
+                        OpType::Add(offset, _) |
+                        OpType::Sub(offset, _) |
+                        OpType::CAdd(offset, _) |
+                        OpType::CSub(offset, _)
+                        => {
+                            if ptr_offset == 0 {
+                                ignore = true;
+                                break;
+                            }
+
                             if ptr_offset + offset == 0 {
                                 ignore = true;
                                 break;
@@ -172,8 +181,8 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ignore = true;
                             break;
                         }
-                        _ => {
-                            // Ignore
+                        OpType::PutChar => {
+                            // ignore
                         }
                     }
                 }
@@ -238,16 +247,22 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::DecPtr(value) => {
                 ptr_offset -= *value as isize;
             }
-            OpType::Add(offset, _) | OpType::Sub(offset, _) => {
+            OpType::Add(offset, _) |
+            OpType::Sub(offset, _) |
+            OpType::CAdd(offset, _) |
+            OpType::CSub(offset, _)
+            => {
+                for parent_offset in parent_offsets {
+                    if ptr_offset == *parent_offset {
+                        return false;
+                    }
+                }
+
                 for parent_offset in parent_offsets {
                     if ptr_offset + offset == *parent_offset {
                         return false;
                     }
                 }
-            }
-            OpType::CAdd(..) | OpType::CSub(..) => {
-                // TODO:  Check if this changes the counter
-                return false;
             }
             OpType::Inc(_) | OpType::Dec(_) | OpType::Set(_) | OpType::GetChar => {
                 for parent_offset in parent_offsets {
