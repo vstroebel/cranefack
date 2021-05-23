@@ -716,11 +716,19 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
 
 pub fn optimize_constant_arithmetics(ops: [&Op; 2]) -> Change {
     match (&ops[0].op_type, &ops[1].op_type) {
-        (OpType::Set(0, value), OpType::Add(src_offset, dest_offset, multi)) => {
-            Change::Replace(vec![OpType::CAdd(*src_offset, *dest_offset, value * multi)])
+        (OpType::Set(offset, value), OpType::Add(src_offset, dest_offset, multi)) => {
+            if *offset == *src_offset {
+                Change::Replace(vec![OpType::CAdd(*src_offset, *dest_offset, value * multi)])
+            } else {
+                Change::Ignore
+            }
         }
-        (OpType::Set(0, value), OpType::Sub(src_offset, dest_offset, multi)) => {
-            Change::Replace(vec![OpType::CSub(*src_offset, *dest_offset, value * multi)])
+        (OpType::Set(offset, value), OpType::Sub(src_offset, dest_offset, multi)) => {
+            if *offset == *src_offset {
+                Change::Replace(vec![OpType::CSub(*src_offset, *dest_offset, value * multi)])
+            } else {
+                Change::Ignore
+            }
         }
         _ => Change::Ignore
     }
