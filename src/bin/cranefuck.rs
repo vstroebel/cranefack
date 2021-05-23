@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write, stdin, stdout};
-use cranefuck::{parse, Interpreter, CraneFuckError, optimize};
+use cranefack::{parse, Interpreter, CraneFuckError, optimize};
 use std::time::SystemTime;
 use codespan_reporting::term::termcolor::{StandardStream, Color, ColorChoice, WriteColor, ColorSpec};
 
@@ -216,7 +216,7 @@ fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Re
     }
 
     match format {
-        "rust" => println!("{}", cranefuck::backends::rust::build_file(&program, opt_mode)),
+        "rust" => println!("{}", cranefack::backends::rust::build_file(&program, opt_mode)),
         _ => program.dump(stdout())?
     }
 
