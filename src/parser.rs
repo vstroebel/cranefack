@@ -329,6 +329,15 @@ impl OpType {
         )
     }
 
+    /// Test for arithmetic ops
+    pub fn is_arithmetic(&self) -> bool {
+        matches!(self,
+            OpType::Set(..) |
+            OpType::Inc(..) |
+            OpType::Dec(..)
+        )
+    }
+
     pub fn is_zeroing(&self) -> bool {
         matches!(self,
             OpType::DLoop(..) |
