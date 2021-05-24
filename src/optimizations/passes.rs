@@ -120,13 +120,9 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ptr_offset -= *value as isize;
                         }
                         OpType::Add(src_offset, dest_offset, _) |
-                        OpType::NzAdd(src_offset, dest_offset, _) |
                         OpType::Sub(src_offset, dest_offset, _) |
-                        OpType::NzSub(src_offset, dest_offset, _) |
                         OpType::CAdd(src_offset, dest_offset, _) |
-                        OpType::NzCAdd(src_offset, dest_offset, _) |
-                        OpType::CSub(src_offset, dest_offset, _) |
-                        OpType::NzCSub(src_offset, dest_offset, _)
+                        OpType::CSub(src_offset, dest_offset, _)
                         => {
                             if ptr_offset + src_offset == 0 {
                                 ignore = true;
@@ -138,6 +134,17 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                                 break;
                             }
                         }
+                        OpType::NzAdd(_, dest_offset, _) |
+                        OpType::NzSub(_, dest_offset, _) |
+                        OpType::NzCAdd(_, dest_offset, _) |
+                        OpType::NzCSub(_, dest_offset, _)
+                        => {
+                            if ptr_offset + dest_offset == 0 {
+                                ignore = true;
+                                break;
+                            }
+                        }
+
                         OpType::Inc(offset, _) | OpType::Set(offset, _) => {
                             if ptr_offset + offset == 0 {
                                 ignore = true;
@@ -239,13 +246,9 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                 ptr_offset -= *value as isize;
             }
             OpType::Add(src_offset, dest_offset, _) |
-            OpType::NzAdd(src_offset, dest_offset, _) |
             OpType::Sub(src_offset, dest_offset, _) |
-            OpType::NzSub(src_offset, dest_offset, _) |
             OpType::CAdd(src_offset, dest_offset, _) |
-            OpType::NzCAdd(src_offset, dest_offset, _) |
-            OpType::CSub(src_offset, dest_offset, _) |
-            OpType::NzCSub(src_offset, dest_offset, _)
+            OpType::CSub(src_offset, dest_offset, _)
             => {
                 for parent_offset in parent_offsets {
                     if ptr_offset + src_offset == *parent_offset {
@@ -253,6 +256,17 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                     }
                 }
 
+                for parent_offset in parent_offsets {
+                    if ptr_offset + dest_offset == *parent_offset {
+                        return false;
+                    }
+                }
+            }
+            OpType::NzAdd(_, dest_offset, _) |
+            OpType::NzSub(_, dest_offset, _) |
+            OpType::NzCAdd(_, dest_offset, _) |
+            OpType::NzCSub(_, dest_offset, _)
+            => {
                 for parent_offset in parent_offsets {
                     if ptr_offset + dest_offset == *parent_offset {
                         return false;
