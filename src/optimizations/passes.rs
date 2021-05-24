@@ -44,12 +44,7 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 
 pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
     if let OpType::ILoop(children, loop_offset, step) = &ops[0].op_type {
-        /*
-         * TODO: Allow loops with more than 1 child
-         * This will not work correctly with multiple ADD and SUB because they reset
-         * the current heap cell to zero
-         */
-        if *step == 1 && children.len() == 1 {
+        if *step == 1 {
             let mut replacement_indices = vec![];
             let mut replacements = vec![];
 
@@ -60,7 +55,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                             return Change::Ignore;
                         } else {
                             replacement_indices.push(*offset);
-                            replacements.push(OpType::Add(0, loop_offset + *offset as isize, *multi));
+                            replacements.push(OpType::NzAdd(0, loop_offset + *offset as isize, *multi));
                         }
                     }
                     OpType::Dec(offset, multi) => {
@@ -68,7 +63,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                             return Change::Ignore;
                         } else {
                             replacement_indices.push(*offset);
-                            replacements.push(OpType::Sub(0, loop_offset + *offset as isize, *multi));
+                            replacements.push(OpType::NzSub(0, loop_offset + *offset as isize, *multi));
                         }
                     }
                     _ => {
@@ -80,6 +75,17 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
             return if replacements.is_empty() {
                 Change::Ignore
             } else {
+                let last = replacements.remove(replacements.len() - 1);
+
+                match last {
+                    OpType::NzAdd(src, dest, value) => {
+                        replacements.push(OpType::Add(src, dest, value));
+                    }
+                    OpType::NzSub(src, dest, value) => {
+                        replacements.push(OpType::Sub(src, dest, value));
+                    }
+                    op_type => unreachable!("Unexpected op type {:?}", op_type)
+                }
                 Change::Replace(replacements)
             };
         }
