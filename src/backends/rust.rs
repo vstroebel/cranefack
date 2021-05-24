@@ -24,9 +24,13 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
             OpType::Dec(offset, count) => writeln!(out, "rt.dec({}, {});", offset, count)?,
             OpType::Set(offset, value) => writeln!(out, "rt.set({}, {});", offset, value)?,
             OpType::Add(src_offset, dest_offset, multi) => writeln!(out, "rt.add({}, {}, {});", src_offset, dest_offset, multi)?,
+            OpType::NzAdd(src_offset, dest_offset, multi) => writeln!(out, "rt.nz_add({}, {}, {});", src_offset, dest_offset, multi)?,
             OpType::CAdd(src_offset, dest_offset, count) => writeln!(out, "rt.c_add({}, {}, {});", src_offset, dest_offset, count)?,
+            OpType::NzCAdd(src_offset, dest_offset, count) => writeln!(out, "rt.nz_c_add({}, {}, {});", src_offset, dest_offset, count)?,
             OpType::Sub(src_offset, dest_offset, multi) => writeln!(out, "rt.sub({}, {}, {});", src_offset, dest_offset, multi)?,
+            OpType::NzSub(src_offset, dest_offset, multi) => writeln!(out, "rt.nz_sub({}, {}, {});", src_offset, dest_offset, multi)?,
             OpType::CSub(src_offset, dest_offset, count) => writeln!(out, "rt.c_sub({}, {}, {});", src_offset, dest_offset, count)?,
+            OpType::NzCSub(src_offset, dest_offset, count) => writeln!(out, "rt.nz_c_sub({}, {}, {});", src_offset, dest_offset, count)?,
             OpType::GetChar => writeln!(out, "rt.get_char();")?,
             OpType::PutChar => writeln!(out, "rt.put_char();")?,
             OpType::DLoop(children) => {

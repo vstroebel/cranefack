@@ -93,12 +93,20 @@ impl Program {
                 ,
                 OpType::Add(src_offset, dest_offset, multi) =>
                     writeln!(output, "ADD src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
+                OpType::NzAdd(src_offset, dest_offset, multi) =>
+                    writeln!(output, "NZ_ADD src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
                 OpType::CAdd(src_offset, dest_offset, value) =>
                     writeln!(output, "CADD src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
+                OpType::NzCAdd(src_offset, dest_offset, value) =>
+                    writeln!(output, "NZ_CADD src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
                 OpType::Sub(src_offset, dest_offset, multi) =>
                     writeln!(output, "SUB src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
+                OpType::NzSub(src_offset, dest_offset, multi) =>
+                    writeln!(output, "NZ_SUB src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
                 OpType::CSub(src_offset, dest_offset, value) =>
                     writeln!(output, "CSUB src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
+                OpType::NzCSub(src_offset, dest_offset, value) =>
+                    writeln!(output, "NZ_CSUB src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
 
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
@@ -285,14 +293,26 @@ pub enum OpType {
     /// Add current value to value at offset and reset current value to 0
     Add(isize, isize, u8),
 
+    /// Add current value to value at offset without setting current value to 0
+    NzAdd(isize, isize, u8),
+
     /// Add constant value to value at offset and reset current value to 0
     CAdd(isize, isize, u8),
+
+    /// Add constant value to value at offset without setting current value to 0
+    NzCAdd(isize, isize, u8),
 
     /// Subtract current value to value at offset and reset current value to 0
     Sub(isize, isize, u8),
 
+    /// Subtract current value to value at offset without setting current value to 0
+    NzSub(isize, isize, u8),
+
     /// Subtract constant value to value at offset and reset current value to 0
     CSub(isize, isize, u8),
+
+    /// Subtract constant value to value at offset without setting current value to 0
+    NzCSub(isize, isize, u8),
 
     PutChar,
     GetChar,

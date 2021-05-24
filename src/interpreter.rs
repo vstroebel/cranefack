@@ -57,10 +57,19 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 *target = target.wrapping_add(source.wrapping_mul(*multi));
                 *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
             }
+            OpType::NzAdd(src_offset, dest_offset, multi) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = target.wrapping_add(source.wrapping_mul(*multi));
+            }
             OpType::CAdd(src_offset, dest_offset, value) => {
                 let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_add(*value);
                 *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
+            }
+            OpType::NzCAdd(_src_offset, dest_offset, value) => {
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = target.wrapping_add(*value);
             }
             OpType::Sub(src_offset, dest_offset, multi) => {
                 let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
@@ -68,10 +77,19 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 *target = target.wrapping_sub(source.wrapping_mul(*multi));
                 *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
             }
+            OpType::NzSub(src_offset, dest_offset, multi) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = target.wrapping_sub(source.wrapping_mul(*multi));
+            }
             OpType::CSub(src_offset, dest_offset, value) => {
                 let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_sub(*value);
                 *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
+            }
+            OpType::NzCSub(_src_offset, dest_offset, value) => {
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = target.wrapping_sub(*value);
             }
             OpType::GetChar => self.get_char(&op.span)?,
             OpType::PutChar => self.put_char(&op.span)?,
