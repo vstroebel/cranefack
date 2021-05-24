@@ -7,6 +7,7 @@ use std::ops::Range;
 pub enum Change {
     Ignore,
     Remove,
+    RemoveOffset(usize),
     Replace(Vec<OpType>),
     ReplaceOffset(usize, Range<usize>, Vec<OpType>),
 }
@@ -40,6 +41,9 @@ pub fn run_peephole_pass<F, const WINDOW: usize>(ops: &mut Vec<Op>, func: F) -> 
                     ops.remove(i);
                 }
                 progress = true;
+            }
+            Change::RemoveOffset(offset) => {
+                ops.remove(i + offset);
             }
             Change::Replace(op_types) => {
                 let span = window[0].span.start..window[WINDOW - 1].span.end;

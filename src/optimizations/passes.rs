@@ -559,6 +559,13 @@ pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
                 Change::Ignore
             }
         }
+        (op_type, OpType::Set(offset, 0)) => {
+            if op_type.is_zeroing(*offset) {
+                Change::RemoveOffset(1)
+            } else {
+                Change::Ignore
+            }
+        }
         (op_type, OpType::Add(src_offset, dest_offset, multi)) => {
             if *multi == 1 && op_type.is_zeroing(*dest_offset) {
                 Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Move(*src_offset, *dest_offset)])
