@@ -379,6 +379,7 @@ impl OpType {
         )
     }
 
+    /// Test if op zeros the src offset
     pub fn is_zeroing(&self, test_offset: isize) -> bool {
         match self {
             OpType::Add(offset, ..) |
@@ -400,16 +401,45 @@ impl OpType {
         }
     }
 
+    /// Test if op zeros the src offset without reading/using the value
+    pub fn is_zeroing_unread(&self, test_offset: isize) -> bool {
+        match self {
+            OpType::CAdd(offset, ..) |
+            OpType::CSub(offset, ..) |
+            OpType::Set(offset, 0) => {
+                test_offset == *offset
+            }
+            OpType::CLoop(..) => {
+                test_offset == 0
+            }
+            _ => false,
+        }
+    }
+
     /// Returns the destination offset for ops that overwrites a cell
     pub fn get_overwriting_dest_offset(&self) -> Option<isize> {
         match self {
             OpType::Move(_, dest_offset) |
             OpType::Copy(_, dest_offset) |
-            OpType::Inc(dest_offset, _) |
-            OpType::Dec(dest_offset, _) |
             OpType::Set(dest_offset, _)
             => {
                 Some(*dest_offset)
+            }
+            OpType::GetChar => Some(0),
+            _ => None,
+        }
+    }
+
+    /// Returns the source offset for ops that set it to zero without reading the value
+    pub fn get_unread_zeroing_src_offset(&self) -> Option<isize> {
+        match self {
+            OpType::CAdd(offset, ..) |
+            OpType::CSub(offset, ..) |
+            OpType::Set(offset, 0) => {
+                Some(*offset)
+            }
+            OpType::CLoop(..) => {
+                Some(0)
             }
             OpType::GetChar => Some(0),
             _ => None,

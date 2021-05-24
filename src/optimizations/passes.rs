@@ -425,6 +425,8 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
 
     while !ops.is_empty() && i < ops.len() - 1 {
         let dest_offset = ops[i + 1].op_type.get_overwriting_dest_offset();
+        let unread_zeroing_offset = ops[i + 1].op_type.get_unread_zeroing_src_offset();
+
         let op1 = &mut ops[i];
 
         let remove = if let Some(dest_offset) = dest_offset {
@@ -489,6 +491,44 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
             ops.remove(i);
             progress = true;
         } else {
+            if let Some(unread_zeroing_offset) = unread_zeroing_offset {
+                match &op1.op_type {
+                    OpType::Add(src, dest, multi) => {
+                        if *src == unread_zeroing_offset {
+                            op1.op_type = OpType::NzAdd(*src, *dest, *multi);
+                            progress = true;
+                        }
+                    }
+                    OpType::CAdd(src, dest, value) => {
+                        if *src == unread_zeroing_offset {
+                            op1.op_type = OpType::NzCAdd(*src, *dest, *value);
+                            progress = true;
+                        }
+                    }
+                    OpType::Sub(src, dest, multi) => {
+                        if *src == unread_zeroing_offset {
+                            op1.op_type = OpType::NzSub(*src, *dest, *multi);
+                            progress = true;
+                        }
+                    }
+                    OpType::CSub(src, dest, value) => {
+                        if *src == unread_zeroing_offset {
+                            op1.op_type = OpType::NzCSub(*src, *dest, *value);
+                            progress = true;
+                        }
+                    }
+                    OpType::Move(src, dest) => {
+                        if *src == unread_zeroing_offset {
+                            op1.op_type = OpType::Copy(*src, *dest);
+                            progress = true;
+                        }
+                    }
+                    _ => {
+                        // Ignore
+                    }
+                }
+            }
+
             i += 1;
         }
     }
