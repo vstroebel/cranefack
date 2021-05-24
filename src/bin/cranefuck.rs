@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write, stdin, stdout};
-use cranefack::{parse, Interpreter, CraneFuckError, optimize};
+use cranefack::{parse, Interpreter, CraneFuckError, optimize, analyze, Warning};
 use std::time::SystemTime;
 use codespan_reporting::term::termcolor::{StandardStream, Color, ColorChoice, WriteColor, ColorSpec};
 
@@ -146,6 +146,11 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
         }
     }
 
+    let warnings = analyze(&program);
+    if !warnings.is_empty() {
+        Warning::pretty_print(&warnings, &source, Some(&path.to_string_lossy()))?;
+    }
+
     let mut interpreter = Interpreter::new(stdin(), stdout());
 
     if let Err(err) = interpreter.execute(&program) {
@@ -217,6 +222,11 @@ fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Re
             )?;
             writer.reset()?;
         }
+    }
+
+    let warnings = analyze(&program);
+    if !warnings.is_empty() {
+        Warning::pretty_print(&warnings, &source, Some(&path.to_string_lossy()))?;
     }
 
     match format {

@@ -262,7 +262,6 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
         let replace = if let OpType::LLoop(children, outer_offset) = &mut ops[i].op_type {
             let mut ptr_offset = *outer_offset;
             let mut ignore = false;
-            let mut possible_match = false;
             let mut counter_decrements = vec![];
 
             let num_ops = children.len();
@@ -270,11 +269,9 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                 for (i, op) in children.iter().enumerate() {
                     match &op.op_type {
                         OpType::IncPtr(value) => {
-                            possible_match = true;
                             ptr_offset += *value as isize;
                         }
                         OpType::DecPtr(value) => {
-                            possible_match = true;
                             ptr_offset -= *value as isize;
                         }
                         OpType::Add(src_offset, dest_offset, _) |
@@ -319,7 +316,6 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         }
                         OpType::Dec(offset, v) => {
                             if ptr_offset + offset == 0 {
-                                possible_match = true;
                                 counter_decrements.push((i, *v));
                             }
                         }
@@ -349,7 +345,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             }
 
             #[allow(clippy::manual_map)]
-            if !ignore && possible_match && !counter_decrements.is_empty() {
+            if !ignore {
                 Some(counter_decrements)
             } else {
                 None
@@ -719,7 +715,7 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
 
         let count = match (&op1.op_type, &op2.op_type) {
             (OpType::Set(0, v), OpType::ILoop(_, _, step)) =>
-                if v % step == 0 {
+                if *step != 0 && v % step == 0 {
                     Some(v / step)
                 } else {
                     None
