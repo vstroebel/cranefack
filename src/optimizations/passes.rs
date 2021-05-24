@@ -354,16 +354,16 @@ pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
                 Change::Ignore
             }
         }
-        (op_type, OpType::Inc(0, v)) => {
-            if op_type.is_zeroing() {
-                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(0, *v)])
+        (op_type, OpType::Inc(offset, v)) => {
+            if op_type.is_zeroing(*offset) {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(*offset, *v)])
             } else {
                 Change::Ignore
             }
         }
-        (op_type, OpType::Dec(0, v)) => {
-            if op_type.is_zeroing() {
-                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(0, 0u8.wrapping_sub(*v))])
+        (op_type, OpType::Dec(offset, v)) => {
+            if op_type.is_zeroing(*offset) {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(*offset, 0u8.wrapping_sub(*v))])
             } else {
                 Change::Ignore
             }

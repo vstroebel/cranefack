@@ -348,18 +348,24 @@ impl OpType {
         )
     }
 
-    pub fn is_zeroing(&self) -> bool {
-        matches!(self,
+    pub fn is_zeroing(&self, test_offset: isize) -> bool {
+        match self {
+            OpType::Add(offset, ..) |
+            OpType::CAdd(offset, ..) |
+            OpType::Sub(offset, ..) |
+            OpType::CSub(offset, ..) |
+            OpType::Set(offset, 0) => {
+                test_offset == *offset
+            }
             OpType::DLoop(..) |
             OpType::ILoop(..) |
             OpType::CLoop(..) |
             OpType::TNz(..) |
-            OpType::Add(0, ..) |
-            OpType::CAdd(0, ..) |
-            OpType::Sub(0, ..) |
-            OpType::CSub(0, ..) |
-            OpType::SearchZero(..)
-        )
+            OpType::SearchZero(..) => {
+                test_offset == 0
+            }
+            _ => false,
+        }
     }
 
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
