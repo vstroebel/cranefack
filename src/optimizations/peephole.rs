@@ -22,15 +22,13 @@ pub fn run_peephole_pass<F, const WINDOW: usize>(ops: &mut Vec<Op>, func: F) -> 
     while ops.len() >= WINDOW && i < ops.len() - (WINDOW - 1) {
         let window = unsafe {
             // Unsafe hackery to initialize window array with parameterized length
-            let window: MaybeUninit<[&Op; WINDOW]> = MaybeUninit::uninit().assume_init();
-
-            let mut window = window.assume_init();
+            let mut window: MaybeUninit<[&Op; WINDOW]> = MaybeUninit::uninit().assume_init();
 
             for index in 0..WINDOW {
-                window[index] = &ops[i + index];
+                window.as_mut_ptr().as_mut().unwrap()[index] = &ops[i + index];
             }
 
-            window
+            window.assume_init()
         };
 
         let change = func(window);
