@@ -1276,6 +1276,28 @@ pub fn remove_trailing_pointer_ops(ops: &mut Vec<Op>, in_framed_block: bool) -> 
     progress
 }
 
+/// Remove useless copies that are a possible the result of a duplication of cell values in the original
+/// source that result in sequences like this:
+///
+/// ```text
+/// COPY src_offset: 3 dest_offset 7
+/// COPY src_offset: 7 dest_offset 3
+/// ```
+///
+pub fn remove_useless_copy(ops: [&Op; 2]) -> Change {
+    match (&ops[0].op_type, &ops[1].op_type) {
+        (OpType::Copy(src1, dest1), OpType::Copy(src2, dest2)) => {
+            if *src1 == *dest2 && *src2 == *dest1 {
+                Change::Replace(vec![OpType::Copy(*src1, *dest1)])
+            } else {
+                Change::Ignore
+            }
+        }
+        _ => Change::Ignore,
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::parser::Op;
@@ -1919,6 +1941,20 @@ mod tests {
             Op::i_loop(0..3, vec![
                 Op::c_add(1..2, -1, 72),
             ], 1, 5),
+        ])
+    }
+
+    #[test]
+    fn test_remove_useless_copy() {
+        let mut ops = vec![
+            Op::copy(0..1, 3, 7),
+            Op::copy(1..2, 7, 3),
+        ];
+
+        run_peephole_pass(&mut ops, remove_useless_copy);
+
+        assert_eq!(ops, vec![
+            Op::copy(0..2, 3, 7),
         ])
     }
 }

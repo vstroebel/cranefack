@@ -208,6 +208,13 @@ impl Op {
         }
     }
 
+    pub fn copy(span: Range<usize>, src_offset: isize, dest_offset: isize) -> Op {
+        Op {
+            op_type: OpType::Copy(src_offset, dest_offset),
+            span,
+        }
+    }
+
     pub fn put_char(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::PutChar,
