@@ -1115,9 +1115,16 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
                     false
                 }
                 OpType::Add(src_offset, dest_offset, _) |
+                OpType::NzAdd(src_offset, dest_offset, _) |
                 OpType::CAdd(src_offset, dest_offset, _) |
+                OpType::NzCAdd(src_offset, dest_offset, _) |
                 OpType::Sub(src_offset, dest_offset, _) |
-                OpType::CSub(src_offset, dest_offset, _) => {
+                OpType::NzSub(src_offset, dest_offset, _) |
+                OpType::CSub(src_offset, dest_offset, _) |
+                OpType::NzCSub(src_offset, dest_offset, _) |
+                OpType::Move(src_offset, dest_offset) |
+                OpType::Copy(src_offset, dest_offset)
+                => {
                     let op_src_offset = ptr_offset + *src_offset - start_offset;
                     let op_dest_offset = ptr_offset + *dest_offset - start_offset;
                     if *src_offset != op_src_offset || *dest_offset != op_dest_offset {
