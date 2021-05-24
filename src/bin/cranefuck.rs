@@ -107,11 +107,12 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
         let mut writer = StandardStream::stderr(ColorChoice::Auto);
         writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-        let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
+        let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-        writeln!(writer, "Parsed program with {} instructions ({},{},{}) loops and {} ifs in {}ms",
+        writeln!(writer, "Parsed program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms",
                  op_count,
                  dloop_count,
+                 lloop_count,
                  iloop_count,
                  cloop_count,
                  if_count,
@@ -128,11 +129,12 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
             writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-            let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
+            let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-            writeln!(writer, "Optimized program with {} instructions ({},{},{}) loops and {} ifs in {}ms and {} iterations",
+            writeln!(writer, "Optimized program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms and {} iterations",
                      op_count,
                      dloop_count,
+                     lloop_count,
                      iloop_count,
                      cloop_count,
                      if_count,
@@ -178,11 +180,12 @@ fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Re
         let mut writer = StandardStream::stderr(ColorChoice::Auto);
         writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-        let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
+        let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-        writeln!(writer, "Parsed program with {} instructions ({},{},{}) loops and {} ifs in {}ms",
+        writeln!(writer, "Parsed program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms",
                  op_count,
                  dloop_count,
+                 lloop_count,
                  iloop_count,
                  cloop_count,
                  if_count,
@@ -200,11 +203,12 @@ fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Re
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
             writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
 
-            let (op_count, dloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
+            let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
 
-            writeln!(writer, "Optimized program with {} instructions ({},{},{}) loops and {} ifs in {}ms and {} iterations",
+            writeln!(writer, "Optimized program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms and {} iterations",
                      op_count,
                      dloop_count,
+                     lloop_count,
                      iloop_count,
                      cloop_count,
                      if_count,

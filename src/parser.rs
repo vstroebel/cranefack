@@ -8,13 +8,14 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn get_statistics(&self) -> (usize, usize, usize, usize, usize) {
+    pub fn get_statistics(&self) -> (usize, usize, usize, usize, usize, usize) {
         self.get_ops_statistics(&self.ops)
     }
 
-    fn get_ops_statistics(&self, ops: &[Op]) -> (usize, usize, usize, usize, usize) {
+    fn get_ops_statistics(&self, ops: &[Op]) -> (usize, usize, usize, usize, usize, usize) {
         let mut op_count = 0;
         let mut dloop_count = 0;
+        let mut lloop_count = 0;
         let mut iloop_count = 0;
         let mut cloop_count = 0;
         let mut if_count = 0;
@@ -23,37 +24,51 @@ impl Program {
             op_count += 1;
             match &op.op_type {
                 OpType::DLoop(children) => {
-                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
                     op_count += ops;
                     dloop_count += 1;
                     dloop_count += dloops;
+                    lloop_count += lloop;
+                    iloop_count += iloops;
+                    cloop_count += cloops;
+                    if_count += ifs;
+                }
+                OpType::LLoop(children, ..) => {
+                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    op_count += ops;
+                    lloop_count += 1;
+                    dloop_count += dloops;
+                    lloop_count += lloop;
                     iloop_count += iloops;
                     cloop_count += cloops;
                     if_count += ifs;
                 }
                 OpType::ILoop(children, ..) => {
-                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
                     op_count += ops;
                     iloop_count += 1;
                     dloop_count += dloops;
+                    lloop_count += lloop;
                     iloop_count += iloops;
                     cloop_count += cloops;
                     if_count += ifs;
                 }
                 OpType::CLoop(children, ..) => {
-                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
                     op_count += ops;
                     cloop_count += 1;
                     dloop_count += dloops;
+                    lloop_count += lloop;
                     iloop_count += iloops;
                     cloop_count += cloops;
                     if_count += ifs;
                 }
                 OpType::TNz(children, ..) => {
-                    let (ops, dloops, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
                     op_count += ops;
                     if_count += 1;
                     dloop_count += dloops;
+                    lloop_count += lloop;
                     iloop_count += iloops;
                     cloop_count += cloops;
                     if_count += ifs;
@@ -62,7 +77,7 @@ impl Program {
             }
         }
 
-        (op_count, dloop_count, iloop_count, cloop_count, if_count)
+        (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count)
     }
 
     pub fn dump<W: Write>(&self, mut output: W) -> Result<(), Box<dyn Error>> {
@@ -118,6 +133,10 @@ impl Program {
 
                 OpType::DLoop(children) => {
                     writeln!(output, "DLOOP")?;
+                    self.dump_ops(output, children, indent + 1)?;
+                }
+                OpType::LLoop(children, offset) => {
+                    writeln!(output, "LLOOP offset: {}", offset)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
                 OpType::ILoop(children, offset, step) => {
@@ -206,6 +225,13 @@ impl Op {
     pub fn d_loop(span: Range<usize>, ops: Vec<Op>) -> Op {
         Op {
             op_type: OpType::DLoop(ops),
+            span,
+        }
+    }
+
+    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize) -> Op {
+        Op {
+            op_type: OpType::LLoop(ops, offset),
             span,
         }
     }
@@ -330,7 +356,10 @@ pub enum OpType {
     /// Dynamic loop as defined in raw brainfuck source
     DLoop(Vec<Op>),
 
-    /// Loop with an iterator variable
+    /// Loop using the same iterator cell for each iteration
+    LLoop(Vec<Op>, isize),
+
+    /// Loop with an iterator variable and know steps per iteration
     ILoop(Vec<Op>, isize, u8),
 
     /// Loop with compile time known iteration count
@@ -391,6 +420,7 @@ impl OpType {
                 test_offset == *offset
             }
             OpType::DLoop(..) |
+            OpType::LLoop(..) |
             OpType::ILoop(..) |
             OpType::CLoop(..) |
             OpType::TNz(..) |
@@ -449,6 +479,7 @@ impl OpType {
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
         match self {
             OpType::DLoop(children) |
+            OpType::LLoop(children, ..) |
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
             OpType::TNz(children, ..) => Some(children),
@@ -459,6 +490,7 @@ impl OpType {
     pub fn get_children_with_offset_mut(&mut self) -> Option<(isize, &mut Vec<Op>)> {
         match self {
             OpType::DLoop(children) => Some((0, children)),
+            OpType::LLoop(children, offset) |
             OpType::ILoop(children, offset, ..) |
             OpType::CLoop(children, offset, ..) |
             OpType::TNz(children, offset) => Some((*offset, children)),

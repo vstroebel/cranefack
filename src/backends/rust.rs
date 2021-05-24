@@ -44,6 +44,19 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
+            OpType::LLoop(children, offset) => {
+                writeln!(out, "{{")?;
+
+                writeln!(out, "let heap_pointer = rt.pointer;")?;
+                writeln!(out, "let start_heap_pointer = (heap_pointer as isize).wrapping_add({}) as usize;", offset)?;
+                writeln!(out, "while *rt.heap_value() > 0 {{")?;
+                writeln!(out, "rt.pointer = start_heap_pointer;")?;
+                print_ops(out, children)?;
+                writeln!(out, "}}")?;
+                writeln!(out, "rt.pointer = heap_pointer;")?;
+
+                writeln!(out, "}}")?;
+            }
             OpType::ILoop(children, offset, step) => {
                 writeln!(out, "{{")?;
 

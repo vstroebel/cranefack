@@ -95,14 +95,172 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
 }
 
 // Optimize loops that are known to use the same counting variable
-pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
-    let mut i = 0;
-
+pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
     let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_local_loops(children);
+        }
+    }
+
+    let mut i = 0;
 
     while !ops.is_empty() && !ops.is_empty() && i < ops.len() {
         let replace = if let OpType::DLoop(children) = &mut ops[i].op_type {
             let mut ptr_offset = 0_isize;
+            let mut ignore = false;
+
+            for op in children {
+                match &op.op_type {
+                    OpType::IncPtr(value) => {
+                        ptr_offset += *value as isize;
+                    }
+                    OpType::DecPtr(value) => {
+                        ptr_offset -= *value as isize;
+                    }
+                    OpType::DLoop(..) => {
+                        ignore = true;
+                        break;
+                    }
+                    OpType::LLoop(children, offset) |
+                    OpType::ILoop(children, offset, ..) |
+                    OpType::CLoop(children, offset, ..) |
+                    OpType::TNz(children, offset) => {
+                        if !is_ops_block_local(children, &[-ptr_offset - *offset]) {
+                            ignore = true;
+                            break;
+                        }
+                    }
+                    OpType::SearchZero(..) => {
+                        ignore = true;
+                        break;
+                    }
+                    OpType::PutChar |
+                    OpType::GetChar |
+                    OpType::Inc(..) |
+                    OpType::Dec(..) |
+                    OpType::Set(..) |
+                    OpType::Add(..) |
+                    OpType::Sub(..) |
+                    OpType::CAdd(..) |
+                    OpType::CSub(..) |
+                    OpType::Move(..) |
+                    OpType::NzAdd(..) |
+                    OpType::NzSub(..) |
+                    OpType::NzCAdd(..) |
+                    OpType::NzCSub(..) |
+                    OpType::Copy(..)
+                    => {
+                        // ignore
+                    }
+                }
+            }
+
+            !ignore && ptr_offset == 0
+        } else {
+            false
+        };
+
+        if replace {
+            let prev = ops.remove(i);
+            let span = prev.span.clone();
+
+            if let OpType::DLoop(mut children) = prev.op_type {
+                while !children.is_empty() && children[children.len() - 1].op_type.is_ptr_inc_or_dec() {
+                    children.remove(children.len() - 1);
+                }
+
+                let offset = if children.is_empty() {
+                    0
+                } else if let Some(offset) = children[0].op_type.get_ptr_offset() {
+                    children.remove(0);
+                    offset
+                } else {
+                    0
+                };
+
+                ops.insert(i, Op::l_loop(span, children, offset));
+
+                progress = true;
+            } else {
+                unreachable!("Bad loop type {:?}", prev);
+            }
+        }
+        i += 1;
+    }
+
+    progress
+}
+
+fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
+    let mut ptr_offset = 0_isize;
+
+    for op in ops {
+        match &op.op_type {
+            OpType::IncPtr(value) => {
+                ptr_offset += *value as isize;
+            }
+            OpType::DecPtr(value) => {
+                ptr_offset -= *value as isize;
+            }
+            OpType::LLoop(children, offset) |
+            OpType::ILoop(children, offset, ..) |
+            OpType::CLoop(children, offset, ..) |
+            OpType::TNz(children, offset) => {
+                let mut offsets = parent_offsets.iter().map(|o| {
+                    o - *offset
+                }).collect::<Vec<_>>();
+
+                offsets.push(-ptr_offset - *offset);
+
+                if !is_ops_block_local(children, &offsets) {
+                    return false;
+                }
+            }
+            OpType::DLoop(_) |
+            OpType::SearchZero(..) => {
+                return false;
+            }
+            OpType::PutChar |
+            OpType::GetChar |
+            OpType::Inc(..) |
+            OpType::Dec(..) |
+            OpType::Set(..) |
+            OpType::Add(..) |
+            OpType::Sub(..) |
+            OpType::CAdd(..) |
+            OpType::CSub(..) |
+            OpType::Move(..) |
+            OpType::NzAdd(..) |
+            OpType::NzSub(..) |
+            OpType::NzCAdd(..) |
+            OpType::NzCSub(..) |
+            OpType::Copy(..)
+            => {
+                // ignore
+            }
+        }
+    }
+
+    true
+}
+
+// Optimize loops that are known to use the same counting variable
+pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
+    let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_count_loops(children);
+        }
+    }
+
+    let mut i = 0;
+
+    while !ops.is_empty() && !ops.is_empty() && i < ops.len() {
+        let replace = if let OpType::LLoop(children, outer_offset) = &mut ops[i].op_type {
+            let mut ptr_offset = *outer_offset;
             let mut ignore = false;
             let mut possible_match = false;
             let mut counter_decrements = vec![];
@@ -165,14 +323,16 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                                 counter_decrements.push((i, *v));
                             }
                         }
-                        OpType::DLoop(..) => {
+                        OpType::DLoop(..) |
+                        OpType::LLoop(..)
+                        => {
                             ignore = true;
                             break;
                         }
                         OpType::ILoop(children, offset, ..) |
                         OpType::CLoop(children, offset, ..) |
                         OpType::TNz(children, offset) => {
-                            if !is_ops_block_local(children, &[-ptr_offset - *offset]) {
+                            if !is_ops_block_unmodified_local(children, &[-ptr_offset - *offset]) {
                                 ignore = true;
                                 break;
                             }
@@ -189,7 +349,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             }
 
             #[allow(clippy::manual_map)]
-            if !ignore && possible_match && ptr_offset == 0 && !counter_decrements.is_empty() {
+            if !ignore && possible_match && !counter_decrements.is_empty() {
                 Some(counter_decrements)
             } else {
                 None
@@ -202,7 +362,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             let prev = ops.remove(i);
             let span = prev.span;
 
-            if let OpType::DLoop(mut children) = prev.op_type {
+            if let OpType::LLoop(mut children, loop_offset) = prev.op_type {
                 let mut step = 0;
 
                 for (index, amount) in counter_decrements.iter().rev() {
@@ -221,14 +381,12 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                     0
                 };
 
-                ops.insert(i, Op::i_loop(span, children, offset, step));
+                ops.insert(i, Op::i_loop(span, children, loop_offset + offset, step));
 
                 progress = true;
             } else {
                 unreachable!();
             }
-        } else if let Some(children) = ops[i].op_type.get_children_mut() {
-            progress |= optimize_count_loops(children);
         }
         i += 1;
     }
@@ -236,7 +394,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
+fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
     let mut ptr_offset = 0_isize;
 
     for op in ops {
@@ -300,11 +458,12 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
 
                 offsets.push(-ptr_offset - *offset);
 
-                if !is_ops_block_local(children, &offsets) {
+                if !is_ops_block_unmodified_local(children, &offsets) {
                     return false;
                 }
             }
             OpType::DLoop(_) |
+            OpType::LLoop(..) |
             OpType::SearchZero(..) => {
                 return false;
             }
@@ -1092,6 +1251,7 @@ pub fn remove_trailing_pointer_ops(ops: &mut Vec<Op>, in_framed_block: bool) -> 
 
     for op in ops {
         match &mut op.op_type {
+            OpType::LLoop(children, ..) |
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
             OpType::TNz(children, ..) => {
@@ -1330,6 +1490,7 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
@@ -1349,6 +1510,7 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
@@ -1368,6 +1530,7 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
@@ -1388,11 +1551,36 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
         assert_eq!(ops, vec![
             Op::sub(0..5, 1, 2),
+        ])
+    }
+
+    #[test]
+    fn test_optimize_local_loops() {
+        let mut ops = vec![
+            Op::set(0..1, 6),
+            Op::d_loop(0..5, vec![
+                Op::dec(1..2, 1),
+                Op::inc_ptr(2..3, 1),
+                Op::dec(3..4, 2),
+                Op::dec_ptr(4..5, 1),
+            ])
+        ];
+
+        optimize_local_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(0..1, 6),
+            Op::l_loop(0..5, vec![
+                Op::dec(1..2, 1),
+                Op::inc_ptr(2..3, 1),
+                Op::dec(3..4, 2),
+            ], 0)
         ])
     }
 
@@ -1408,6 +1596,7 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
 
         assert_eq!(ops, vec![
@@ -1430,6 +1619,7 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
 
         assert_eq!(ops, vec![
@@ -1452,6 +1642,7 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
         optimize_static_count_loops(&mut ops);
 
@@ -1474,6 +1665,7 @@ mod tests {
             ])
         ];
 
+        optimize_local_loops(&mut ops);
         optimize_count_loops(&mut ops);
         optimize_static_count_loops(&mut ops);
 

@@ -109,6 +109,16 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     self.execute_ops(ops)?;
                 }
             }
+            OpType::LLoop(ops, offset) => {
+                let heap_pointer = self.pointer;
+                let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
+
+                while *self.heap_value(&op.span)? > 0 {
+                    self.pointer = start_heap_pointer;
+                    self.execute_ops(ops)?;
+                    self.pointer = heap_pointer;
+                }
+            }
             OpType::ILoop(ops, offset, step) => {
                 let heap_pointer = self.pointer;
                 let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
