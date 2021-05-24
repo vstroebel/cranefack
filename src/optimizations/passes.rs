@@ -671,6 +671,26 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
                     heap[op_ptr as usize] = Some(i);
                     None
                 }
+            } else if let OpType::Inc(offset, value) = &op.op_type {
+                let op_ptr = ptr + offset;
+
+                if op_ptr < 0 {
+                    break;
+                }
+
+                while op_ptr > heap.len() as isize - 1 {
+                    heap.push(None);
+                }
+
+                progress = true;
+
+                if let Some(index) = &heap[op_ptr as usize] {
+                    Some((index, *value as i16))
+                } else {
+                    op.op_type = OpType::Set(*offset, *value);
+                    heap[op_ptr as usize] = Some(i);
+                    None
+                }
             } else if let OpType::Dec(offset, value) = &op.op_type {
                 let op_ptr = ptr + offset;
 
@@ -690,6 +710,43 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
                     op.op_type = OpType::Set(*offset, 0u8.wrapping_sub(*value));
                     heap[op_ptr as usize] = Some(i);
                     None
+                }
+            } else if let OpType::CAdd(src_offset, dest_offset, value) = &op.op_type {
+                let src_op_ptr = ptr + src_offset;
+
+                if src_op_ptr < 0 {
+                    break;
+                }
+
+                let dest_op_ptr = ptr + dest_offset;
+
+                if dest_op_ptr < 0 {
+                    break;
+                }
+
+                while src_op_ptr > heap.len() as isize - 1 {
+                    heap.push(None);
+                }
+
+                while dest_op_ptr > heap.len() as isize - 1 {
+                    heap.push(None);
+                }
+
+                progress = true;
+
+                match (&heap[src_op_ptr as usize], &heap[dest_op_ptr as usize]) {
+                    (None, None) => {
+                        op.op_type = OpType::Set(*dest_offset, *value);
+                        heap[dest_op_ptr as usize] = Some(i);
+                        None
+                    }
+                    (None, Some(index)) => {
+                        Some((index, (*value as i16)))
+                    }
+                    _ => {
+                        // Not supported yet
+                        None
+                    }
                 }
             } else {
                 break;
