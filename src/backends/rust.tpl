@@ -135,6 +135,19 @@ impl Runtime {
         *target = target.wrapping_sub(value);
     }
 
+    fn move(&mut self, src_offset: isize, dest_offset: isize) {
+        let source = *self.heap_value_at_offset(src_offset);
+        let target = self.heap_value_at_offset(dest_offset);
+        *target = source;
+        *self.heap_value_at_offset(src_offset) = 0;
+    }
+
+    fn copy(&mut self, src_offset: isize, dest_offset: isize) {
+        let source = *self.heap_value_at_offset(src_offset);
+        let target = self.heap_value_at_offset(dest_offset);
+        *target = source;
+    }
+
     fn search_zero(&mut self, step: isize) {
         let mut pointer = self.pointer as isize;
 

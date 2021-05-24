@@ -122,7 +122,8 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         OpType::Add(src_offset, dest_offset, _) |
                         OpType::Sub(src_offset, dest_offset, _) |
                         OpType::CAdd(src_offset, dest_offset, _) |
-                        OpType::CSub(src_offset, dest_offset, _)
+                        OpType::CSub(src_offset, dest_offset, _) |
+                        OpType::Move(src_offset, dest_offset)
                         => {
                             if ptr_offset + src_offset == 0 {
                                 ignore = true;
@@ -137,7 +138,8 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         OpType::NzAdd(_, dest_offset, _) |
                         OpType::NzSub(_, dest_offset, _) |
                         OpType::NzCAdd(_, dest_offset, _) |
-                        OpType::NzCSub(_, dest_offset, _)
+                        OpType::NzCSub(_, dest_offset, _) |
+                        OpType::Copy(_, dest_offset)
                         => {
                             if ptr_offset + dest_offset == 0 {
                                 ignore = true;
@@ -248,7 +250,8 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::Add(src_offset, dest_offset, _) |
             OpType::Sub(src_offset, dest_offset, _) |
             OpType::CAdd(src_offset, dest_offset, _) |
-            OpType::CSub(src_offset, dest_offset, _)
+            OpType::CSub(src_offset, dest_offset, _) |
+            OpType::Move(src_offset, dest_offset)
             => {
                 for parent_offset in parent_offsets {
                     if ptr_offset + src_offset == *parent_offset {
@@ -265,7 +268,8 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::NzAdd(_, dest_offset, _) |
             OpType::NzSub(_, dest_offset, _) |
             OpType::NzCAdd(_, dest_offset, _) |
-            OpType::NzCSub(_, dest_offset, _)
+            OpType::NzCSub(_, dest_offset, _) |
+            OpType::Copy(_, dest_offset)
             => {
                 for parent_offset in parent_offsets {
                     if ptr_offset + dest_offset == *parent_offset {
@@ -392,6 +396,20 @@ pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
         (op_type, OpType::Dec(offset, v)) => {
             if op_type.is_zeroing(*offset) {
                 Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Set(*offset, 0u8.wrapping_sub(*v))])
+            } else {
+                Change::Ignore
+            }
+        }
+        (op_type, OpType::Add(src_offset, dest_offset, multi)) => {
+            if *multi == 1 && op_type.is_zeroing(*dest_offset) {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Move(*src_offset, *dest_offset)])
+            } else {
+                Change::Ignore
+            }
+        }
+        (op_type, OpType::NzAdd(src_offset, dest_offset, multi)) => {
+            if *multi == 1 && op_type.is_zeroing(*dest_offset) {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Copy(*src_offset, *dest_offset)])
             } else {
                 Change::Ignore
             }

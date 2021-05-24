@@ -91,6 +91,17 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_sub(*value);
             }
+            OpType::Move(src_offset, dest_offset) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = source;
+                *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
+            }
+            OpType::Copy(src_offset, dest_offset) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = source;
+            }
             OpType::GetChar => self.get_char(&op.span)?,
             OpType::PutChar => self.put_char(&op.span)?,
             OpType::DLoop(ops) => {

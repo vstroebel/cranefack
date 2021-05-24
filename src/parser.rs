@@ -108,6 +108,11 @@ impl Program {
                 OpType::NzCSub(src_offset, dest_offset, value) =>
                     writeln!(output, "NZ_CSUB src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
 
+                OpType::Move(src_offset, dest_offset) =>
+                    writeln!(output, "MOVE src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
+                OpType::Copy(src_offset, dest_offset) =>
+                    writeln!(output, "COPY src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
+
                 OpType::PutChar => writeln!(output, "PUT")?,
                 OpType::GetChar => writeln!(output, "GET")?,
 
@@ -314,6 +319,12 @@ pub enum OpType {
     /// Subtract constant value to value at offset without setting current value to 0
     NzCSub(isize, isize, u8),
 
+    /// Move value to value at offset and reset current value to 0
+    Move(isize, isize),
+
+    /// Copy value to value at offset without setting current value to 0
+    Copy(isize, isize),
+
     PutChar,
     GetChar,
     /// Dynamic loop as defined in raw brainfuck source
@@ -374,6 +385,7 @@ impl OpType {
             OpType::CAdd(offset, ..) |
             OpType::Sub(offset, ..) |
             OpType::CSub(offset, ..) |
+            OpType::Move(offset, ..) |
             OpType::Set(offset, 0) => {
                 test_offset == *offset
             }
