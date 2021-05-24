@@ -424,20 +424,65 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
     let mut progress = false;
 
     while !ops.is_empty() && i < ops.len() - 1 {
-        let op1 = &ops[i];
-        let op2 = &ops[i + 1];
+        let dest_offset = ops[i + 1].op_type.get_overwriting_dest_offset();
+        let op1 = &mut ops[i];
 
-
-        let remove = match (&op1.op_type, &op2.op_type) {
-            (OpType::Inc(offset, _), OpType::Set(offset2, _)) |
-            (OpType::Dec(offset, _), OpType::Set(offset2, _)) |
-            (OpType::Set(offset, _), OpType::Set(offset2, _)) => {
-                *offset == *offset2
+        let remove = if let Some(dest_offset) = dest_offset {
+            if match &op1.op_type {
+                OpType::Inc(offset, _) |
+                OpType::Dec(offset, _) |
+                OpType::Set(offset, _) |
+                OpType::Copy(_, offset) |
+                OpType::NzAdd(_, offset, ..) |
+                OpType::NzCAdd(_, offset, ..) |
+                OpType::NzSub(_, offset, ..) |
+                OpType::NzCSub(_, offset, ..)
+                => {
+                    *offset == dest_offset
+                }
+                _ => false,
+            } {
+                true
+            } else {
+                match &op1.op_type {
+                    OpType::Add(src, dest, multi) => {
+                        if *src == dest_offset {
+                            op1.op_type = OpType::NzAdd(*src, *dest, *multi);
+                            progress = true;
+                        }
+                    }
+                    OpType::CAdd(src, dest, value) => {
+                        if *src == dest_offset {
+                            op1.op_type = OpType::NzCAdd(*src, *dest, *value);
+                            progress = true;
+                        }
+                    }
+                    OpType::Sub(src, dest, multi) => {
+                        if *src == dest_offset {
+                            op1.op_type = OpType::NzSub(*src, *dest, *multi);
+                            progress = true;
+                        }
+                    }
+                    OpType::CSub(src, dest, value) => {
+                        if *src == dest_offset {
+                            op1.op_type = OpType::NzCSub(*src, *dest, *value);
+                            progress = true;
+                        }
+                    }
+                    OpType::Move(src, dest) => {
+                        if *src == dest_offset {
+                            op1.op_type = OpType::Copy(*src, *dest);
+                            progress = true;
+                        }
+                    }
+                    _ => {
+                        // Ignore
+                    }
+                }
+                false
             }
-            (OpType::Inc(0, _), OpType::GetChar) |
-            (OpType::Dec(0, _), OpType::GetChar) |
-            (OpType::Set(0, _), OpType::GetChar) => true,
-            _ => false,
+        } else {
+            false
         };
 
         if remove {

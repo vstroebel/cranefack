@@ -400,6 +400,22 @@ impl OpType {
         }
     }
 
+    /// Returns the destination offset for ops that overwrites a cell
+    pub fn get_overwriting_dest_offset(&self) -> Option<isize> {
+        match self {
+            OpType::Move(_, dest_offset) |
+            OpType::Copy(_, dest_offset) |
+            OpType::Inc(dest_offset, _) |
+            OpType::Dec(dest_offset, _) |
+            OpType::Set(dest_offset, _)
+            => {
+                Some(*dest_offset)
+            }
+            OpType::GetChar => Some(0),
+            _ => None,
+        }
+    }
+
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
         match self {
             OpType::DLoop(children) |
