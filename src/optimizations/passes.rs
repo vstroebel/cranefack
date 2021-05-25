@@ -764,9 +764,15 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
 
 // Replace loops only containing constant sets with TNz
 pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
-    let mut i = 0;
-
     let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_conditional_loops(children);
+        }
+    }
+
+    let mut i = 0;
 
     while !ops.is_empty() && i < ops.len() {
         let op = &mut ops[i];
@@ -775,14 +781,21 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) =>
                 contains_only_constant_sets(children),
+            OpType::LLoop(children, offset) => {
+                !children.is_empty()
+                    && is_zero_end_offset(children, *offset)
+                    && children[children.len() - 1].op_type.is_zeroing(0)
+            }
             _ => false,
         };
 
         if replace {
+            progress = true;
             let prev = ops.remove(i);
             let span = prev.span;
 
             match prev.op_type {
+                OpType::LLoop(children, offset) |
                 OpType::ILoop(children, offset, _) |
                 OpType::CLoop(children, offset, _) => {
                     ops.insert(i, Op::t_nz(span, children, offset));
@@ -791,14 +804,46 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
             }
         }
 
-        if let Some(children) = ops[i].op_type.get_children_mut() {
-            progress |= optimize_conditional_loops(children);
-        }
-
         i += 1;
     }
 
     progress
+}
+
+fn is_zero_end_offset(ops: &[Op], start_offset: isize) -> bool {
+    let mut ptr_offset = start_offset;
+
+    for op in ops {
+        match &op.op_type {
+            OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+            OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
+            OpType::Inc(..) |
+            OpType::Dec(..) |
+            OpType::Set(..) |
+            OpType::Add(..) |
+            OpType::CAdd(..) |
+            OpType::NzAdd(..) |
+            OpType::NzCAdd(..) |
+            OpType::Sub(..) |
+            OpType::CSub(..) |
+            OpType::NzSub(..) |
+            OpType::NzCSub(..) |
+            OpType::Move(..) |
+            OpType::Copy(..) |
+            OpType::GetChar |
+            OpType::PutChar |
+            OpType::LLoop(..) |
+            OpType::ILoop(..) |
+            OpType::CLoop(..) |
+            OpType::TNz(..)
+            => {
+                // ignore
+            }
+            _ => return false
+        }
+    }
+
+    ptr_offset == 0
 }
 
 fn contains_only_constant_sets(ops: &[Op]) -> bool {
@@ -1304,7 +1349,6 @@ pub fn remove_useless_copy(ops: [&Op; 2]) -> Change {
         _ => Change::Ignore,
     }
 }
-
 
 #[cfg(test)]
 mod tests {
