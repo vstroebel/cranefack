@@ -9,7 +9,7 @@ pub use errors::{CraneFuckError, ParserError, RuntimeError};
 
 pub use crate::interpreter::Interpreter;
 pub use crate::parser::parse;
-pub use crate::optimizations::optimize;
+pub use crate::optimizations::{optimize, optimize_with_config, OptimizeConfig};
 pub use crate::analyzer::{analyze, Warning, WarningType};
 
 #[cfg(test)]

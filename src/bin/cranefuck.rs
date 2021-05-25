@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write, stdin, stdout};
-use cranefack::{parse, Interpreter, CraneFuckError, optimize, analyze, Warning};
+use cranefack::{parse, Interpreter, CraneFuckError, optimize, analyze, Warning, optimize_with_config, OptimizeConfig};
 use std::time::SystemTime;
 use codespan_reporting::term::termcolor::{StandardStream, Color, ColorChoice, WriteColor, ColorSpec};
 
@@ -13,14 +13,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
         ("run", Some(arg_matches)) => {
             run_file(
-                arg_matches.value_of("OPT_MODE").unwrap_or("1"),
+                arg_matches.value_of("OPT_MODE").unwrap_or("2"),
                 arg_matches.is_present("VERBOSE"),
                 arg_matches.value_of_os("FILE").unwrap(),
             )
         }
         ("compile", Some(arg_matches)) => {
             compile_file(
-                arg_matches.value_of("OPT_MODE").unwrap_or("1"),
+                arg_matches.value_of("OPT_MODE").unwrap_or("2"),
                 arg_matches.is_present("VERBOSE"),
                 arg_matches.value_of("FORMAT").unwrap_or("dump"),
                 arg_matches.value_of_os("FILE").unwrap(),
@@ -46,7 +46,7 @@ fn create_clap_app() -> App<'static, 'static> {
                 .short("O")
                 .possible_values(&["0", "1", "2", "3"])
                 .value_names(&["mode"])
-                .default_value("1")
+                .default_value("2")
                 .help("Optimization mode")
             )
             .arg(Arg::with_name("VERBOSE")
@@ -62,7 +62,7 @@ fn create_clap_app() -> App<'static, 'static> {
                 .short("O")
                 .possible_values(&["0", "1", "2", "3"])
                 .value_names(&["mode"])
-                .default_value("1")
+                .default_value("2")
                 .help("Optimization mode"))
             .arg(Arg::with_name("FORMAT")
                 .short("f")
@@ -122,8 +122,12 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
         ts = SystemTime::now();
     }
 
-    if opt_mode == "1" {
-        let opt_loop_count = optimize(&mut program);
+    if opt_mode != "0" {
+        let opt_loop_count = match opt_mode {
+            "1" => optimize_with_config(&mut program, &OptimizeConfig::o1()),
+            "2" => optimize_with_config(&mut program, &OptimizeConfig::o2()),
+            _ => optimize(&mut program),
+        };
 
         if verbose {
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
@@ -202,7 +206,11 @@ fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Re
     }
 
     if opt_mode != "0" {
-        let opt_loop_count = optimize(&mut program);
+        let opt_loop_count = match opt_mode {
+            "1" => optimize_with_config(&mut program, &OptimizeConfig::o1()),
+            "2" => optimize_with_config(&mut program, &OptimizeConfig::o2()),
+            _ => optimize(&mut program),
+        };
 
         if verbose {
             let mut writer = StandardStream::stderr(ColorChoice::Auto);
