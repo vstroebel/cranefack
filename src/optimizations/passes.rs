@@ -328,6 +328,11 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         OpType::ILoop(children, offset, ..) |
                         OpType::CLoop(children, offset, ..) |
                         OpType::TNz(children, offset) => {
+                            if ptr_offset == 0 {
+                                ignore = true;
+                                break;
+                            }
+
                             if !is_ops_block_unmodified_local(children, &[-ptr_offset - *offset]) {
                                 ignore = true;
                                 break;
