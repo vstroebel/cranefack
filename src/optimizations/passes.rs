@@ -22,7 +22,7 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 
     while !ops.is_empty() && i < ops.len() {
         let op = &mut ops[i];
-        if let Some(children) = op.op_type.get_children_mut() {
+        if let OpType::DLoop(children) = &mut op.op_type {
             let mut optimized = false;
             if children.len() == 1 {
                 optimized = matches!(children[0].op_type, OpType::Dec(0, 1) | OpType::Inc(0, 1))
