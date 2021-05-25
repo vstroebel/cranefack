@@ -247,4 +247,69 @@ mod tests {
 
         assert_eq!(interpreter.heap[0], 2);
     }
+
+    #[test]
+    fn test_hello_fizz() {
+        let mut program = parse(include_str!("../test_programs/fizz.bf")).unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, b"1W\n");
+    }
+
+    #[test]
+    fn test_hello_fizzbuzz() {
+        let mut program = parse(include_str!("../test_programs/fizzbuzz.bf")).unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, b"987654321");
+    }
+
+    #[test]
+    fn test_bottles() {
+        let mut program = parse(include_str!("../test_programs/bottles.bf")).unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, include_bytes!("../test_programs/bottles.bf.out"));
+    }
+
+    #[test]
+    fn test_factor() {
+        let mut program = parse(include_str!("../test_programs/factor.bf")).unwrap();
+        optimize(&mut program);
+
+        let input = include_bytes!("../test_programs/factor.bf.in");
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, include_bytes!("../test_programs/factor.bf.out"));
+    }
+
+    #[test]
+    fn test_life() {
+        let mut program = parse(include_str!("../test_programs/life.bf")).unwrap();
+        optimize(&mut program);
+
+        let input = include_bytes!("../test_programs/life.bf.in");
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, include_bytes!("../test_programs/life.bf.out"));
+    }
 }
