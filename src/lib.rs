@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_hello_world_v2() {
-        let mut program = parse(include_str!("test_programs/hello_world.bf")).unwrap();
+        let mut program = parse(include_str!("../test_programs/hello_world.bf")).unwrap();
         optimize(&mut program);
 
         let input = b"";
