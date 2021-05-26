@@ -217,6 +217,8 @@ impl<'a> Builder<'a> {
         // Start next block after loop
         self.bcx.switch_to_block(next);
         self.heap_ptr = self.bcx.block_params(next)[0];
+        // This is not be needed but it seems to fix a possible bug in cranelift
+        self.set(0, 0);
     }
 
     fn l_loop(&mut self, ops: &[Op], offset: isize) {
@@ -253,6 +255,9 @@ impl<'a> Builder<'a> {
         // Start next block after loop
         self.bcx.switch_to_block(next);
         self.heap_ptr = self.bcx.block_params(next)[0];
+
+        // This is not be needed but it seems to fix a possible bug in cranelift
+        self.set(0, 0);
     }
 
     fn i_loop(&mut self, ops: &[Op], offset: isize, step: u8) {
