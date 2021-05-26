@@ -458,7 +458,7 @@ pub fn run<R: Read, W: Write>(program: &Program, mut input: R, mut output: W) ->
     let mut flag_builder = settings::builder();
 
     //flag_builder.set("use_colocated_libcalls", "false").unwrap();
-    flag_builder.set("opt_level", "none").unwrap();
+    flag_builder.set("opt_level", "speed").unwrap();
     flag_builder.set("enable_verifier", "true").unwrap();
 
     let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
