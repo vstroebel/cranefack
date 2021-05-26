@@ -449,10 +449,8 @@ fn put_char(env: *mut Environment, value: u8) {
     let output = unsafe { &mut (*env).output };
     if value != 0 && value.is_ascii() {
         write!(output, "{}", value as char).unwrap();
-        output.flush().unwrap();
     } else {
         write!(output, "\\0x{:x}", value).unwrap();
-        output.flush().unwrap();
     }
 }
 
