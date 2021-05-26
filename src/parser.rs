@@ -215,6 +215,13 @@ impl Op {
         }
     }
 
+    pub fn _move(span: Range<usize>, src_offset: isize, dest_offset: isize) -> Op {
+        Op {
+            op_type: OpType::Move(src_offset, dest_offset),
+            span,
+        }
+    }
+
     pub fn put_char(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::PutChar,
@@ -278,12 +285,27 @@ impl Op {
         }
     }
 
+    pub fn nz_add(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::NzAdd(0, dest_offset, multi),
+            span,
+        }
+    }
+
     pub fn c_add(span: Range<usize>, dest_offset: isize, value: u8) -> Op {
         Op {
             op_type: OpType::CAdd(0, dest_offset, value),
             span,
         }
     }
+
+    pub fn nz_c_add(span: Range<usize>, dest_offset: isize, value: u8) -> Op {
+        Op {
+            op_type: OpType::NzCAdd(0, dest_offset, value),
+            span,
+        }
+    }
+
     pub fn c_add_with_offset(span: Range<usize>, src_offset: isize, dest_offset: isize, value: u8) -> Op {
         Op {
             op_type: OpType::CAdd(src_offset, dest_offset, value),
@@ -301,6 +323,20 @@ impl Op {
     pub fn c_sub(span: Range<usize>, dest_offset: isize, value: u8) -> Op {
         Op {
             op_type: OpType::CSub(0, dest_offset, value),
+            span,
+        }
+    }
+
+    pub fn nz_sub(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::NzSub(0, dest_offset, multi),
+            span,
+        }
+    }
+
+    pub fn nz_c_sub(span: Range<usize>, dest_offset: isize, value: u8) -> Op {
+        Op {
+            op_type: OpType::NzCSub(0, dest_offset, value),
             span,
         }
     }

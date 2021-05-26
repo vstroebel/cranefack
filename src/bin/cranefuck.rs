@@ -14,6 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         ("run", Some(arg_matches)) => {
             run_file(
                 arg_matches.value_of("OPT_MODE").unwrap_or("2"),
+                arg_matches.is_present("JIT"),
                 arg_matches.is_present("VERBOSE"),
                 arg_matches.value_of_os("FILE").unwrap(),
             )
@@ -42,6 +43,10 @@ fn create_clap_app() -> App<'static, 'static> {
             .arg(Arg::with_name("FILE")
                 .required(true)
                 .help("Brainfuck source file"))
+            .arg(Arg::with_name("JIT")
+                .short("j")
+                .long("jit")
+                .help("Use JIT compiler"))
             .arg(Arg::with_name("OPT_MODE")
                 .short("O")
                 .possible_values(&["0", "1", "2", "3"])
@@ -91,7 +96,7 @@ fn read_input(path: &OsStr) -> Result<String, Box<dyn Error>> {
     }
 }
 
-fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn Error>> {
+fn run_file(opt_mode: &str, jit: bool, verbose: bool, path: &OsStr) -> Result<(), Box<dyn Error>> {
     let source = read_input(path)?;
 
     let mut ts = SystemTime::now();
@@ -155,10 +160,14 @@ fn run_file(opt_mode: &str, verbose: bool, path: &OsStr) -> Result<(), Box<dyn E
         Warning::pretty_print(&warnings, &source, Some(&path.to_string_lossy()))?;
     }
 
-    let mut interpreter = Interpreter::new(stdin(), stdout());
+    if jit {
+        cranefack::backends::cranelift::run(&program, stdin(), stdout());
+    } else {
+        let mut interpreter = Interpreter::new(stdin(), stdout());
 
-    if let Err(err) = interpreter.execute(&program) {
-        return err.pretty_print(&source, Some(&path.to_string_lossy()));
+        if let Err(err) = interpreter.execute(&program) {
+            return err.pretty_print(&source, Some(&path.to_string_lossy()));
+        }
     }
 
     if verbose {
