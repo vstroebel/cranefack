@@ -8,6 +8,7 @@ use cranelift_module::{default_libcall_names, Linkage, Module};
 use std::mem;
 use std::io::{Read, Write};
 use cranelift_codegen::ir::FuncRef;
+use std::cmp::Ordering;
 
 struct Builder<'a> {
     pointer_type: Type,
@@ -58,14 +59,16 @@ impl<'a> Builder<'a> {
     }
 
     fn add_offset(&mut self, value: Value, offset: isize) -> Value {
-        if offset == 0 {
-            value
-        } else if offset > 0 {
-            let offset = self.const_isize(offset);
-            self.bcx.ins().iadd(value, offset)
-        } else {
-            let offset = self.const_isize(-offset);
-            self.bcx.ins().isub(value, offset)
+        match offset.cmp(&0) {
+            Ordering::Equal => value,
+            Ordering::Greater => {
+                let offset = self.const_isize(offset);
+                self.bcx.ins().iadd(value, offset)
+            }
+            Ordering::Less => {
+                let offset = self.const_isize(-offset);
+                self.bcx.ins().isub(value, offset)
+            }
         }
     }
 
