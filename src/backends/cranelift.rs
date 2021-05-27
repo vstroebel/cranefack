@@ -4,11 +4,12 @@ use cranelift::prelude::*;
 use cranelift_codegen::binemit::{NullStackMapSink, NullTrapSink};
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{default_libcall_names, Linkage, Module};
+use cranelift_module::{default_libcall_names, Linkage, Module, FuncId};
 use std::mem;
 use std::io::{Read, Write};
 use cranelift_codegen::ir::FuncRef;
 use std::cmp::Ordering;
+use crate::errors::CompilerError;
 
 struct Builder<'a> {
     pointer_type: Type,
@@ -457,118 +458,145 @@ fn put_char(env: *mut Environment, value: u8) {
     }
 }
 
-pub fn run<R: Read, W: Write>(program: &Program, mut input: R, mut output: W) -> Vec<u8> {
-    let mut flag_builder = settings::builder();
+pub struct CompiledModule {
+    module: Option<JITModule>,
+    main_func: FuncId,
+}
 
-    //flag_builder.set("use_colocated_libcalls", "false").unwrap();
-    flag_builder.set("opt_level", "speed").unwrap();
-    flag_builder.set("enable_verifier", "true").unwrap();
+impl CompiledModule {
+    pub fn new(program: &Program) -> Result<CompiledModule, CompilerError> {
+        let mut flag_builder = settings::builder();
 
-    let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
-        panic!("host machine is not supported: {}", msg);
-    });
+        //flag_builder.set("use_colocated_libcalls", "false").unwrap();
+        flag_builder.set("opt_level", "speed").unwrap();
+        flag_builder.set("enable_verifier", "true").unwrap();
 
-    let isa = isa_builder.finish(settings::Flags::new(flag_builder));
+        let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
+            panic!("host machine is not supported: {}", msg);
+        });
 
-    let mut jit_builder = JITBuilder::with_isa(isa, default_libcall_names());
-    jit_builder.symbol("get_char", get_char as *const u8);
-    jit_builder.symbol("put_char", put_char as *const u8);
+        let isa = isa_builder.finish(settings::Flags::new(flag_builder));
 
-    let mut module = JITModule::new(jit_builder);
-    let pointer_type = module.target_config().pointer_type();
+        let mut jit_builder = JITBuilder::with_isa(isa, default_libcall_names());
+        jit_builder.symbol("get_char", get_char as *const u8);
+        jit_builder.symbol("put_char", put_char as *const u8);
 
-    let mut get_char_sig = module.make_signature();
-    get_char_sig.params.push(AbiParam::new(pointer_type));
-    get_char_sig.returns.push(AbiParam::new(types::I8));
+        let mut module = JITModule::new(jit_builder);
+        let pointer_type = module.target_config().pointer_type();
 
-    let get_char_func = module.declare_function("get_char", Linkage::Import, &get_char_sig).unwrap();
+        let mut get_char_sig = module.make_signature();
+        get_char_sig.params.push(AbiParam::new(pointer_type));
+        get_char_sig.returns.push(AbiParam::new(types::I8));
 
-    let mut put_char_sig = module.make_signature();
-    put_char_sig.params.push(AbiParam::new(pointer_type));
-    put_char_sig.params.push(AbiParam::new(types::I8));
+        let get_char_func = module.declare_function("get_char", Linkage::Import, &get_char_sig).unwrap();
 
-    let put_char_func = module.declare_function("put_char", Linkage::Import, &put_char_sig).unwrap();
+        let mut put_char_sig = module.make_signature();
+        put_char_sig.params.push(AbiParam::new(pointer_type));
+        put_char_sig.params.push(AbiParam::new(types::I8));
 
-    let mut ctx = module.make_context();
-    let mut func_ctx = FunctionBuilderContext::new();
+        let put_char_func = module.declare_function("put_char", Linkage::Import, &put_char_sig).unwrap();
 
-    let mut trap_sink = NullTrapSink {};
-    let mut stack_map_sink = NullStackMapSink {};
+        let mut ctx = module.make_context();
+        let mut func_ctx = FunctionBuilderContext::new();
+
+        let mut trap_sink = NullTrapSink {};
+        let mut stack_map_sink = NullStackMapSink {};
 
 
-    let mut sig = module.make_signature();
-    sig.params.push(AbiParam::new(pointer_type));
-    sig.params.push(AbiParam::new(pointer_type));
+        let mut sig = module.make_signature();
+        sig.params.push(AbiParam::new(pointer_type));
+        sig.params.push(AbiParam::new(pointer_type));
 
-    let func = module
-        .declare_function("main", Linkage::Local, &sig)
-        .unwrap();
+        let func = module
+            .declare_function("main", Linkage::Local, &sig)
+            .unwrap();
 
-    ctx.func.signature = sig;
-    ctx.func.name = ExternalName::user(0, func.as_u32());
-    {
-        let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
+        ctx.func.signature = sig;
+        ctx.func.name = ExternalName::user(0, func.as_u32());
+        {
+            let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
 
-        let block = bcx.create_block();
+            let block = bcx.create_block();
 
-        bcx.switch_to_block(block);
-        bcx.append_block_params_for_function_params(block);
+            bcx.switch_to_block(block);
+            bcx.append_block_params_for_function_params(block);
 
-        let heap_ptr = bcx.block_params(block)[0];
-        let env = bcx.block_params(block)[1];
+            let heap_ptr = bcx.block_params(block)[0];
+            let env = bcx.block_params(block)[1];
 
-        let get_char_func = module.declare_func_in_func(get_char_func, &mut bcx.func);
-        let put_char_func = module.declare_func_in_func(put_char_func, &mut bcx.func);
+            let get_char_func = module.declare_func_in_func(get_char_func, &mut bcx.func);
+            let put_char_func = module.declare_func_in_func(put_char_func, &mut bcx.func);
 
-        let mut builder = Builder {
-            pointer_type,
-            bcx,
-            heap_ptr,
-            env,
-            get_char_func,
-            put_char_func,
-        };
+            let mut builder = Builder {
+                pointer_type,
+                bcx,
+                heap_ptr,
+                env,
+                get_char_func,
+                put_char_func,
+            };
 
-        builder.append_ops(&program.ops);
+            builder.append_ops(&program.ops);
 
-        bcx = builder.unwrap();
+            bcx = builder.unwrap();
 
-        bcx.ins().return_(&[]);
+            bcx.ins().return_(&[]);
 
-        bcx.seal_all_blocks();
+            bcx.seal_all_blocks();
 
-        for block in bcx.func.layout.blocks() {
-            if let Err((_inst, msg)) = bcx.func.is_block_basic(block) {
-                println!("{}", bcx.func);
-                panic!("Bad block: {}, {}", msg, block);
+            // Check if all blocks are basic because will causes panics on finalize
+            for block in bcx.func.layout.blocks() {
+                if let Err((_inst, msg)) = bcx.func.is_block_basic(block) {
+                    println!("{}", bcx.func);
+                    return Err(CompilerError::InternalCompilerError {
+                        message: format!("Bad block: {}, {}", msg, block)
+                    });
+                }
             }
+
+            bcx.finalize();
         }
 
-        println!("{}", bcx.func);
+        std::io::stdout().flush().unwrap();
 
-        bcx.finalize();
+        module
+            .define_function(func, &mut ctx, &mut trap_sink, &mut stack_map_sink)
+            .unwrap();
+        module.clear_context(&mut ctx);
+
+        module.finalize_definitions();
+
+        Ok(CompiledModule {
+            module: Some(module),
+            main_func: func,
+        })
     }
 
-    std::io::stdout().flush().unwrap();
+    pub fn run<R: Read, W: Write>(&self, mut input: R, mut output: W) -> Vec<u8> {
+        let module = self.module.as_ref().expect("Module exists");
 
-    module
-        .define_function(func, &mut ctx, &mut trap_sink, &mut stack_map_sink)
-        .unwrap();
-    module.clear_context(&mut ctx);
+        let code = module.get_finalized_function(self.main_func);
 
-    module.finalize_definitions();
+        let mut env = Box::new(Environment::new(&mut input, &mut output));
 
-    let code = module.get_finalized_function(func);
+        let exec = unsafe { mem::transmute::<_, fn(*mut u8, *mut Environment)>(code) };
 
-    let mut env = Box::new(Environment::new(&mut input, &mut output));
+        let mut heap = vec![0_u8; 1024 * 1024];
 
-    let exec = unsafe { mem::transmute::<_, fn(*mut u8, *mut Environment)>(code) };
+        exec(heap.as_mut_ptr(), &mut *env);
 
-    let mut heap = vec![0_u8; 1024 * 1024];
+        heap
+    }
+}
 
-    exec(heap.as_mut_ptr(), &mut *env);
-
-    heap
+impl Drop for CompiledModule {
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(module) = self.module.take() {
+                module.free_memory();
+            }
+        }
+    }
 }
 
 #[cfg(test)]

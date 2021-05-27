@@ -6,6 +6,7 @@ use std::io::{Read, Write, stdin, stdout};
 use cranefack::{parse, Interpreter, CraneFuckError, optimize, analyze, Warning, optimize_with_config, OptimizeConfig};
 use std::time::SystemTime;
 use codespan_reporting::term::termcolor::{StandardStream, Color, ColorChoice, WriteColor, ColorSpec};
+use cranefack::backends::cranelift::CompiledModule;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = create_clap_app().get_matches();
@@ -161,7 +162,24 @@ fn run_file(opt_mode: &str, jit: bool, verbose: bool, path: &OsStr) -> Result<()
     }
 
     if jit {
-        cranefack::backends::cranelift::run(&program, stdin(), stdout());
+        let module = match CompiledModule::new(&program) {
+            Ok(module) => module,
+            Err(err) => {
+                return err.pretty_print(&source, Some(&path.to_string_lossy()));
+            }
+        };
+
+        if verbose {
+            let mut writer = StandardStream::stderr(ColorChoice::Auto);
+            writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            writeln!(writer, "Compiled program in {}ms",
+                     ts.elapsed()?.as_micros() as f32 / 1000.0
+            )?;
+            writer.reset()?;
+            ts = SystemTime::now();
+        }
+
+        module.run(stdin(), stdout());
     } else {
         let mut interpreter = Interpreter::new(stdin(), stdout());
 
