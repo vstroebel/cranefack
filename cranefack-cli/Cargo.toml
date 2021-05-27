@@ -1,0 +1,20 @@
+[package]
+name = "cranefack-cli"
+version = "0.1.0"
+authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
+edition = "2018"
+description = "Commandline utility for cranefack"
+categories = ["compilers"]
+keywords = ["brainfuck", "parser", "interpreter", "compiler", "optimizer", "jit", "cranelift"]
+readme = "../README.md"
+repository = "https://github.com/vstroebel/cranefack"
+
+[[bin]]
+name = "cranefack"
+path = "src/main.rs"
+doc = false
+
+[dependencies]
+cranefack = { path = "../cranefack" }
+clap = "2.33"
+codespan-reporting = "0.11"

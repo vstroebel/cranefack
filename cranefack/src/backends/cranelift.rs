@@ -667,7 +667,7 @@ mod tests {
 
     #[test]
     fn test_hello_world_v2() {
-        let mut program = parse(include_str!("../../test_programs/hello_world.bf")).unwrap();
+        let mut program = parse(include_str!("../../../test_programs/hello_world.bf")).unwrap();
         optimize(&mut program);
 
         let input = b"";
@@ -838,7 +838,7 @@ mod tests {
 
     #[test]
     fn test_hello_fizz() {
-        let mut program = parse(include_str!("../../test_programs/fizz.bf")).unwrap();
+        let mut program = parse(include_str!("../../../test_programs/fizz.bf")).unwrap();
         optimize(&mut program);
 
         let input = b"";
@@ -851,7 +851,7 @@ mod tests {
 
     #[test]
     fn test_hello_fizzbuzz() {
-        let mut program = parse(include_str!("../../test_programs/fizzbuzz.bf")).unwrap();
+        let mut program = parse(include_str!("../../../test_programs/fizzbuzz.bf")).unwrap();
         optimize(&mut program);
 
         let input = b"";
@@ -864,7 +864,7 @@ mod tests {
 
     #[test]
     fn test_bottles() {
-        let mut program = parse(include_str!("../../test_programs/bottles.bf")).unwrap();
+        let mut program = parse(include_str!("../../../test_programs/bottles.bf")).unwrap();
         optimize(&mut program);
 
         let input = b"";
@@ -872,33 +872,33 @@ mod tests {
 
         let _heap = run(&program, Cursor::new(input), &mut output);
 
-        assert_eq!(output, include_bytes!("../../test_programs/bottles.bf.out"));
+        assert_eq!(output, include_bytes!("../../../test_programs/bottles.bf.out"));
     }
 
     #[test]
     fn test_factor() {
-        let mut program = parse(include_str!("../../test_programs/factor.bf")).unwrap();
+        let mut program = parse(include_str!("../../../test_programs/factor.bf")).unwrap();
         optimize(&mut program);
 
-        let input = include_bytes!("../../test_programs/factor.bf.in");
+        let input = include_bytes!("../../../test_programs/factor.bf.in");
         let mut output = Vec::new();
 
         let _heap = run(&program, Cursor::new(input), &mut output);
 
-        assert_eq!(output, include_bytes!("../../test_programs/factor.bf.out"));
+        assert_eq!(output, include_bytes!("../../../test_programs/factor.bf.out"));
     }
 
     #[test]
     fn test_life() {
-        let mut program = parse(include_str!("../../test_programs/life.bf")).unwrap();
+        let mut program = parse(include_str!("../../../test_programs/life.bf")).unwrap();
         optimize(&mut program);
 
-        let input = include_bytes!("../../test_programs/life.bf.in");
+        let input = include_bytes!("../../../test_programs/life.bf.in");
         let mut output = Vec::new();
 
         let _heap = run(&program, Cursor::new(input), &mut output);
 
-        assert_eq!(output, include_bytes!("../../test_programs/life.bf.out"));
+        assert_eq!(output, include_bytes!("../../../test_programs/life.bf.out"));
     }
 
     #[test]

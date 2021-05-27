@@ -1,0 +1,19 @@
+[package]
+name = "cranefack"
+version = "0.1.0"
+authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "An optimizing brainfuck compiler"
+categories = ["compilers"]
+keywords = ["brainfuck", "parser", "interpreter", "compiler", "optimizer", "jit", "cranelift"]
+readme = "../README.md"
+repository = "https://github.com/vstroebel/cranefack"
+
+[dependencies]
+codespan-reporting = "0.11"
+cranelift = "0.74.0"
+cranelift-module = "0.74.0"
+cranelift-codegen = "0.74.0"
+cranelift-jit = "0.74.0"
+cranelift-native = "0.74.0"

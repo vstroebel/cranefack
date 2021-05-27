@@ -1,15 +1,5 @@
-[package]
-name = "cranefack"
-version = "0.1.0"
-authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
-edition = "2018"
-
-[dependencies]
-clap = "2.33.3"
-codespan-reporting = "0.11.1"
-cranelift = "0.74.0"
-cranelift-module = "0.74.0"
-cranelift-codegen = "0.74.0"
-cranelift-jit = "0.74.0"
-cranelift-native = "0.74.0"
-
+[workspace]
+members = [
+    "cranefack",
+    "cranefack-cli",
+]
