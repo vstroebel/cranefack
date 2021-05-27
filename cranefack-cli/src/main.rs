@@ -1,33 +1,20 @@
-use clap::{App, SubCommand, Arg, crate_name, crate_version, crate_description};
-use std::ffi::OsStr;
 use std::error::Error;
-use std::fs::File;
-use std::io::{Read, Write, stdin, stdout};
-use cranefack::{parse, Interpreter, CraneFuckError, optimize, analyze, Warning, optimize_with_config, OptimizeConfig};
-use std::time::SystemTime;
-use codespan_reporting::term::termcolor::{StandardStream, Color, ColorChoice, WriteColor, ColorSpec};
-use cranefack::backends::cranelift::CompiledModule;
+use clap::{App, Arg, ArgMatches, crate_description, crate_name, crate_version, SubCommand};
+
+mod utils;
+mod run;
+mod compile;
+
+use crate::utils::get_optimize_config_from_args;
+use crate::run::run_file;
+use crate::compile::compile_file;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = create_clap_app().get_matches();
 
     match matches.subcommand() {
-        ("run", Some(arg_matches)) => {
-            run_file(
-                arg_matches.value_of("OPT_MODE").unwrap_or("2"),
-                arg_matches.is_present("JIT"),
-                arg_matches.is_present("VERBOSE"),
-                arg_matches.value_of_os("FILE").unwrap(),
-            )
-        }
-        ("compile", Some(arg_matches)) => {
-            compile_file(
-                arg_matches.value_of("OPT_MODE").unwrap_or("2"),
-                arg_matches.is_present("VERBOSE"),
-                arg_matches.value_of("FORMAT").unwrap_or("dump"),
-                arg_matches.value_of_os("FILE").unwrap(),
-            )
-        }
+        ("run", Some(arg_matches)) => run(arg_matches),
+        ("compile", Some(arg_matches)) => compile(arg_matches),
         _ => {
             eprintln!("{}", matches.usage());
             Ok(())
@@ -48,28 +35,14 @@ fn create_clap_app() -> App<'static, 'static> {
                 .short("j")
                 .long("jit")
                 .help("Use JIT compiler"))
-            .arg(Arg::with_name("OPT_MODE")
-                .short("O")
-                .possible_values(&["0", "1", "2", "3"])
-                .value_names(&["mode"])
-                .default_value("2")
-                .help("Optimization mode")
-            )
-            .arg(Arg::with_name("VERBOSE")
-                .short("v")
-                .long("verbose"))
+            .arg(get_opt_mode_arg())
+            .arg(get_verbose_arg())
         )
         .subcommand(SubCommand::with_name("compile")
             .about("Compile application")
             .arg(Arg::with_name("FILE")
                 .required(true)
                 .help("Brainfuck source file"))
-            .arg(Arg::with_name("OPT_MODE")
-                .short("O")
-                .possible_values(&["0", "1", "2", "3"])
-                .value_names(&["mode"])
-                .default_value("2")
-                .help("Optimization mode"))
             .arg(Arg::with_name("FORMAT")
                 .short("f")
                 .long("format")
@@ -78,197 +51,54 @@ fn create_clap_app() -> App<'static, 'static> {
                 .default_value("dump")
                 .help("Format of compiled code")
             )
-            .arg(Arg::with_name("VERBOSE")
-                .short("v")
-                .long("verbose"))
+            .arg(get_opt_mode_arg())
+            .arg(get_verbose_arg())
         )
 }
 
-fn read_input(path: &OsStr) -> Result<String, Box<dyn Error>> {
-    if path == "-" {
-        let mut source = "".to_owned();
-        stdin().read_to_string(&mut source)?;
-        Ok(source)
-    } else {
-        let mut file = File::open(path)?;
-        let mut source = "".to_owned();
-        file.read_to_string(&mut source)?;
-        Ok(source)
-    }
+fn get_verbose_arg<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("VERBOSE")
+        .short("v")
+        .long("verbose")
 }
 
-fn run_file(opt_mode: &str, jit: bool, verbose: bool, path: &OsStr) -> Result<(), Box<dyn Error>> {
-    let source = read_input(path)?;
-
-    let mut ts = SystemTime::now();
-
-    let mut program = match parse(&source) {
-        Ok(program) => program,
-        Err(err) => {
-            return err.pretty_print(&source, Some(&path.to_string_lossy()));
-        }
-    };
-
-    if verbose {
-        let mut writer = StandardStream::stderr(ColorChoice::Auto);
-        writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
-
-        let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
-
-        writeln!(writer, "Parsed program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms",
-                 op_count,
-                 dloop_count,
-                 lloop_count,
-                 iloop_count,
-                 cloop_count,
-                 if_count,
-                 ts.elapsed()?.as_micros() as f32 / 1000.0
-        )?;
-        writer.reset()?;
-        ts = SystemTime::now();
-    }
-
-    if opt_mode != "0" {
-        let opt_loop_count = match opt_mode {
-            "1" => optimize_with_config(&mut program, &OptimizeConfig::o1()),
-            "2" => optimize_with_config(&mut program, &OptimizeConfig::o2()),
-            _ => optimize(&mut program),
-        };
-
-        if verbose {
-            let mut writer = StandardStream::stderr(ColorChoice::Auto);
-            writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
-
-            let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
-
-            writeln!(writer, "Optimized program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms and {} iterations",
-                     op_count,
-                     dloop_count,
-                     lloop_count,
-                     iloop_count,
-                     cloop_count,
-                     if_count,
-                     ts.elapsed()?.as_micros() as f32 / 1000.0,
-                     opt_loop_count
-            )?;
-            writer.reset()?;
-            ts = SystemTime::now();
-        }
-    }
-
-    let warnings = analyze(&program);
-    if !warnings.is_empty() {
-        Warning::pretty_print(&warnings, &source, Some(&path.to_string_lossy()))?;
-    }
-
-    if jit {
-        let module = match CompiledModule::new(&program) {
-            Ok(module) => module,
-            Err(err) => {
-                return err.pretty_print(&source, Some(&path.to_string_lossy()));
-            }
-        };
-
-        if verbose {
-            let mut writer = StandardStream::stderr(ColorChoice::Auto);
-            writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
-            writeln!(writer, "Compiled program in {}ms",
-                     ts.elapsed()?.as_micros() as f32 / 1000.0
-            )?;
-            writer.reset()?;
-            ts = SystemTime::now();
-        }
-
-        module.run(stdin(), stdout());
-    } else {
-        let mut interpreter = Interpreter::new(stdin(), stdout());
-
-        if let Err(err) = interpreter.execute(&program) {
-            return err.pretty_print(&source, Some(&path.to_string_lossy()));
-        }
-    }
-
-    if verbose {
-        let mut writer = StandardStream::stderr(ColorChoice::Auto);
-        writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
-        writeln!(writer, "Executed program in {}ms",
-                 ts.elapsed()?.as_micros() as f32 / 1000.0
-        )?;
-        writer.reset()?;
-    }
-
-    Ok(())
+fn get_opt_mode_arg<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("OPT_MODE")
+        .short("O")
+        .possible_values(&["0", "1", "2", "3", "s"])
+        .value_names(&["mode"])
+        .default_value("2")
+        .help("Optimization mode")
 }
 
-fn compile_file(opt_mode: &str, verbose: bool, format: &str, path: &OsStr) -> Result<(), Box<dyn Error>> {
-    let source = read_input(path)?;
+fn is_verbose(matches: &ArgMatches) -> bool {
+    matches.is_present("VERBOSE")
+}
 
-    let mut ts = SystemTime::now();
+fn run(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let path = matches.value_of_os("FILE").unwrap();
+    let verbose = is_verbose(&matches);
+    let opt_mode = get_optimize_config_from_args(&matches);
+    let jit = matches.is_present("JIT");
 
-    let mut program = match parse(&source) {
-        Ok(program) => program,
-        Err(err) => {
-            return err.pretty_print(&source, Some(&path.to_string_lossy()));
-        }
-    };
+    run_file(
+        opt_mode,
+        jit,
+        verbose,
+        path,
+    )
+}
 
-    if verbose {
-        let mut writer = StandardStream::stderr(ColorChoice::Auto);
-        writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+fn compile(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let path = matches.value_of_os("FILE").unwrap();
+    let verbose = is_verbose(&matches);
+    let opt_mode = get_optimize_config_from_args(&matches);
+    let format = matches.value_of("FORMAT").unwrap_or("dump");
 
-        let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
-
-        writeln!(writer, "Parsed program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms",
-                 op_count,
-                 dloop_count,
-                 lloop_count,
-                 iloop_count,
-                 cloop_count,
-                 if_count,
-                 ts.elapsed()?.as_micros() as f32 / 1000.0
-        )?;
-
-        writer.reset()?;
-        ts = SystemTime::now();
-    }
-
-    if opt_mode != "0" {
-        let opt_loop_count = match opt_mode {
-            "1" => optimize_with_config(&mut program, &OptimizeConfig::o1()),
-            "2" => optimize_with_config(&mut program, &OptimizeConfig::o2()),
-            _ => optimize(&mut program),
-        };
-
-        if verbose {
-            let mut writer = StandardStream::stderr(ColorChoice::Auto);
-            writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
-
-            let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
-
-            writeln!(writer, "Optimized program with {} instructions ({},{},{},{}) loops and {} ifs in {}ms and {} iterations",
-                     op_count,
-                     dloop_count,
-                     lloop_count,
-                     iloop_count,
-                     cloop_count,
-                     if_count,
-                     ts.elapsed()?.as_micros() as f32 / 1000.0,
-                     opt_loop_count
-            )?;
-            writer.reset()?;
-        }
-    }
-
-    let warnings = analyze(&program);
-    if !warnings.is_empty() {
-        Warning::pretty_print(&warnings, &source, Some(&path.to_string_lossy()))?;
-    }
-
-    match format {
-        "rust" => println!("{}", cranefack::backends::rust::build_file(&program, opt_mode)),
-        _ => program.dump(stdout())?
-    }
-
-
-    Ok(())
+    compile_file(
+        opt_mode,
+        verbose,
+        format,
+        path,
+    )
 }

@@ -12,10 +12,17 @@ pub struct OptimizeConfig {
 }
 
 impl OptimizeConfig {
-    pub fn o1() -> OptimizeConfig {
+    pub fn o0() -> OptimizeConfig {
         OptimizeConfig {
             complex_loops: false,
+            max_loops: 0,
+        }
+    }
+
+    pub fn o1() -> OptimizeConfig {
+        OptimizeConfig {
             max_loops: 25,
+            ..Self::o0()
         }
     }
 
@@ -24,6 +31,10 @@ impl OptimizeConfig {
             complex_loops: true,
             ..Self::o1()
         }
+    }
+
+    pub fn optimize(&self) -> bool {
+        self.max_loops > 0
     }
 }
 
