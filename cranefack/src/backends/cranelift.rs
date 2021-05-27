@@ -602,9 +602,13 @@ impl Drop for CompiledModule {
 #[cfg(test)]
 mod tests {
     use crate::{parse, optimize};
-    use super::run;
-    use std::io::Cursor;
+    use std::io::{Cursor, Write, Read};
     use crate::parser::{Program, Op};
+    use super::CompiledModule;
+
+    fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {
+        CompiledModule::new(program).unwrap().run(input, output)
+    }
 
     #[test]
     fn test_simple() {
