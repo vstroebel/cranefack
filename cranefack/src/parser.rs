@@ -358,10 +358,20 @@ impl Op {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum OpType {
+
+    /// Increment heap pointer by offset
     IncPtr(usize),
+
+    /// Decrement heap pointer by offset
     DecPtr(usize),
+
+    /// Increment cell at offset
     Inc(isize, u8),
+
+    /// Decrement cell at offset
     Dec(isize, u8),
+
+    /// Set cell at offset
     Set(isize, u8),
 
     /// Add current value to value at offset and reset current value to 0
@@ -394,8 +404,12 @@ pub enum OpType {
     /// Copy value to value at offset without setting current value to 0
     Copy(isize, isize),
 
+    /// Read from stdin into current cell
     PutChar,
+
+    /// Output current cell
     GetChar,
+
     /// Dynamic loop as defined in raw brainfuck source
     DLoop(Vec<Op>),
 
