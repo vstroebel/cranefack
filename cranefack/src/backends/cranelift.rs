@@ -6,10 +6,11 @@ use cranelift_codegen::settings::{self, Configurable};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{default_libcall_names, Linkage, Module, FuncId};
 use std::mem;
-use std::io::{Read, Write};
+use std::io::{Read, Write, ErrorKind};
 use cranelift_codegen::ir::FuncRef;
 use std::cmp::Ordering;
 use crate::errors::CompilerError;
+use std::process::exit;
 
 struct Builder<'a> {
     pointer_type: Type,
@@ -445,16 +446,27 @@ impl<'a, 'b> Environment<'a, 'b> {
 fn get_char(env: *mut Environment) -> u8 {
     let input = unsafe { &mut (*env).input };
     let mut buf = [0u8; 1];
-    input.read_exact(&mut buf).unwrap();
+    if let Err(error) = input.read_exact(&mut buf) {
+        // In case of EOF the system will read 0 as a fallback
+        if error.kind() != ErrorKind::UnexpectedEof {
+            eprintln!("Input error: {:?}", error);
+            eprintln!("Terminating!!!");
+            exit(1);
+        }
+    };
     buf[0]
 }
 
 fn put_char(env: *mut Environment, value: u8) {
     let output = unsafe { &mut (*env).output };
-    if value != 0 && value.is_ascii() {
-        write!(output, "{}", value as char).unwrap();
+    if let Err(error) = if value != 0 && value.is_ascii() {
+        write!(output, "{}", value as char)
     } else {
-        write!(output, "\\0x{:x}", value).unwrap();
+        write!(output, "\\0x{:x}", value)
+    } {
+        eprintln!("Output error: {:?}", error);
+        eprintln!("Terminating!!!");
+        exit(1);
     }
 }
 
@@ -1371,5 +1383,18 @@ mod tests {
         let heap = run(&program, Cursor::new(input), &mut output);
 
         assert_eq!(&heap[0..5], &[4, 1, 2, 3, 0]);
+    }
+
+    #[test]
+    fn test_test_io() {
+        let mut program = parse(",[.,]").unwrap();
+        optimize(&mut program);
+
+        let input = b"0123456789aZ";
+        let mut output = Vec::new();
+
+        let _heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(output, b"0123456789aZ");
     }
 }

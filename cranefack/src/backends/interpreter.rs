@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, ErrorKind};
 use std::io::Write;
 
 use crate::errors::RuntimeError;
@@ -231,10 +231,16 @@ impl<R: Read, W: Write> Interpreter<R, W> {
 
     fn get_char(&mut self, span: &Range<usize>) -> Result<(), RuntimeError> {
         let mut buf = [0];
-        self.input.read_exact(&mut buf).map_err(|error| RuntimeError::IoError {
-            span: span.clone(),
-            error,
-        })?;
+
+        if let Err(error) = self.input.read_exact(&mut buf) {
+            // In case of EOF the system will read 0 as a fallback
+            if error.kind() != ErrorKind::UnexpectedEof {
+                return Err(RuntimeError::IoError {
+                    span: span.clone(),
+                    error,
+                });
+            }
+        };
 
         *self.heap_value(span)? = buf[0];
 
@@ -555,5 +561,18 @@ mod tests {
         Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
 
         assert_eq!(output, include_bytes!("../../../test_programs/life.bf.out"));
+    }
+
+    #[test]
+    fn test_test_io() {
+        let mut program = parse(",[.,]").unwrap();
+        optimize(&mut program);
+
+        let input = b"0123456789aZ";
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, b"0123456789aZ");
     }
 }
