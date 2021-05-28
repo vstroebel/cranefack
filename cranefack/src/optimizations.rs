@@ -7,8 +7,9 @@ use passes::*;
 use crate::optimizations::peephole::run_peephole_pass;
 
 pub struct OptimizeConfig {
-    complex_loops: bool,
-    max_loops: usize,
+    pub complex_loops: bool,
+    pub max_loops: usize,
+    pub jit_level: Option<String>,
 }
 
 impl OptimizeConfig {
@@ -16,6 +17,7 @@ impl OptimizeConfig {
         OptimizeConfig {
             complex_loops: false,
             max_loops: 0,
+            jit_level: None,
         }
     }
 

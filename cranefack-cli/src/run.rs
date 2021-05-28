@@ -70,7 +70,7 @@ pub fn run_file(opt_mode: OptimizeConfig, jit: bool, verbose: bool, path: &OsStr
     }
 
     if jit {
-        let module = match CompiledModule::new(&program) {
+        let module = match CompiledModule::new(&program, &opt_mode) {
             Ok(module) => module,
             Err(err) => {
                 return err.pretty_print(&source, Some(&path.to_string_lossy()));

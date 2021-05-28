@@ -11,6 +11,7 @@ use cranelift_codegen::ir::FuncRef;
 use std::cmp::Ordering;
 use crate::errors::CompilerError;
 use std::process::exit;
+use crate::OptimizeConfig;
 
 struct Builder<'a> {
     pointer_type: Type,
@@ -476,12 +477,16 @@ pub struct CompiledModule {
 }
 
 impl CompiledModule {
-    pub fn new(program: &Program) -> Result<CompiledModule, CompilerError> {
+    pub fn new(program: &Program, opt_mode: &OptimizeConfig) -> Result<CompiledModule, CompilerError> {
         let mut flag_builder = settings::builder();
 
-        //flag_builder.set("use_colocated_libcalls", "false").unwrap();
-        flag_builder.set("opt_level", "speed").unwrap();
-        flag_builder.set("enable_verifier", "true").unwrap();
+        if let Some(jit_level) = &opt_mode.jit_level {
+            flag_builder.set("opt_level", jit_level).unwrap();
+        } else if opt_mode.optimize() {
+            flag_builder.set("opt_level", "speed").unwrap();
+        } else {
+            flag_builder.set("opt_level", "none").unwrap();
+        }
 
         let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
             panic!("host machine is not supported: {}", msg);
@@ -613,13 +618,13 @@ impl Drop for CompiledModule {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse, optimize};
+    use crate::{parse, optimize, OptimizeConfig};
     use std::io::{Cursor, Write, Read};
     use crate::parser::{Program, Op};
     use super::CompiledModule;
 
     fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {
-        CompiledModule::new(program).unwrap().run(input, output)
+        CompiledModule::new(program, &OptimizeConfig::o2()).unwrap().run(input, output)
     }
 
     #[test]
