@@ -4,10 +4,12 @@ use clap::{App, Arg, ArgMatches, crate_description, crate_name, crate_version, S
 mod utils;
 mod run;
 mod compile;
+mod benchmark;
 
 use crate::utils::get_optimize_config_from_args;
 use crate::run::run_file;
 use crate::compile::compile_file;
+use crate::benchmark::benchmark_file;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = create_clap_app().get_matches();
@@ -15,6 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
         ("run", Some(arg_matches)) => run(arg_matches),
         ("compile", Some(arg_matches)) => compile(arg_matches),
+        ("benchmark", Some(arg_matches)) => benchmark(arg_matches),
         _ => {
             eprintln!("{}", matches.usage());
             Ok(())
@@ -55,6 +58,25 @@ fn create_clap_app() -> App<'static, 'static> {
             .arg(get_opt_mode_arg())
             .arg(get_jit_level())
             .arg(get_verbose_arg())
+        )
+        .subcommand(SubCommand::with_name("benchmark")
+            .about("Benchmark program with different optimization settings")
+            .arg(Arg::with_name("FILE")
+                .required(true)
+                .help("Brainfuck source file")
+            )
+            .arg(Arg::with_name("ITERATIONS")
+                .short("i")
+                .long("iterations")
+                .default_value("2")
+                .help("Number of benchmarking iterations")
+            )
+            .arg(Arg::with_name("RUNS")
+                .short("r")
+                .long("runs")
+                .default_value("4")
+                .help("Number of runs per optimization in each round")
+            )
         )
 }
 
@@ -111,4 +133,16 @@ fn compile(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         format,
         path,
     )
+}
+
+fn benchmark(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let path = matches.value_of_os("FILE").unwrap();
+
+    let iterations = matches.value_of("ITERATIONS")
+        .unwrap_or("2").parse().unwrap_or(2).max(1);
+
+    let runs = matches.value_of("RUNS")
+        .unwrap_or("4").parse().unwrap_or(4).max(1);
+
+    benchmark_file(path, iterations, runs)
 }

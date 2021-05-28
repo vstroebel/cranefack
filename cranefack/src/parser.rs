@@ -3,6 +3,7 @@ use std::ops::Range;
 use std::io::Write;
 use std::error::Error;
 
+#[derive(Clone)]
 pub struct Program {
     pub ops: Vec<Op>,
 }
@@ -159,7 +160,7 @@ impl Program {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Op {
     pub op_type: OpType,
     pub span: Range<usize>,
@@ -356,9 +357,8 @@ impl Op {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpType {
-
     /// Increment heap pointer by offset
     IncPtr(usize),
 
