@@ -40,7 +40,7 @@ impl Warning {
             let diagnostic = match &warning.warning_type {
                 WarningType::InfiniteLoop => {
                     Diagnostic::warning()
-                        .with_message("Infinite loop")
+                        .with_message("Possible infinite loop")
                         .with_labels(vec![
                             Label::primary(file_id, span)
                         ])
@@ -63,14 +63,22 @@ pub fn analyze(program: &Program) -> Vec<Warning> {
 }
 
 fn analyze_ops(warnings: &mut Vec<Warning>, ops: &[Op]) {
+    for op in ops.windows(2) {
+        check_infinite_loop(warnings, &op[0], &op[1]);
+    }
+
     for op in ops {
-        check_infinite_loop(warnings, op);
+        if let Some(children) = op.op_type.get_children() {
+            analyze_ops(warnings, children);
+        }
     }
 }
 
-fn check_infinite_loop(warnings: &mut Vec<Warning>, op: &Op) {
-    if matches!(op.op_type, OpType::ILoop(_,_,0)) {
-        warnings.push(Warning::infinite_loop(op.span.clone()));
+fn check_infinite_loop(warnings: &mut Vec<Warning>, op1: &Op, op2: &Op) {
+    if matches!(op2.op_type, OpType::ILoop(_,_,0)) {
+        if !op1.op_type.is_zeroing(0) {
+            warnings.push(Warning::infinite_loop(op2.span.clone()));
+        }
     }
 }
 

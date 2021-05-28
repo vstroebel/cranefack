@@ -519,6 +519,17 @@ impl OpType {
         }
     }
 
+    pub fn get_children(&self) -> Option<&Vec<Op>> {
+        match self {
+            OpType::DLoop(children) |
+            OpType::LLoop(children, ..) |
+            OpType::ILoop(children, ..) |
+            OpType::CLoop(children, ..) |
+            OpType::TNz(children, ..) => Some(children),
+            _ => None,
+        }
+    }
+
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
         match self {
             OpType::DLoop(children) |
