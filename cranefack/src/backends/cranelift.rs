@@ -1397,4 +1397,18 @@ mod tests {
 
         assert_eq!(output, b"0123456789aZ");
     }
+
+
+    #[test]
+    fn test_cell_size() {
+        let mut program = parse(include_str!("../../../test_programs/cell_size.bf")).unwrap();
+        optimize(&mut program);
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let _heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(output, b"8 bit cells\n");
+    }
 }
