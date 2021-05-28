@@ -474,6 +474,7 @@ fn put_char(env: *mut Environment, value: u8) {
 pub struct CompiledModule {
     module: Option<JITModule>,
     main_func: FuncId,
+    clir: String,
 }
 
 impl CompiledModule {
@@ -530,7 +531,8 @@ impl CompiledModule {
 
         ctx.func.signature = sig;
         ctx.func.name = ExternalName::user(0, func.as_u32());
-        {
+
+        let clir = {
             let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
 
             let block = bcx.create_block();
@@ -572,9 +574,9 @@ impl CompiledModule {
             }
 
             bcx.finalize();
-        }
 
-        std::io::stdout().flush().unwrap();
+            format!("{:?}", bcx.func)
+        };
 
         module
             .define_function(func, &mut ctx, &mut trap_sink, &mut stack_map_sink)
@@ -586,6 +588,7 @@ impl CompiledModule {
         Ok(CompiledModule {
             module: Some(module),
             main_func: func,
+            clir,
         })
     }
 
@@ -603,6 +606,10 @@ impl CompiledModule {
         exec(heap.as_mut_ptr(), &mut *env);
 
         heap
+    }
+
+    pub fn get_clir(&self) -> String {
+        self.clir.clone()
     }
 }
 

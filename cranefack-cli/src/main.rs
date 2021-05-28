@@ -35,12 +35,8 @@ fn create_clap_app() -> App<'static, 'static> {
                 .short("j")
                 .long("jit")
                 .help("Use JIT compiler"))
-            .arg(Arg::with_name("JIT_LEVEL")
-                .long("jit-level")
-                .possible_values(&["none", "speed", "speed_and_size"])
-                .value_names(&["level"])
-                .help("Optimization level for JIT"))
             .arg(get_opt_mode_arg())
+            .arg(get_jit_level())
             .arg(get_verbose_arg())
         )
         .subcommand(SubCommand::with_name("compile")
@@ -51,14 +47,23 @@ fn create_clap_app() -> App<'static, 'static> {
             .arg(Arg::with_name("FORMAT")
                 .short("f")
                 .long("format")
-                .possible_values(&["dump", "rust"])
+                .possible_values(&["dump", "clir", "rust"])
                 .value_names(&["format"])
                 .default_value("dump")
                 .help("Format of compiled code")
             )
             .arg(get_opt_mode_arg())
+            .arg(get_jit_level())
             .arg(get_verbose_arg())
         )
+}
+
+fn get_jit_level<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("JIT_LEVEL")
+        .long("jit-level")
+        .possible_values(&["none", "speed", "speed_and_size"])
+        .value_names(&["level"])
+        .help("Optimization level for JIT")
 }
 
 fn get_verbose_arg<'a, 'b>() -> Arg<'a, 'b> {
