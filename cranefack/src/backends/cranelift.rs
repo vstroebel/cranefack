@@ -471,14 +471,14 @@ fn put_char(env: *mut Environment, value: u8) {
     }
 }
 
-pub struct CompiledModule {
+pub struct CompiledJitModule {
     module: Option<JITModule>,
     main_func: FuncId,
     clir: String,
 }
 
-impl CompiledModule {
-    pub fn new(program: &Program, opt_mode: &OptimizeConfig) -> Result<CompiledModule, CompilerError> {
+impl CompiledJitModule {
+    pub fn new(program: &Program, opt_mode: &OptimizeConfig) -> Result<CompiledJitModule, CompilerError> {
         let mut flag_builder = settings::builder();
 
         if let Some(jit_level) = &opt_mode.jit_level {
@@ -585,7 +585,7 @@ impl CompiledModule {
 
         module.finalize_definitions();
 
-        Ok(CompiledModule {
+        Ok(CompiledJitModule {
             module: Some(module),
             main_func: func,
             clir,
@@ -613,7 +613,7 @@ impl CompiledModule {
     }
 }
 
-impl Drop for CompiledModule {
+impl Drop for CompiledJitModule {
     fn drop(&mut self) {
         unsafe {
             if let Some(module) = self.module.take() {
@@ -628,10 +628,10 @@ mod tests {
     use crate::{parse, optimize, OptimizeConfig};
     use std::io::{Cursor, Write, Read};
     use crate::parser::{Program, Op};
-    use super::CompiledModule;
+    use super::CompiledJitModule;
 
     fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {
-        CompiledModule::new(program, &OptimizeConfig::o2()).unwrap().run(input, output)
+        CompiledJitModule::new(program, &OptimizeConfig::o2()).unwrap().run(input, output)
     }
 
     #[test]

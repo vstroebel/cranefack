@@ -3,7 +3,7 @@ use std::fmt::Write;
 use crate::parser::{Program, Op, OpType};
 use std::error::Error;
 
-pub fn build_file(program: &Program) -> String {
+pub fn compile_to_rust(program: &Program) -> String {
     let mut code = "".to_owned();
 
     print_ops(&mut code, &program.ops).expect("No io error");

@@ -5,10 +5,10 @@ use std::time::SystemTime;
 
 use codespan_reporting::term::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use cranefack::{analyze, CraneFackError, optimize_with_config, OptimizeConfig, parse, Warning, Program};
+use cranefack::{analyze, CraneFackError, optimize_with_config, OptimizeConfig, parse, Warning, Program, compile_to_rust};
 
 use crate::utils;
-use cranefack::backends::cranelift::CompiledModule;
+use cranefack::CompiledJitModule;
 
 pub fn compile_file(opt_mode: OptimizeConfig, verbose: bool, format: &str, path: &OsStr) -> Result<(), Box<dyn Error>> {
     let source = utils::read_input(path)?;
@@ -71,7 +71,7 @@ pub fn compile_file(opt_mode: OptimizeConfig, verbose: bool, format: &str, path:
     }
 
     match format {
-        "rust" => println!("{}", cranefack::backends::rust::build_file(&program)),
+        "rust" => println!("{}", compile_to_rust(&program)),
         "clir" => println!("{}", build_clir(&program, &opt_mode)?),
         _ => program.dump(stdout())?
     }
@@ -80,6 +80,6 @@ pub fn compile_file(opt_mode: OptimizeConfig, verbose: bool, format: &str, path:
 }
 
 fn build_clir(program: &Program, opt_mode: &OptimizeConfig) -> Result<String, Box<dyn Error>> {
-    let module = CompiledModule::new(program, opt_mode)?;
+    let module = CompiledJitModule::new(program, opt_mode)?;
     Ok(module.get_clir())
 }

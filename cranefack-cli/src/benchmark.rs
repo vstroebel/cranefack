@@ -4,7 +4,7 @@ use std::ffi::OsStr;
 use cranefack::{parse, CraneFackError, OptimizeConfig, optimize_with_config, Program, Interpreter};
 use std::io::Cursor;
 use std::time::SystemTime;
-use cranefack::backends::cranelift::CompiledModule;
+use cranefack::CompiledJitModule;
 
 pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize) -> Result<(), Box<dyn Error>> {
     let source = read_input(path)?;
@@ -126,7 +126,7 @@ fn run_jit(program: &Program, runs: usize, opt_mode: &OptimizeConfig) -> Result<
     let mut input = Cursor::new(b"");
     let mut output = Vec::new();
 
-    let module = CompiledModule::new(program, opt_mode)?;
+    let module = CompiledJitModule::new(program, opt_mode)?;
 
     let ts = SystemTime::now();
 

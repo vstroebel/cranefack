@@ -5,7 +5,7 @@ use std::time::SystemTime;
 
 use codespan_reporting::term::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use cranefack::{analyze, CraneFackError, Interpreter, optimize_with_config, OptimizeConfig, parse, Warning};
-use cranefack::backends::cranelift::CompiledModule;
+use cranefack::CompiledJitModule;
 
 use crate::utils::read_input;
 
@@ -70,7 +70,7 @@ pub fn run_file(opt_mode: OptimizeConfig, jit: bool, verbose: bool, path: &OsStr
     }
 
     if jit {
-        let module = match CompiledModule::new(&program, &opt_mode) {
+        let module = match CompiledJitModule::new(&program, &opt_mode) {
             Ok(module) => module,
             Err(err) => {
                 return err.pretty_print(&source, Some(&path.to_string_lossy()));
