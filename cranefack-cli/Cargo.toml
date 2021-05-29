@@ -6,7 +6,7 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 description = "Commandline utility for the cranefack brainfuck compiler"
 categories = ["compilers"]
-keywords = ["brainfuck", "parser", "interpreter", "compiler", "optimizer", "jit", "cranelift"]
+keywords = ["brainfuck", "parser", "compiler", "jit", "cranelift"]
 readme = "../README.md"
 repository = "https://github.com/vstroebel/cranefack"
 
