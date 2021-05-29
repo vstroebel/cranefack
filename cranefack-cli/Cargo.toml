@@ -3,7 +3,8 @@ name = "cranefack-cli"
 version = "0.1.0"
 authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
 edition = "2018"
-description = "Commandline utility for cranefack"
+license = "MIT OR Apache-2.0"
+description = "Commandline utility for the cranefack brainfuck compiler"
 categories = ["compilers"]
 keywords = ["brainfuck", "parser", "interpreter", "compiler", "optimizer", "jit", "cranelift"]
 readme = "../README.md"
@@ -15,6 +16,6 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-cranefack = { path = "../cranefack" }
+cranefack = { path = "../cranefack", version = "0.1" }
 clap = "2.33"
 codespan-reporting = "0.11"

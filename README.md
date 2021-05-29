@@ -4,7 +4,7 @@
 [![crates.io badge](https://img.shields.io/crates/v/cranefack.svg)](https://crates.io/crates/cranefack/)
 [![Rust](https://github.com/vstroebel/cranefack/actions/workflows/rust.yml/badge.svg)](https://github.com/vstroebel/cranefack/actions/workflows/rust.yml)
 
-An optimizing brainfuck compiler suite.
+A cranelift powered optimizing brainfuck compiler suite.
 
 ## Commandline interface
 
