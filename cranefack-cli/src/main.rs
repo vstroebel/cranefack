@@ -5,16 +5,18 @@ mod utils;
 mod run;
 mod compile;
 mod benchmark;
+mod errors;
 
 use crate::utils::get_optimize_config_from_args;
 use crate::run::run_file;
 use crate::compile::compile_file;
 use crate::benchmark::benchmark_file;
+use std::process::exit;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     let matches = create_clap_app().get_matches();
 
-    match matches.subcommand() {
+    if let Err(error) = match matches.subcommand() {
         ("run", Some(arg_matches)) => run(arg_matches),
         ("compile", Some(arg_matches)) => compile(arg_matches),
         ("benchmark", Some(arg_matches)) => benchmark(arg_matches),
@@ -22,6 +24,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             eprintln!("{}", matches.usage());
             Ok(())
         }
+    } {
+        eprintln!("{}", error.to_string());
+        exit(1)
     }
 }
 
