@@ -592,7 +592,7 @@ impl CompiledJitModule {
         })
     }
 
-    pub fn run<R: Read, W: Write>(&self, mut input: R, mut output: W) -> Vec<u8> {
+    pub fn execute<R: Read, W: Write>(&self, mut input: R, mut output: W) -> Vec<u8> {
         let module = self.module.as_ref().expect("Module exists");
 
         let code = module.get_finalized_function(self.main_func);
@@ -631,7 +631,7 @@ mod tests {
     use super::CompiledJitModule;
 
     fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {
-        CompiledJitModule::new(program, &OptimizeConfig::o2()).unwrap().run(input, output)
+        CompiledJitModule::new(program, &OptimizeConfig::o2()).unwrap().execute(input, output)
     }
 
     #[test]

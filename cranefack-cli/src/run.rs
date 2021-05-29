@@ -87,7 +87,7 @@ pub fn run_file(opt_mode: OptimizeConfig, jit: bool, verbose: bool, path: &OsStr
             ts = SystemTime::now();
         }
 
-        module.run(stdin(), stdout());
+        module.execute(stdin(), stdout());
     } else {
         let mut interpreter = Interpreter::new(stdin(), stdout());
 

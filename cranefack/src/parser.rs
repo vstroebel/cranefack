@@ -3,6 +3,7 @@ use std::ops::Range;
 use std::io::Write;
 use std::error::Error;
 
+/// An executable program
 #[derive(Clone)]
 pub struct Program {
     pub ops: Vec<Op>,
@@ -81,6 +82,7 @@ impl Program {
         (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count)
     }
 
+    /// Dump program into a assembly like structure
     pub fn dump<W: Write>(&self, mut output: W) -> Result<(), Box<dyn Error>> {
         self.dump_ops(&mut output, &self.ops, 0)
     }
@@ -648,6 +650,7 @@ impl Parser {
     }
 }
 
+/// Parse the input source file into an abstract representation
 pub fn parse(source: &str) -> Result<Program, ParserError> {
     Parser::new().parse(source)
 }

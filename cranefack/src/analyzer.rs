@@ -5,8 +5,10 @@ use std::error::Error;
 use codespan_reporting::diagnostic::{Label, Diagnostic};
 use codespan_reporting::term::termcolor::{StandardStream, ColorChoice};
 
+/// Warning found in a call to [analyze]
 #[derive(Debug, Clone, PartialEq)]
 pub enum WarningType {
+    /// A possible infinite loop was found
     InfiniteLoop,
 }
 
@@ -54,6 +56,7 @@ impl Warning {
     }
 }
 
+/// Analyze program for possible errors
 pub fn analyze(program: &Program) -> Vec<Warning> {
     let mut warnings = vec![];
 

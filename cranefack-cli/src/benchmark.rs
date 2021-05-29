@@ -134,7 +134,7 @@ fn run_jit(program: &Program, runs: usize, opt_mode: &OptimizeConfig) -> Result<
         input.set_position(0);
         output.clear();
 
-        module.run(&mut input, &mut output);
+        module.execute(&mut input, &mut output);
     }
 
     Ok(ts.elapsed()?.as_nanos())
