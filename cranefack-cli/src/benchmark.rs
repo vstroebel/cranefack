@@ -1,7 +1,7 @@
 use std::error::Error;
 use crate::utils::read_input;
 use std::ffi::OsStr;
-use cranefack::{parse, CraneFuckError, OptimizeConfig, optimize_with_config, Program, Interpreter};
+use cranefack::{parse, CraneFackError, OptimizeConfig, optimize_with_config, Program, Interpreter};
 use std::io::Cursor;
 use std::time::SystemTime;
 use cranefack::backends::cranelift::CompiledModule;

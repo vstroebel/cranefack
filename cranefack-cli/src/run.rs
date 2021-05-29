@@ -4,7 +4,7 @@ use std::io::{stdin, stdout, Write};
 use std::time::SystemTime;
 
 use codespan_reporting::term::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use cranefack::{analyze, CraneFuckError, Interpreter, optimize_with_config, OptimizeConfig, parse, Warning};
+use cranefack::{analyze, CraneFackError, Interpreter, optimize_with_config, OptimizeConfig, parse, Warning};
 use cranefack::backends::cranelift::CompiledModule;
 
 use crate::utils::read_input;

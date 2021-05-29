@@ -1,5 +1,5 @@
 pub use backends::interpreter::Interpreter;
-pub use errors::{CraneFuckError, ParserError, RuntimeError};
+pub use errors::{CraneFackError, ParserError, RuntimeError};
 
 pub use crate::analyzer::{analyze, Warning, WarningType};
 pub use crate::optimizations::{optimize, optimize_with_config, OptimizeConfig};

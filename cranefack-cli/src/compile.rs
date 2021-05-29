@@ -5,7 +5,7 @@ use std::time::SystemTime;
 
 use codespan_reporting::term::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use cranefack::{analyze, CraneFuckError, optimize_with_config, OptimizeConfig, parse, Warning, Program};
+use cranefack::{analyze, CraneFackError, optimize_with_config, OptimizeConfig, parse, Warning, Program};
 
 use crate::utils;
 use cranefack::backends::cranelift::CompiledModule;

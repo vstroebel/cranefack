@@ -7,7 +7,7 @@ use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use std::option::Option::Some;
 use std::ops::Range;
 
-pub trait CraneFuckError: Error {
+pub trait CraneFackError: Error {
     fn get_message(&self) -> (Option<Range<usize>>, String, Option<String>);
 
     fn pretty_print(&self, source: &str, filename: Option<&str>) -> Result<(), Box<dyn Error>> {
@@ -62,7 +62,7 @@ impl Display for ParserError {
     }
 }
 
-impl CraneFuckError for ParserError {
+impl CraneFackError for ParserError {
     fn get_message(&self) -> (Option<Range<usize>>, String, Option<String>) {
         match self {
             ParserError::LoopStackOverflow { position, .. } => (
@@ -116,7 +116,7 @@ impl Display for RuntimeError {
     }
 }
 
-impl CraneFuckError for RuntimeError {
+impl CraneFackError for RuntimeError {
     fn get_message(&self) -> (Option<Range<usize>>, String, Option<String>) {
         match self {
             RuntimeError::MaxHeapSizeReached { span, .. } => (
@@ -148,7 +148,7 @@ impl Display for CompilerError {
     }
 }
 
-impl CraneFuckError for CompilerError {
+impl CraneFackError for CompilerError {
     fn get_message(&self) -> (Option<Range<usize>>, String, Option<String>) {
         match self {
             CompilerError::InternalCompilerError { message: _ } => (
