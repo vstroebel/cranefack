@@ -6,13 +6,23 @@ mod peephole;
 use passes::*;
 use crate::optimizations::peephole::run_peephole_pass;
 
+/// Configuration to control optimization of the program
 pub struct OptimizeConfig {
-    pub complex_loops: bool,
+    /// Maximum of optimization loops. Use zero to disable optimization
     pub max_loops: usize,
+
+    /// Optimize complex loops
+    pub complex_loops: bool,
+
+    /// Optimization level passed to cranelift
+    ///
+    /// Currently this supports none, speed and speed_and_size.<br>
+    /// By default speed is used for all levels expect 0
     pub jit_level: Option<String>,
 }
 
 impl OptimizeConfig {
+    /// Don't do any optimization
     pub fn o0() -> OptimizeConfig {
         OptimizeConfig {
             complex_loops: false,
@@ -21,6 +31,7 @@ impl OptimizeConfig {
         }
     }
 
+    /// Only simple optimizations
     pub fn o1() -> OptimizeConfig {
         OptimizeConfig {
             max_loops: 25,
@@ -28,6 +39,7 @@ impl OptimizeConfig {
         }
     }
 
+    /// Optimize complex loops too
     pub fn o2() -> OptimizeConfig {
         OptimizeConfig {
             complex_loops: true,
@@ -35,15 +47,18 @@ impl OptimizeConfig {
         }
     }
 
+    /// Check if configuration has an optimization enabled
     pub fn optimize(&self) -> bool {
         self.max_loops > 0
     }
 }
 
+/// Optimize program with level 2
 pub fn optimize(program: &mut Program) -> usize {
     optimize_with_config(program, &OptimizeConfig::o2())
 }
 
+/// Optimize program
 pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> usize {
     let mut progress = true;
 

@@ -7,6 +7,7 @@ use std::ops::Range;
 
 const MAX_HEAP_SIZE: usize = 16 * 1024 * 1024;
 
+/// Interpreter to execute a program
 pub struct Interpreter<R: Read, W: Write> {
     max_heap_size: usize,
     pub(crate) heap: Vec<u8>,
@@ -16,6 +17,7 @@ pub struct Interpreter<R: Read, W: Write> {
 }
 
 impl<R: Read, W: Write> Interpreter<R, W> {
+    /// Create a default interpreter
     pub fn new(input: R, output: W) -> Interpreter<R, W> {
         Interpreter {
             max_heap_size: MAX_HEAP_SIZE,
@@ -26,6 +28,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         }
     }
 
+    /// Execute program
     pub fn execute(&mut self, program: &Program) -> Result<(), RuntimeError> {
         self.execute_ops(&program.ops)
     }

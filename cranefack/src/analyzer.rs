@@ -5,16 +5,20 @@ use std::error::Error;
 use codespan_reporting::diagnostic::{Label, Diagnostic};
 use codespan_reporting::term::termcolor::{StandardStream, ColorChoice};
 
-/// Warning found in a call to [analyze]
+/// WarningType found in a call to [analyze]
 #[derive(Debug, Clone, PartialEq)]
 pub enum WarningType {
     /// A possible infinite loop was found
     InfiniteLoop,
 }
 
+/// Warning found in a call to [analyze]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Warning {
+    /// Code position the warning was found
     pub span: Range<usize>,
+
+    /// Type of the warning
     pub warning_type: WarningType,
 }
 

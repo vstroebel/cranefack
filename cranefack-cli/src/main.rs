@@ -36,9 +36,7 @@ fn create_clap_app() -> App<'static, 'static> {
         .about(crate_description!())
         .subcommand(SubCommand::with_name("run")
             .about("Run application")
-            .arg(Arg::with_name("FILE")
-                .required(true)
-                .help("Brainfuck source file"))
+            .arg(get_source_file())
             .arg(Arg::with_name("JIT")
                 .short("j")
                 .long("jit")
@@ -49,9 +47,7 @@ fn create_clap_app() -> App<'static, 'static> {
         )
         .subcommand(SubCommand::with_name("compile")
             .about("Compile application")
-            .arg(Arg::with_name("FILE")
-                .required(true)
-                .help("Brainfuck source file"))
+            .arg(get_source_file())
             .arg(Arg::with_name("FORMAT")
                 .short("f")
                 .long("format")
@@ -66,10 +62,7 @@ fn create_clap_app() -> App<'static, 'static> {
         )
         .subcommand(SubCommand::with_name("benchmark")
             .about("Benchmark program with different optimization settings")
-            .arg(Arg::with_name("FILE")
-                .required(true)
-                .help("Brainfuck source file")
-            )
+            .arg(get_source_file())
             .arg(Arg::with_name("ITERATIONS")
                 .short("i")
                 .long("iterations")
@@ -83,6 +76,12 @@ fn create_clap_app() -> App<'static, 'static> {
                 .help("Number of runs per optimization in each round")
             )
         )
+}
+
+fn get_source_file<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("FILE")
+        .required(true)
+        .help("Brainfuck source file. Use - to read from stdin")
 }
 
 fn get_jit_level<'a, 'b>() -> Arg<'a, 'b> {

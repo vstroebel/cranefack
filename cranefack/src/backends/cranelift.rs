@@ -471,6 +471,7 @@ fn put_char(env: *mut Environment, value: u8) {
     }
 }
 
+/// A compiled program that can be executed
 pub struct CompiledJitModule {
     module: Option<JITModule>,
     main_func: FuncId,
@@ -478,6 +479,8 @@ pub struct CompiledJitModule {
 }
 
 impl CompiledJitModule {
+
+    /// Compile program
     pub fn new(program: &Program, opt_mode: &OptimizeConfig) -> Result<CompiledJitModule, CompilerError> {
         let mut flag_builder = settings::builder();
 
@@ -592,6 +595,11 @@ impl CompiledJitModule {
         })
     }
 
+    /// Execute program
+    ///
+    /// After execution the used heap is returned
+    ///
+    ///
     pub fn execute<R: Read, W: Write>(&self, mut input: R, mut output: W) -> Vec<u8> {
         let module = self.module.as_ref().expect("Module exists");
 
@@ -608,6 +616,7 @@ impl CompiledJitModule {
         heap
     }
 
+    /// Get the cranelift intermediate representation used for the compiled program
     pub fn get_clir(&self) -> String {
         self.clir.clone()
     }

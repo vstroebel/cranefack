@@ -7,9 +7,12 @@ use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use std::option::Option::Some;
 use std::ops::Range;
 
+/// Trait all internal errors must implement
 pub trait CraneFackError: Error {
+    /// Return error message with optional source position and optional source label
     fn get_message(&self) -> (Option<Range<usize>>, String, Option<String>);
 
+    /// Print error to stderr with colors and other fancy stuff
     fn pretty_print(&self, source: &str, filename: Option<&str>) -> Result<(), Box<dyn Error>> {
         let mut files = SimpleFiles::new();
 
@@ -43,10 +46,16 @@ pub trait CraneFackError: Error {
     }
 }
 
+/// Error type for parser related errors
 #[derive(Debug)]
 pub enum ParserError {
+    /// Maximum depth of nested loops has been reached
     LoopStackOverflow { position: usize, max_depth: usize },
+
+    /// A closing ] without matching [ was found
     BadlyClosedLoop { position: usize },
+
+    /// There are still som unclosed loops at the end of the source
     UnclosedLoop { position: usize },
 }
 
@@ -84,13 +93,17 @@ impl CraneFackError for ParserError {
     }
 }
 
+/// Runtime errors for interpreter invocations
 #[derive(Debug)]
 pub enum RuntimeError {
+    /// The program tries to use a heap cell beyond the maximu allowed size
     MaxHeapSizeReached {
         span: Range<usize>,
         max_heap_size: usize,
         required: usize,
     },
+
+    /// Reading or writing with ops , or . failed
     IoError {
         span: Range<usize>,
         error: std::io::Error,
@@ -133,8 +146,10 @@ impl CraneFackError for RuntimeError {
     }
 }
 
+/// Jit compilation error
 #[derive(Debug)]
 pub enum CompilerError {
+    /// Some unknown and unexpected shit happened during compilation
     InternalCompilerError { message: String },
 }
 

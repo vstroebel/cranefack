@@ -3,6 +3,7 @@ use std::fmt::Write;
 use crate::parser::{Program, Op, OpType};
 use std::error::Error;
 
+/// Compile program into a rust file that can be compiled with rustc
 pub fn compile_to_rust(program: &Program) -> String {
     let mut code = "".to_owned();
 
