@@ -144,20 +144,20 @@ impl Program {
                     writeln!(output, "DLOOP")?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::LLoop(children, offset, modifies) => {
-                    writeln!(output, "LLOOP offset: {} modifies: {:?}", offset, modifies)?;
+                OpType::LLoop(children, offset, access) => {
+                    writeln!(output, "LLOOP offset: {} access: {:?}", offset, access)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::ILoop(children, offset, step, modifies) => {
-                    writeln!(output, "ILOOP offset: {} step: {} modifies: {:?}", offset, step, modifies)?;
+                OpType::ILoop(children, offset, step, access) => {
+                    writeln!(output, "ILOOP offset: {} step: {} access: {:?}", offset, step, access)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::CLoop(children, offset, iterations, modifies) => {
-                    writeln!(output, "CLOOP offset: {} iterations: {} modifies: {:?}", offset, iterations, modifies)?;
+                OpType::CLoop(children, offset, iterations, access) => {
+                    writeln!(output, "CLOOP offset: {} iterations: {} modifies: {:?}", offset, iterations, access)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::TNz(children, offset, modifies) => {
-                    writeln!(output, "TNZ offset: {}  modifies: {:?}", offset, modifies)?;
+                OpType::TNz(children, offset, access) => {
+                    writeln!(output, "TNZ offset: {}  modifies: {:?}", offset, access)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
                 OpType::SearchZero(step) => writeln!(output, "S_ZERO {} ", step)?,
@@ -259,21 +259,21 @@ impl Op {
         }
     }
 
-    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<ModifiedCell>) -> Op {
+    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<CellAccess>) -> Op {
         Op {
             op_type: OpType::LLoop(ops, offset, modified),
             span,
         }
     }
 
-    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8, modified: Vec<ModifiedCell>) -> Op {
+    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8, modified: Vec<CellAccess>) -> Op {
         Op {
             op_type: OpType::ILoop(ops, offset, step, modified),
             span,
         }
     }
 
-    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8, modified: Vec<ModifiedCell>) -> Op {
+    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8, modified: Vec<CellAccess>) -> Op {
         Op {
             op_type: OpType::CLoop(ops, offset, iterations, modified),
             span,
@@ -371,7 +371,7 @@ impl Op {
         }
     }
 
-    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<ModifiedCell>) -> Op {
+    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<CellAccess>) -> Op {
         Op {
             op_type: OpType::TNz(ops, offset, modified),
             span,
@@ -389,16 +389,25 @@ impl Op {
 /// Cell content inferred during optimization
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Cell {
+    /// Cell was accessed but not modified
+    Read,
+
     /// Cell got modified but value is unknown
-    Unknown,
+    Write,
 
     /// Cell value is known
     Value(u8),
 }
 
+impl Cell {
+    pub fn is_read(&self) -> bool {
+        matches!(self, Cell::Read)
+    }
+}
+
 /// Hold information about a known modified cell
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct ModifiedCell {
+pub struct CellAccess {
     /// Offset of the cell relative to the surrounding scope (typically the counter ptr of a local loop)
     pub offset: isize,
 
@@ -406,22 +415,29 @@ pub struct ModifiedCell {
     pub value: Cell,
 }
 
-impl ModifiedCell {
-    pub fn new_unknown(offset: isize) -> ModifiedCell {
-        ModifiedCell {
+impl CellAccess {
+    pub fn new_read(offset: isize) -> CellAccess {
+        CellAccess {
             offset,
-            value: Cell::Unknown,
+            value: Cell::Read,
         }
     }
 
-    pub fn new_value(offset: isize, value: u8) -> ModifiedCell {
-        ModifiedCell {
+    pub fn new_write(offset: isize) -> CellAccess {
+        CellAccess {
+            offset,
+            value: Cell::Write,
+        }
+    }
+
+    pub fn new_value(offset: isize, value: u8) -> CellAccess {
+        CellAccess {
             offset,
             value: Cell::Value(value),
         }
     }
 
-    pub fn add(cells: &mut Vec<ModifiedCell>, offset: isize, value: Cell) {
+    pub fn add(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
         // Ignore loop counters
         if offset == 0 {
             return;
@@ -429,12 +445,14 @@ impl ModifiedCell {
 
         for exiting_cell in cells.iter_mut() {
             if exiting_cell.offset == offset {
-                exiting_cell.value = value;
+                if !value.is_read() {
+                    exiting_cell.value = value;
+                }
                 return;
             }
         }
 
-        cells.push(ModifiedCell {
+        cells.push(CellAccess {
             offset,
             value,
         });
@@ -508,18 +526,18 @@ pub enum OpType {
     DLoop(Vec<Op>),
 
     /// Loop using the same iterator cell for each iteration
-    LLoop(Vec<Op>, isize, Vec<ModifiedCell>),
+    LLoop(Vec<Op>, isize, Vec<CellAccess>),
 
     /// Loop with an iterator variable and know steps per iteration
-    ILoop(Vec<Op>, isize, u8, Vec<ModifiedCell>),
+    ILoop(Vec<Op>, isize, u8, Vec<CellAccess>),
 
     /// Loop with compile time known iteration count
-    CLoop(Vec<Op>, isize, u8, Vec<ModifiedCell>),
+    CLoop(Vec<Op>, isize, u8, Vec<CellAccess>),
 
     /// Test if not zero.
     ///
     /// Executes block if current value is not zero. Similar to `if true { ops }`
-    TNz(Vec<Op>, isize, Vec<ModifiedCell>),
+    TNz(Vec<Op>, isize, Vec<CellAccess>),
 
     /// Move heap pointer to first cell containing zero based on step
     SearchZero(isize),

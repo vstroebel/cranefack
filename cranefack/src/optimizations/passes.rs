@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::optimizations::peephole::run_peephole_pass;
 use crate::optimizations::utils::Change;
-use crate::parser::{Op, OpType, ModifiedCell, Cell};
+use crate::parser::{Op, OpType, CellAccess, Cell};
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
     run_peephole_pass(ops, remove_dead_loops_check)
@@ -198,9 +198,9 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                     0
                 };
 
-                let modified = get_loop_modifications(&children, offset);
+                let access = get_loop_access(&children, offset);
 
-                ops.insert(i, Op::l_loop(span, children, offset, modified));
+                ops.insert(i, Op::l_loop(span, children, offset, access));
 
                 progress = true;
             } else {
@@ -213,15 +213,15 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn get_loop_modifications(ops: &[Op], mut start_offset: isize) -> Vec<ModifiedCell> {
-    let mut modified = vec![];
+fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
+    let mut access = vec![];
 
     for op in ops {
         match &op.op_type {
             OpType::IncPtr(offset) => start_offset += *offset as isize,
             OpType::DecPtr(offset) => start_offset -= *offset as isize,
             OpType::Set(offset, value) => {
-                ModifiedCell::add(&mut modified, start_offset + offset, Cell::Value(*value));
+                CellAccess::add(&mut access, start_offset + offset, Cell::Value(*value));
             }
             OpType::Inc(offset, _) |
             OpType::Dec(offset, _) |
@@ -232,7 +232,7 @@ fn get_loop_modifications(ops: &[Op], mut start_offset: isize) -> Vec<ModifiedCe
             OpType::NzMul(_, offset, _) |
             OpType::Copy(_, offset)
             => {
-                ModifiedCell::add(&mut modified, start_offset + offset, Cell::Unknown);
+                CellAccess::add(&mut access, start_offset + offset, Cell::Write);
             }
             OpType::Add(src_offset, dest_offset, _) |
             OpType::CAdd(src_offset, dest_offset, _) |
@@ -241,8 +241,8 @@ fn get_loop_modifications(ops: &[Op], mut start_offset: isize) -> Vec<ModifiedCe
             OpType::Mul(src_offset, dest_offset, _) |
             OpType::Move(src_offset, dest_offset)
             => {
-                ModifiedCell::add(&mut modified, start_offset + src_offset, Cell::Value(0));
-                ModifiedCell::add(&mut modified, start_offset + dest_offset, Cell::Unknown);
+                CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
+                CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
             }
             OpType::LLoop(_, _, loop_modifications) |
             OpType::ILoop(_, _, _, loop_modifications) |
@@ -250,12 +250,12 @@ fn get_loop_modifications(ops: &[Op], mut start_offset: isize) -> Vec<ModifiedCe
             OpType::TNz(_, _, loop_modifications)
             => {
                 for cell in loop_modifications {
-                    ModifiedCell::add(&mut modified, start_offset + cell.offset, cell.value);
+                    CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
                 }
-                ModifiedCell::add(&mut modified, start_offset, Cell::Value(0));
+                CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
             OpType::GetChar => {
-                ModifiedCell::add(&mut modified, start_offset, Cell::Unknown);
+                CellAccess::add(&mut access, start_offset, Cell::Write);
             }
             OpType::PutChar => {
                 //Ignore
@@ -266,7 +266,7 @@ fn get_loop_modifications(ops: &[Op], mut start_offset: isize) -> Vec<ModifiedCe
         }
     }
 
-    modified
+    access
 }
 
 fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
@@ -852,8 +852,8 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
                 let loop_op = ops.remove(i);
                 let span = prev.span.start..loop_op.span.end;
 
-                if let OpType::ILoop(children, offset, _, modified) = loop_op.op_type {
-                    ops.insert(i, Op::c_loop(span, children, offset, count, modified));
+                if let OpType::ILoop(children, offset, _, access) = loop_op.op_type {
+                    ops.insert(i, Op::c_loop(span, children, offset, count, access));
                 } else {
                     unreachable!();
                 }
@@ -910,10 +910,10 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
             let span = prev.span;
 
             match prev.op_type {
-                OpType::LLoop(children, offset, modified) |
-                OpType::ILoop(children, offset, _, modified) |
-                OpType::CLoop(children, offset, _, modified) => {
-                    ops.insert(i, Op::t_nz(span, children, offset, modified));
+                OpType::LLoop(children, offset, access) |
+                OpType::ILoop(children, offset, _, access) |
+                OpType::CLoop(children, offset, _, access) => {
+                    ops.insert(i, Op::t_nz(span, children, offset, access));
                 }
                 _ => unreachable!(),
             }
@@ -2014,7 +2014,7 @@ mod tests {
                 Op::dec(1..2, 1),
                 Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], 0, vec![ModifiedCell::new_unknown(1)])
+            ], 0, vec![CellAccess::new_write(1)])
         ])
     }
 
@@ -2037,7 +2037,7 @@ mod tests {
             Op::set(0..1, 6),
             Op::i_loop(0..1, vec![
                 Op::dec(3..4, 2),
-            ], 1, 1, vec![ModifiedCell::new_unknown(1)])
+            ], 1, 1, vec![CellAccess::new_write(1)])
         ])
     }
 
@@ -2060,7 +2060,7 @@ mod tests {
             Op::set(0..1, 6),
             Op::i_loop(0..1, vec![
                 Op::dec(2..3, 3),
-            ], -1, 2, vec![ModifiedCell::new_unknown(-1)])
+            ], -1, 2, vec![CellAccess::new_write(-1)])
         ])
     }
 
@@ -2083,7 +2083,7 @@ mod tests {
         assert_eq!(ops, vec![
             Op::c_loop(0..1, vec![
                 Op::dec(2..3, 3),
-            ], -1, 3, vec![ModifiedCell::new_unknown(-1)])
+            ], -1, 3, vec![CellAccess::new_write(-1)])
         ])
     }
 
