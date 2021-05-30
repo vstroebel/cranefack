@@ -97,6 +97,17 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = target.wrapping_sub(*value);
             }
+            OpType::Mul(src_offset, dest_offset, multi) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = source.wrapping_mul(*multi);
+                *self.heap_value_at_offset(&op.span, *src_offset)? = 0;
+            }
+            OpType::NzMul(src_offset, dest_offset, multi) => {
+                let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
+                let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
+                *target = source.wrapping_mul(*multi);
+            }
             OpType::Move(src_offset, dest_offset) => {
                 let source = *self.heap_value_at_offset(&op.span, *src_offset)?;
                 let target = self.heap_value_at_offset(&op.span, *dest_offset)?;

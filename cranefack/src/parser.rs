@@ -127,6 +127,11 @@ impl Program {
                 OpType::NzCSub(src_offset, dest_offset, value) =>
                     writeln!(output, "NZ_CSUB src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
 
+                OpType::Mul(src_offset, dest_offset, multi) =>
+                    writeln!(output, "MUL src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
+                OpType::NzMul(src_offset, dest_offset, multi) =>
+                    writeln!(output, "NZ_MUL src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
+
                 OpType::Move(src_offset, dest_offset) =>
                     writeln!(output, "MOVE src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
                 OpType::Copy(src_offset, dest_offset) =>
@@ -352,6 +357,20 @@ impl Op {
         }
     }
 
+    pub fn mul(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::Mul(0, dest_offset, multi),
+            span,
+        }
+    }
+
+    pub fn nz_mul(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::NzMul(0, dest_offset, multi),
+            span,
+        }
+    }
+
     pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize) -> Op {
         Op {
             op_type: OpType::TNz(ops, offset),
@@ -411,6 +430,12 @@ pub enum OpType {
 
     /// Subtract constant value to value at offset without setting current value to 0
     NzCSub(isize, isize, u8),
+
+    /// Multiply current value to value at offset and reset current value to 0
+    Mul(isize, isize, u8),
+
+    /// Multiply current value to value at offset without setting current value to 0
+    NzMul(isize, isize, u8),
 
     /// Move value to value at offset and reset current value to 0
     Move(isize, isize),

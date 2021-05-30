@@ -33,6 +33,8 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
             OpType::NzCSub(src_offset, dest_offset, count) => writeln!(out, "rt.nz_c_sub({}, {}, {});", src_offset, dest_offset, count)?,
             OpType::Move(src_offset, dest_offset) => writeln!(out, "rt.move({}, {});", src_offset, dest_offset)?,
             OpType::Copy(src_offset, dest_offset) => writeln!(out, "rt.copy({}, {});", src_offset, dest_offset)?,
+            OpType::Mul(src_offset, dest_offset, multi) => writeln!(out, "rt.mul({}, {}, {});", src_offset, dest_offset, multi)?,
+            OpType::NzMul(src_offset, dest_offset, multi) => writeln!(out, "rt.nz_mul({}, {}, {});", src_offset, dest_offset, multi)?,
             OpType::GetChar => writeln!(out, "rt.get_char();")?,
             OpType::PutChar => writeln!(out, "rt.put_char();")?,
             OpType::DLoop(children) => {

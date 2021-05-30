@@ -163,6 +163,8 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                         OpType::NzSub(..) |
                         OpType::NzCAdd(..) |
                         OpType::NzCSub(..) |
+                        OpType::Mul(..) |
+                        OpType::NzMul(..) |
                         OpType::Copy(..)
                         => {
                             // ignore
@@ -253,6 +255,8 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::NzSub(..) |
             OpType::NzCAdd(..) |
             OpType::NzCSub(..) |
+            OpType::Mul(..) |
+            OpType::NzMul(..) |
             OpType::Copy(..)
             => {
                 // ignore
@@ -302,6 +306,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         OpType::Sub(src_offset, dest_offset, _) |
                         OpType::CAdd(src_offset, dest_offset, _) |
                         OpType::CSub(src_offset, dest_offset, _) |
+                        OpType::Mul(src_offset, dest_offset, _) |
                         OpType::Move(src_offset, dest_offset)
                         => {
                             if ptr_offset + src_offset == 0 {
@@ -318,6 +323,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         OpType::NzSub(_, dest_offset, _) |
                         OpType::NzCAdd(_, dest_offset, _) |
                         OpType::NzCSub(_, dest_offset, _) |
+                        OpType::NzMul(_, dest_offset, _) |
                         OpType::Copy(_, dest_offset)
                         => {
                             if ptr_offset + dest_offset == 0 {
@@ -437,6 +443,7 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::Sub(src_offset, dest_offset, _) |
             OpType::CAdd(src_offset, dest_offset, _) |
             OpType::CSub(src_offset, dest_offset, _) |
+            OpType::Mul(src_offset, dest_offset, _) |
             OpType::Move(src_offset, dest_offset)
             => {
                 for parent_offset in parent_offsets {
@@ -455,6 +462,7 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::NzSub(_, dest_offset, _) |
             OpType::NzCAdd(_, dest_offset, _) |
             OpType::NzCSub(_, dest_offset, _) |
+            OpType::NzMul(_, dest_offset, _) |
             OpType::Copy(_, dest_offset)
             => {
                 for parent_offset in parent_offsets {
@@ -504,8 +512,7 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
     true
 }
 
-// Merge multiple inc/dec or inc_ptr dec_ptr ops and remove zero versions
-pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
+pub fn optimize_arithmetics(ops: [&Op; 2]) -> Change {
     match (&ops[0].op_type, &ops[1].op_type) {
         (OpType::Inc(offset, v1), OpType::Inc(offset2, v2)) => {
             if *offset == *offset2 {
@@ -595,15 +602,23 @@ pub fn optimize_inc_dec(ops: [&Op; 2]) -> Change {
             }
         }
         (op_type, OpType::Add(src_offset, dest_offset, multi)) => {
-            if *multi == 1 && op_type.is_zeroing(*dest_offset) {
-                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Move(*src_offset, *dest_offset)])
+            if op_type.is_zeroing(*dest_offset) {
+                if *multi == 1 {
+                    Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Move(*src_offset, *dest_offset)])
+                } else {
+                    Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Mul(*src_offset, *dest_offset, *multi)])
+                }
             } else {
                 Change::Ignore
             }
         }
         (op_type, OpType::NzAdd(src_offset, dest_offset, multi)) => {
-            if *multi == 1 && op_type.is_zeroing(*dest_offset) {
-                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Copy(*src_offset, *dest_offset)])
+            if op_type.is_zeroing(*dest_offset) {
+                if *multi == 1 {
+                    Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::Copy(*src_offset, *dest_offset)])
+                } else {
+                    Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::NzMul(*src_offset, *dest_offset, *multi)])
+                }
             } else {
                 Change::Ignore
             }
@@ -632,7 +647,8 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
                 OpType::NzAdd(_, offset, ..) |
                 OpType::NzCAdd(_, offset, ..) |
                 OpType::NzSub(_, offset, ..) |
-                OpType::NzCSub(_, offset, ..)
+                OpType::NzCSub(_, offset, ..) |
+                OpType::NzMul(_, offset, ..)
                 => {
                     *offset == dest_offset
                 }
@@ -662,6 +678,12 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
                     OpType::CSub(src, dest, value) => {
                         if *src == dest_offset {
                             op1.op_type = OpType::NzCSub(*src, *dest, *value);
+                            progress = true;
+                        }
+                    }
+                    OpType::Mul(src, dest, multi) => {
+                        if *src == dest_offset {
+                            op1.op_type = OpType::NzMul(*src, *dest, *multi);
                             progress = true;
                         }
                     }
@@ -708,6 +730,12 @@ pub fn remove_dead_stores_before_set(ops: &mut Vec<Op>) -> bool {
                     OpType::CSub(src, dest, value) => {
                         if *src == unread_zeroing_offset {
                             op1.op_type = OpType::NzCSub(*src, *dest, *value);
+                            progress = true;
+                        }
+                    }
+                    OpType::Mul(src, dest, multi) => {
+                        if *src == unread_zeroing_offset {
+                            op1.op_type = OpType::NzMul(*src, *dest, *multi);
                             progress = true;
                         }
                     }
@@ -1412,7 +1440,7 @@ mod tests {
             Op::inc(1..2, 2),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::inc(0..2, 3),
@@ -1426,7 +1454,7 @@ mod tests {
             Op::dec(1..2, 2),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::dec(0..2, 3),
@@ -1441,7 +1469,7 @@ mod tests {
             Op::dec(2..3, 3),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::dec(0..3, 4),
@@ -1455,7 +1483,7 @@ mod tests {
             Op::inc(1..2, 2),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::set(0..2, 7),
@@ -1469,7 +1497,7 @@ mod tests {
             Op::dec(1..2, 2),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::set(0..2, 3),
@@ -1484,7 +1512,7 @@ mod tests {
             Op::inc_ptr(2..3, 3),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::inc_ptr(2..3, 3),
@@ -1498,7 +1526,7 @@ mod tests {
             Op::inc_ptr(1..2, 2),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::inc_ptr(0..2, 3),
@@ -1512,7 +1540,7 @@ mod tests {
             Op::dec_ptr(1..2, 2),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::dec_ptr(0..2, 3),
@@ -1527,7 +1555,7 @@ mod tests {
             Op::dec_ptr(2..3, 3),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::dec_ptr(0..3, 4),
@@ -1542,7 +1570,7 @@ mod tests {
             Op::inc(2..3, 3),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::inc(2..3, 3),
@@ -1556,7 +1584,7 @@ mod tests {
             Op::inc(2..3, 3),
         ];
 
-        run_peephole_pass(&mut ops, optimize_inc_dec);
+        run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
             Op::c_loop(0..2, vec![], 1, 1),

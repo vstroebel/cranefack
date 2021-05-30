@@ -73,7 +73,7 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
         progress |= remove_dead_loops(&mut program.ops);
         progress |= optimize_heap_initialization(&mut program.ops);
         progress |= optimize_zero_loops(&mut program.ops);
-        progress |= run_peephole_pass(&mut program.ops, optimize_inc_dec);
+        progress |= run_peephole_pass(&mut program.ops, optimize_arithmetics);
         progress |= remove_dead_stores_before_set(&mut program.ops);
 
         if config.complex_loops {

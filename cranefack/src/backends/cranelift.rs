@@ -42,6 +42,8 @@ impl<'a> Builder<'a> {
                 OpType::NzSub(src_offset, dest_offset, multi) => self.nz_sub(*src_offset, *dest_offset, *multi),
                 OpType::CSub(src_offset, dest_offset, value) => self.c_sub(*src_offset, *dest_offset, *value),
                 OpType::NzCSub(src_offset, dest_offset, value) => self.nz_c_sub(*src_offset, *dest_offset, *value),
+                OpType::Mul(src_offset, dest_offset, multi) => self.mul(*src_offset, *dest_offset, *multi),
+                OpType::NzMul(src_offset, dest_offset, multi) => self.nz_mul(*src_offset, *dest_offset, *multi),
                 OpType::Move(src_offset, dest_offset) => self._move(*src_offset, *dest_offset),
                 OpType::Copy(src_offset, dest_offset) => self.copy(*src_offset, *dest_offset),
                 OpType::DLoop(ops) => self.d_loop(ops),
@@ -174,6 +176,20 @@ impl<'a> Builder<'a> {
 
     fn c_sub(&mut self, src_offset: isize, dest_offset: isize, value: u8) {
         self.nz_c_sub(src_offset, dest_offset, value);
+        self.set(src_offset, 0);
+    }
+
+    fn nz_mul(&mut self, src_offset: isize, dest_offset: isize, multi: u8) {
+        let source = self.load(src_offset);
+
+        let multi = self.const_u8(multi);
+        let target = self.bcx.ins().imul(source, multi);
+
+        self.store(dest_offset, target);
+    }
+
+    fn mul(&mut self, src_offset: isize, dest_offset: isize, multi: u8) {
+        self.nz_mul(src_offset, dest_offset, multi);
         self.set(src_offset, 0);
     }
 
@@ -482,7 +498,6 @@ pub struct CompiledJitModule {
 }
 
 impl CompiledJitModule {
-
     /// Compile program
     pub fn new(program: &Program, opt_mode: &OptimizeConfig) -> Result<CompiledJitModule, CompilerError> {
         let mut flag_builder = settings::builder();
@@ -1155,6 +1170,43 @@ mod tests {
         assert_eq!(heap[1], 0u8.wrapping_sub(4));
         assert_eq!(heap[2], 0);
         assert_eq!(heap[3], 0u8.wrapping_sub(8));
+    }
+
+    #[test]
+    fn test_mul() {
+        let program = Program {
+            ops: vec![
+                Op::set(0..1, 5),
+                Op::mul(1..2, 1, 2),
+                Op::mul(2..3, 3, 1)
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(&heap[0..5], &[0, 10, 0, 0, 0]);
+    }
+
+    #[test]
+    fn test_nz_mul_mul() {
+        let program = Program {
+            ops: vec![
+                Op::set(0..1, 5),
+                Op::nz_mul(1..2, 1, 2),
+                Op::nz_mul(2..3, 3, 3),
+                Op::mul(2..3, 4, 4)
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(&heap[0..6], &[0, 10, 0, 15, 20, 0]);
     }
 
     #[test]
