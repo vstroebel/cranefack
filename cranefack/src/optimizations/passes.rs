@@ -1429,6 +1429,17 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                     Change::Ignore
                 }
             }
+            OpType::Set(offset, value) => {
+                if let CellValue::Value(v) = find_heap_value(ops, *offset, i - 1) {
+                    if *value == v {
+                        Change::Remove
+                    } else {
+                        Change::Ignore
+                    }
+                } else {
+                    Change::Ignore
+                }
+            }
             OpType::Add(src_offset, dest_offset, multi) => {
                 let src = find_heap_value(ops, *src_offset, i - 1);
                 let dest = find_heap_value(ops, *dest_offset, i - 1);
