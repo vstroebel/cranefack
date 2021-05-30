@@ -683,6 +683,25 @@ pub fn optimize_arithmetics(ops: [&Op; 2]) -> Change {
                 Change::Ignore
             }
         }
+        /*(op_type, OpType::CAdd(src_offset, dest_offset, value)) => {
+            if op_type.is_zeroing(*dest_offset) {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![
+                    OpType::Set(*dest_offset, *value),
+                    OpType::Set(*src_offset, 0),
+                ])
+            } else {
+                Change::Ignore
+            }
+        }
+        (op_type, OpType::NzCAdd(src_offset, dest_offset, value)) => {
+            if op_type.is_zeroing(*dest_offset) {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![
+                    OpType::Set(*dest_offset, *value),
+                ])
+            } else {
+                Change::Ignore
+            }
+        }*/
         _ => Change::Ignore
     }
 }
@@ -1373,18 +1392,14 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                         Change::Replace(vec![
                             OpType::Set(*dest_offset, value),
                             OpType::Set(*src_offset, 0),
-                        ]);
-
-                        Change::Ignore
+                        ])
                     }
                     (CellValue::Value(src), CellValue::Unknown) => {
                         let value = src.wrapping_mul(*multi);
 
                         Change::Replace(vec![
                             OpType::CAdd(*src_offset, *dest_offset, value),
-                        ]);
-
-                        Change::Ignore
+                        ])
                     }
                     (CellValue::Unknown, CellValue::Value(0)) => {
                         if *multi == 1 {
@@ -1398,42 +1413,23 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                     }
                 }
             }
-            OpType::NzAdd(src_offset, dest_offset, multi) => {
-                let src = find_heap_value(ops, *src_offset, i - 1);
-                let dest = find_heap_value(ops, *dest_offset, i - 1);
-
-                match (src, dest) {
-                    (CellValue::Value(0), CellValue::Value(_)) => {
-                        Change::Remove
-                    }
-                    (CellValue::Value(src), CellValue::Value(dest)) => {
-                        let value = dest.wrapping_add(src.wrapping_mul(*multi));
-
-                        Change::Replace(vec![
-                            OpType::Set(*dest_offset, value),
-                        ]);
-
-                        Change::Ignore
-                    }
-                    (CellValue::Value(src), CellValue::Unknown) => {
-                        let value = src.wrapping_mul(*multi);
-
-                        Change::Replace(vec![
-                            OpType::NzCAdd(*src_offset, *dest_offset, value),
-                        ]);
-
-                        Change::Ignore
-                    }
-                    (CellValue::Unknown, CellValue::Value(0)) => {
-                        if *multi == 1 {
-                            Change::Replace(vec![OpType::Copy(*src_offset, *dest_offset)])
-                        } else {
-                            Change::Replace(vec![OpType::NzMul(*src_offset, *dest_offset, *multi)])
-                        }
-                    }
-                    _ => {
-                        Change::Ignore
-                    }
+            OpType::CAdd(src_offset, dest_offset, value) => {
+                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                    Change::Replace(vec![
+                        OpType::Set(*dest_offset, value2.wrapping_add(*value)),
+                        OpType::Set(*src_offset, 0),
+                    ])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::NzCAdd(_src_offset, dest_offset, value) => {
+                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                    Change::Replace(vec![
+                        OpType::Set(*dest_offset, value2.wrapping_add(*value)),
+                    ])
+                } else {
+                    Change::Ignore
                 }
             }
             OpType::Sub(src_offset, dest_offset, multi) => {
@@ -1450,18 +1446,14 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                         Change::Replace(vec![
                             OpType::Set(*dest_offset, value),
                             OpType::Set(*src_offset, 0),
-                        ]);
-
-                        Change::Ignore
+                        ])
                     }
                     (CellValue::Value(src), CellValue::Unknown) => {
                         let value = src.wrapping_mul(*multi);
 
                         Change::Replace(vec![
                             OpType::CSub(*src_offset, *dest_offset, value),
-                        ]);
-
-                        Change::Ignore
+                        ])
                     }
                     _ => {
                         Change::Ignore
@@ -1481,22 +1473,37 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
 
                         Change::Replace(vec![
                             OpType::Set(*dest_offset, value),
-                        ]);
-
-                        Change::Ignore
+                        ])
                     }
                     (CellValue::Value(src), CellValue::Unknown) => {
                         let value = src.wrapping_mul(*multi);
 
                         Change::Replace(vec![
                             OpType::NzCSub(*src_offset, *dest_offset, value),
-                        ]);
-
-                        Change::Ignore
+                        ])
                     }
                     _ => {
                         Change::Ignore
                     }
+                }
+            }
+            OpType::CSub(src_offset, dest_offset, value) => {
+                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                    Change::Replace(vec![
+                        OpType::Set(*dest_offset, value2.wrapping_sub(*value)),
+                        OpType::Set(*src_offset, 0),
+                    ])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::NzCSub(_src_offset, dest_offset, value) => {
+                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                    Change::Replace(vec![
+                        OpType::Set(*dest_offset, value2.wrapping_sub(*value)),
+                    ])
+                } else {
+                    Change::Ignore
                 }
             }
             OpType::Mul(src_offset, dest_offset, multi) => {
