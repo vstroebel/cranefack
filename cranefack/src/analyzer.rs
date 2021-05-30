@@ -82,7 +82,7 @@ fn analyze_ops(warnings: &mut Vec<Warning>, ops: &[Op]) {
 }
 
 fn check_infinite_loop(warnings: &mut Vec<Warning>, op1: &Op, op2: &Op) {
-    if matches!(op2.op_type, OpType::ILoop(_,_,0)) && !op1.op_type.is_zeroing(0) {
+    if matches!(op2.op_type, OpType::ILoop(_,_,0,_)) && !op1.op_type.is_zeroing(0) {
         warnings.push(Warning::infinite_loop(op2.span.clone()));
     }
 }

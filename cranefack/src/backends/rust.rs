@@ -46,7 +46,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::LLoop(children, offset) => {
+            OpType::LLoop(children, offset, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "let heap_pointer = rt.pointer;")?;
@@ -59,7 +59,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::ILoop(children, offset, step) => {
+            OpType::ILoop(children, offset, step, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "let heap_pointer = rt.pointer;")?;
@@ -75,7 +75,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::CLoop(children, offset, iterations) => {
+            OpType::CLoop(children, offset, iterations, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "let heap_pointer = rt.pointer;")?;
@@ -90,7 +90,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::TNz(children, offset) => {
+            OpType::TNz(children, offset, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "if *rt.heap_value() != 0 {{")?;

@@ -47,10 +47,10 @@ impl<'a> Builder<'a> {
                 OpType::Move(src_offset, dest_offset) => self._move(*src_offset, *dest_offset),
                 OpType::Copy(src_offset, dest_offset) => self.copy(*src_offset, *dest_offset),
                 OpType::DLoop(ops) => self.d_loop(ops),
-                OpType::LLoop(ops, offset) => self.l_loop(ops, *offset),
-                OpType::ILoop(ops, offset, step) => self.i_loop(ops, *offset, *step),
-                OpType::CLoop(ops, offset, iterations) => self.c_loop(ops, *offset, *iterations),
-                OpType::TNz(ops, offset) => self.tnz(ops, *offset),
+                OpType::LLoop(ops, offset, _) => self.l_loop(ops, *offset),
+                OpType::ILoop(ops, offset, step, _) => self.i_loop(ops, *offset, *step),
+                OpType::CLoop(ops, offset, iterations, _) => self.c_loop(ops, *offset, *iterations),
+                OpType::TNz(ops, offset, _) => self.tnz(ops, *offset),
                 OpType::SearchZero(step) => self.search_zero(*step),
                 OpType::PutChar => self.put_char(),
                 OpType::GetChar => self.get_char(),
@@ -1317,7 +1317,7 @@ mod tests {
                     Op::inc_ptr(1..2, 2),
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 1),
+                ], 1, vec![]),
             ]
         };
 
@@ -1339,7 +1339,7 @@ mod tests {
                 Op::i_loop(1..4, vec![
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 1),
+                ], 2, 1, vec![]),
             ]
         };
 
@@ -1361,7 +1361,7 @@ mod tests {
                 Op::i_loop(1..4, vec![
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 2),
+                ], 2, 2, vec![]),
             ]
         };
 
@@ -1383,7 +1383,7 @@ mod tests {
                 Op::c_loop(1..4, vec![
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 5),
+                ], 2, 5, vec![]),
             ]
         };
 
@@ -1404,7 +1404,7 @@ mod tests {
                 Op::set(0..1, 1),
                 Op::t_nz(1..4, vec![
                     Op::set(1..2, 10),
-                ], 2),
+                ], 2, vec![]),
             ]
         };
 
@@ -1424,7 +1424,7 @@ mod tests {
             ops: vec![
                 Op::t_nz(1..4, vec![
                     Op::set(1..2, 10),
-                ], 2),
+                ], 2, vec![]),
             ]
         };
 

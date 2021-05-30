@@ -144,20 +144,20 @@ impl Program {
                     writeln!(output, "DLOOP")?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::LLoop(children, offset) => {
-                    writeln!(output, "LLOOP offset: {}", offset)?;
+                OpType::LLoop(children, offset, modifies) => {
+                    writeln!(output, "LLOOP offset: {} modifies: {:?}", offset, modifies)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::ILoop(children, offset, step) => {
-                    writeln!(output, "ILOOP offset: {} step: {}", offset, step)?;
+                OpType::ILoop(children, offset, step, modifies) => {
+                    writeln!(output, "ILOOP offset: {} step: {} modifies: {:?}", offset, step, modifies)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::CLoop(children, offset, iterations) => {
-                    writeln!(output, "CLOOP offset: {} iterations: {}", offset, iterations)?;
+                OpType::CLoop(children, offset, iterations, modifies) => {
+                    writeln!(output, "CLOOP offset: {} iterations: {} modifies: {:?}", offset, iterations, modifies)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::TNz(children, offset) => {
-                    writeln!(output, "TNZ offset: {} ", offset)?;
+                OpType::TNz(children, offset, modifies) => {
+                    writeln!(output, "TNZ offset: {}  modifies: {:?}", offset, modifies)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
                 OpType::SearchZero(step) => writeln!(output, "S_ZERO {} ", step)?,
@@ -259,23 +259,23 @@ impl Op {
         }
     }
 
-    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize) -> Op {
+    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<ModifiedCell>) -> Op {
         Op {
-            op_type: OpType::LLoop(ops, offset),
+            op_type: OpType::LLoop(ops, offset, modified),
             span,
         }
     }
 
-    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8) -> Op {
+    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8, modified: Vec<ModifiedCell>) -> Op {
         Op {
-            op_type: OpType::ILoop(ops, offset, step),
+            op_type: OpType::ILoop(ops, offset, step, modified),
             span,
         }
     }
 
-    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8) -> Op {
+    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8, modified: Vec<ModifiedCell>) -> Op {
         Op {
-            op_type: OpType::CLoop(ops, offset, iterations),
+            op_type: OpType::CLoop(ops, offset, iterations, modified),
             span,
         }
     }
@@ -371,9 +371,9 @@ impl Op {
         }
     }
 
-    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize) -> Op {
+    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<ModifiedCell>) -> Op {
         Op {
-            op_type: OpType::TNz(ops, offset),
+            op_type: OpType::TNz(ops, offset, modified),
             span,
         }
     }
@@ -383,6 +383,61 @@ impl Op {
             op_type: OpType::SearchZero(step),
             span,
         }
+    }
+}
+
+/// Cell content inferred during optimization
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Cell {
+    /// Cell got modified but value is unknown
+    Unknown,
+
+    /// Cell value is known
+    Value(u8),
+}
+
+/// Hold information about a known modified cell
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct ModifiedCell {
+    /// Offset of the cell relative to the surrounding scope (typically the counter ptr of a local loop)
+    pub offset: isize,
+
+    /// The value of th cell
+    pub value: Cell,
+}
+
+impl ModifiedCell {
+    pub fn new_unknown(offset: isize) -> ModifiedCell {
+        ModifiedCell {
+            offset,
+            value: Cell::Unknown,
+        }
+    }
+
+    pub fn new_value(offset: isize, value: u8) -> ModifiedCell {
+        ModifiedCell {
+            offset,
+            value: Cell::Value(value),
+        }
+    }
+
+    pub fn add(cells: &mut Vec<ModifiedCell>, offset: isize, value: Cell) {
+        // Ignore loop counters
+        if offset == 0 {
+            return;
+        }
+
+        for exiting_cell in cells.iter_mut() {
+            if exiting_cell.offset == offset {
+                exiting_cell.value = value;
+                return;
+            }
+        }
+
+        cells.push(ModifiedCell {
+            offset,
+            value,
+        });
     }
 }
 
@@ -453,18 +508,18 @@ pub enum OpType {
     DLoop(Vec<Op>),
 
     /// Loop using the same iterator cell for each iteration
-    LLoop(Vec<Op>, isize),
+    LLoop(Vec<Op>, isize, Vec<ModifiedCell>),
 
     /// Loop with an iterator variable and know steps per iteration
-    ILoop(Vec<Op>, isize, u8),
+    ILoop(Vec<Op>, isize, u8, Vec<ModifiedCell>),
 
     /// Loop with compile time known iteration count
-    CLoop(Vec<Op>, isize, u8),
+    CLoop(Vec<Op>, isize, u8, Vec<ModifiedCell>),
 
     /// Test if not zero.
     ///
     /// Executes block if current value is not zero. Similar to `if true { ops }`
-    TNz(Vec<Op>, isize),
+    TNz(Vec<Op>, isize, Vec<ModifiedCell>),
 
     /// Move heap pointer to first cell containing zero based on step
     SearchZero(isize),
@@ -607,10 +662,10 @@ impl OpType {
     pub fn get_children_with_offset_mut(&mut self) -> Option<(isize, &mut Vec<Op>)> {
         match self {
             OpType::DLoop(children) => Some((0, children)),
-            OpType::LLoop(children, offset) |
+            OpType::LLoop(children, offset, ..) |
             OpType::ILoop(children, offset, ..) |
             OpType::CLoop(children, offset, ..) |
-            OpType::TNz(children, offset) => Some((*offset, children)),
+            OpType::TNz(children, offset, ..) => Some((*offset, children)),
             _ => None,
         }
     }

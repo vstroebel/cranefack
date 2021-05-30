@@ -126,7 +126,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     self.execute_ops(ops)?;
                 }
             }
-            OpType::LLoop(ops, offset) => {
+            OpType::LLoop(ops, offset, _) => {
                 let heap_pointer = self.pointer;
                 let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
@@ -136,7 +136,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     self.pointer = heap_pointer;
                 }
             }
-            OpType::ILoop(ops, offset, step) => {
+            OpType::ILoop(ops, offset, step, _) => {
                 let heap_pointer = self.pointer;
                 let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
@@ -151,7 +151,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 self.pointer = heap_pointer;
                 *self.heap_value(&op.span)? = 0;
             }
-            OpType::CLoop(ops, offset, iterations) => {
+            OpType::CLoop(ops, offset, iterations, _) => {
                 let heap_pointer = self.pointer;
                 let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
@@ -163,7 +163,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 self.pointer = heap_pointer;
                 *self.heap_value(&op.span)? = 0;
             }
-            OpType::TNz(ops, offset) => {
+            OpType::TNz(ops, offset, _) => {
                 if *self.heap_value(&op.span)? != 0 {
                     let heap_pointer = self.pointer;
                     let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
