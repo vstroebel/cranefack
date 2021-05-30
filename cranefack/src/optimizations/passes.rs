@@ -684,7 +684,7 @@ pub fn optimize_arithmetics(ops: [&Op; 2]) -> Change {
                 Change::Ignore
             }
         }
-        /*(op_type, OpType::CAdd(src_offset, dest_offset, value)) => {
+        (op_type, OpType::CAdd(src_offset, dest_offset, value)) => {
             if op_type.is_zeroing(*dest_offset) {
                 Change::ReplaceOffset(1, ops[1].span.clone(), vec![
                     OpType::Set(*dest_offset, *value),
@@ -694,7 +694,7 @@ pub fn optimize_arithmetics(ops: [&Op; 2]) -> Change {
                 Change::Ignore
             }
         }
-        (op_type, OpType::NzCAdd(src_offset, dest_offset, value)) => {
+        (op_type, OpType::NzCAdd(_src_offset, dest_offset, value)) => {
             if op_type.is_zeroing(*dest_offset) {
                 Change::ReplaceOffset(1, ops[1].span.clone(), vec![
                     OpType::Set(*dest_offset, *value),
@@ -702,7 +702,7 @@ pub fn optimize_arithmetics(ops: [&Op; 2]) -> Change {
             } else {
                 Change::Ignore
             }
-        }*/
+        }
         _ => Change::Ignore
     }
 }
