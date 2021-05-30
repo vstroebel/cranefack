@@ -26,6 +26,9 @@ impl<'a> Builder<'a> {
     pub fn append_ops(&mut self, ops: &[Op]) {
         for op in ops {
             match &op.op_type {
+                OpType::Start => {
+                    // ignore
+                }
                 OpType::IncPtr(value) => self.inc_ptr(*value),
                 OpType::DecPtr(value) => self.dec_ptr(*value),
                 OpType::Inc(offset, value) => self.inc(*offset, *value),

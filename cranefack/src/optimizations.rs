@@ -1,4 +1,4 @@
-use crate::parser::Program;
+use crate::parser::{Program, Op, OpType};
 
 mod passes;
 mod peephole;
@@ -60,6 +60,8 @@ pub fn optimize(program: &mut Program) -> usize {
 
 /// Optimize program
 pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> usize {
+    program.ops.insert(0, Op::start());
+
     let mut progress = true;
 
     let mut count = 0;
@@ -91,6 +93,14 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
         progress |= run_peephole_pass(&mut program.ops, optimize_arithmetic_offsets);
         progress |= remove_trailing_pointer_ops(&mut program.ops, true);
         progress |= run_peephole_pass(&mut program.ops, remove_useless_copy);
+    }
+
+    match program.ops.remove(0).op_type {
+        OpType::Start => {
+            // Ignore
+        }
+        // Start marker MUST NOT be removed by any optimization pass
+        other => panic!("Start marker was removed: {:?}", other),
     }
 
     count

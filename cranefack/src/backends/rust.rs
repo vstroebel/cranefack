@@ -15,6 +15,9 @@ pub fn compile_to_rust(program: &Program) -> String {
 fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
     for op in ops {
         match &op.op_type {
+            OpType::Start => {
+                // ignore
+            }
             OpType::IncPtr(count) => writeln!(out, "rt.inc_ptr({});", count)?,
             OpType::DecPtr(count) => writeln!(out, "rt.dec_ptr({});", count)?,
             OpType::Inc(offset, count) => writeln!(out, "rt.inc({}, {});", offset, count)?,

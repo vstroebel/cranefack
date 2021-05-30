@@ -102,6 +102,7 @@ impl Program {
             }
 
             match &op.op_type {
+                OpType::Start => writeln!(output, "START")?,
                 OpType::IncPtr(value) => writeln!(output, "INC_PTR {}", value)?,
                 OpType::DecPtr(value) => writeln!(output, "DEC_PTR {}", value)?,
 
@@ -169,6 +170,13 @@ pub struct Op {
 }
 
 impl Op {
+    pub fn start() -> Op {
+        Op {
+            op_type: OpType::Start,
+            span: 0..1,
+        }
+    }
+
     pub fn inc_ptr(span: Range<usize>, count: usize) -> Op {
         Op {
             op_type: OpType::IncPtr(count),
@@ -361,6 +369,10 @@ impl Op {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpType {
+    /// Start of application
+    /// This is a nop op but helps optimization passes to detect if a cell is zero
+    Start,
+
     /// Increment heap pointer by offset
     IncPtr(usize),
 
@@ -478,6 +490,7 @@ impl OpType {
             OpType::Set(offset, 0) => {
                 test_offset == *offset
             }
+            OpType::Start |
             OpType::DLoop(..) |
             OpType::LLoop(..) |
             OpType::ILoop(..) |

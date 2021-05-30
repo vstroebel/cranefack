@@ -43,6 +43,9 @@ impl<R: Read, W: Write> Interpreter<R, W> {
 
     fn execute_op(&mut self, op: &Op) -> Result<(), RuntimeError> {
         match &op.op_type {
+            OpType::Start => {
+                // ignore
+            }
             OpType::IncPtr(count) => self.pointer = self.pointer.wrapping_add(*count),
             OpType::DecPtr(count) => self.pointer = self.pointer.wrapping_sub(*count),
             OpType::Inc(offset, count) => {

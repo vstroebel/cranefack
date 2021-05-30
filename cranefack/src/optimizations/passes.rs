@@ -205,6 +205,9 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
 
     for op in ops {
         match &op.op_type {
+            OpType::Start => {
+                // ignore
+            }
             OpType::IncPtr(value) => {
                 ptr_offset += *value as isize;
             }
@@ -279,6 +282,9 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             if num_ops >= 2 {
                 for (i, op) in children.iter().enumerate() {
                     match &op.op_type {
+                        OpType::Start => {
+                            // ignore
+                        }
                         OpType::IncPtr(value) => {
                             ptr_offset += *value as isize;
                         }
@@ -411,6 +417,9 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
 
     for op in ops {
         match &op.op_type {
+            OpType::Start => {
+                // ignore
+            }
             OpType::IncPtr(value) => {
                 ptr_offset += *value as isize;
             }
@@ -1102,6 +1111,8 @@ pub fn optimize_heap_initialization(ops: &mut Vec<Op>) -> bool {
                         None
                     }
                 }
+            } else if let OpType::Start = &op.op_type {
+                None
             } else {
                 break;
             }
@@ -1368,18 +1379,19 @@ mod tests {
     use crate::optimizations::peephole::run_peephole_pass;
 
     #[test]
-    fn test_remove_preceding_loop() {
+    fn test_remove_dead_loop() {
         let mut ops = vec![
-            Op::d_loop(0..1, vec![]),
+            Op::start(),
             Op::d_loop(1..2, vec![]),
             Op::inc(2..3, 1),
             Op::d_loop(3..4, vec![Op::inc(4..5, 1),
             ]),
         ];
 
-        remove_preceding_loop(&mut ops);
+        remove_dead_loops(&mut ops);
 
         assert_eq!(ops, vec![
+            Op::start(),
             Op::inc(2..3, 1),
             Op::d_loop(3..4, vec![Op::inc(4..5, 1),
             ]),
