@@ -2,6 +2,7 @@ use crate::parser::{Program, Op, OpType};
 
 mod passes;
 mod peephole;
+mod utils;
 
 use passes::*;
 use crate::optimizations::peephole::run_peephole_pass;
@@ -13,6 +14,9 @@ pub struct OptimizeConfig {
 
     /// Optimize complex loops
     pub complex_loops: bool,
+
+    /// Run non local optimizations passes
+    pub non_local: bool,
 
     /// Optimization level passed to cranelift
     ///
@@ -26,6 +30,7 @@ impl OptimizeConfig {
     pub fn o0() -> OptimizeConfig {
         OptimizeConfig {
             complex_loops: false,
+            non_local: false,
             max_loops: 0,
             jit_level: None,
         }
@@ -34,7 +39,7 @@ impl OptimizeConfig {
     /// Only simple optimizations
     pub fn o1() -> OptimizeConfig {
         OptimizeConfig {
-            max_loops: 25,
+            max_loops: 10,
             ..Self::o0()
         }
     }
@@ -42,7 +47,9 @@ impl OptimizeConfig {
     /// Optimize complex loops too
     pub fn o2() -> OptimizeConfig {
         OptimizeConfig {
+            max_loops: 30,
             complex_loops: true,
+            non_local: true,
             ..Self::o1()
         }
     }
@@ -91,6 +98,10 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
         progress |= run_peephole_pass(&mut program.ops, optimize_arithmetic_offsets);
         progress |= remove_trailing_pointer_ops(&mut program.ops, true);
         progress |= run_peephole_pass(&mut program.ops, remove_useless_copy);
+
+        if config.non_local {
+            progress |= optimize_non_local_arithmetics(&mut program.ops);
+        }
     }
 
     match program.ops.remove(0).op_type {

@@ -471,6 +471,15 @@ pub enum OpType {
 }
 
 impl OpType {
+    /// Get IncPtr or DecPtr according to offset
+    pub fn new_ptr_offset(offset: isize) -> OpType {
+        if offset < 0 {
+            OpType::DecPtr((-offset) as usize)
+        } else {
+            OpType::IncPtr(offset as usize)
+        }
+    }
+
     pub fn is_ptr_inc_or_dec(&self) -> bool {
         matches!(self, OpType::DecPtr(_) | OpType::IncPtr(_))
     }
