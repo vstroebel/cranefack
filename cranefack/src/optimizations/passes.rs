@@ -1738,7 +1738,7 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
     while !ops.is_empty() && i < ops.len() {
         let op = &ops[i];
 
-        let remove_index = match &op.op_type {
+        let change = match &op.op_type {
             OpType::Set(offset, _) |
             OpType::Move(_, offset) |
             OpType::Copy(_, offset) |
@@ -1762,8 +1762,13 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
             }
         };
 
-        if let Some(remove_index) = remove_index {
-            ops.remove(remove_index);
+        if let Some((index, new_op)) = change {
+            if let Some(new_op) = new_op {
+                ops[index].op_type = new_op;
+            } else {
+                ops.remove(index);
+            }
+
             progress = true;
             if i > 1 {
                 i -= 1
@@ -1776,7 +1781,7 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Option<usize> {
+fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Option<(usize, Option<OpType>)> {
     let mut i = start_index as isize;
 
     while i >= 0 {
@@ -1787,18 +1792,49 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
             OpType::Inc(offset, _) |
             OpType::Dec(offset, _) => {
                 if *offset == cell_offset {
-                    return Some(i as usize);
+                    return Some((i as usize, None));
                 }
             }
-            OpType::Add(src_offset, dest_offset, _) |
-            OpType::CAdd(src_offset, dest_offset, _) |
-            OpType::Sub(src_offset, dest_offset, _) |
-            OpType::CSub(src_offset, dest_offset, _) |
-            OpType::Mul(src_offset, dest_offset, _) |
-            OpType::Move(src_offset, dest_offset)
-            => {
-                if *src_offset == cell_offset || *dest_offset == cell_offset {
+            OpType::Add(src_offset, dest_offset, multi) => {
+                if *dest_offset == cell_offset {
                     break;
+                } else if *src_offset == cell_offset {
+                    return Some((i as usize, Some(OpType::NzAdd(*src_offset, *dest_offset, *multi))));
+                }
+            }
+            OpType::CAdd(src_offset, dest_offset, value) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return Some((i as usize, Some(OpType::NzCAdd(*src_offset, *dest_offset, *value))));
+                }
+            }
+            OpType::Sub(src_offset, dest_offset, multi) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return Some((i as usize, Some(OpType::NzSub(*src_offset, *dest_offset, *multi))));
+                }
+            }
+            OpType::CSub(src_offset, dest_offset, value) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return Some((i as usize, Some(OpType::NzCSub(*src_offset, *dest_offset, *value))));
+                }
+            }
+            OpType::Mul(src_offset, dest_offset, value) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return Some((i as usize, Some(OpType::NzMul(*src_offset, *dest_offset, *value))));
+                }
+            }
+            OpType::Move(src_offset, dest_offset) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return Some((i as usize, Some(OpType::Copy(*src_offset, *dest_offset))));
                 }
             }
             OpType::NzAdd(src_offset, dest_offset, _) |
@@ -1811,7 +1847,7 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                 if *src_offset == cell_offset {
                     break;
                 } else if *dest_offset == cell_offset {
-                    return Some(i as usize);
+                    return Some((i as usize, None));
                 }
             }
             OpType::GetChar(offset) => {
