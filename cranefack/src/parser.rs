@@ -138,7 +138,7 @@ impl Program {
                     writeln!(output, "COPY src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
 
                 OpType::PutChar(offset) => writeln!(output, "PUT offset: {}", offset)?,
-                OpType::GetChar => writeln!(output, "GET")?,
+                OpType::GetChar(offset) => writeln!(output, "GET offset: {}", offset)?,
 
                 OpType::DLoop(children) => {
                     writeln!(output, "DLOOP")?;
@@ -247,7 +247,7 @@ impl Op {
 
     pub fn get_char(span: Range<usize>) -> Op {
         Op {
-            op_type: OpType::GetChar,
+            op_type: OpType::GetChar(0),
             span,
         }
     }
@@ -554,7 +554,7 @@ pub enum OpType {
     PutChar(isize),
 
     /// Read from stdin into current cell
-    GetChar,
+    GetChar(isize),
 
     /// Dynamic loop as defined in raw brainfuck source
     DLoop(Vec<Op>),
@@ -664,11 +664,12 @@ impl OpType {
         match self {
             OpType::Move(_, dest_offset) |
             OpType::Copy(_, dest_offset) |
-            OpType::Set(dest_offset, _)
+            OpType::Set(dest_offset, _) |
+            OpType::GetChar(dest_offset)
             => {
                 Some(*dest_offset)
             }
-            OpType::GetChar => Some(0),
+
             _ => None,
         }
     }
@@ -678,13 +679,13 @@ impl OpType {
         match self {
             OpType::CAdd(offset, ..) |
             OpType::CSub(offset, ..) |
-            OpType::Set(offset, 0) => {
+            OpType::Set(offset, 0) |
+            OpType::GetChar(offset) => {
                 Some(*offset)
             }
             OpType::CLoop(..) => {
                 Some(0)
             }
-            OpType::GetChar => Some(0),
             _ => None,
         }
     }

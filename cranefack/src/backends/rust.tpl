@@ -79,12 +79,12 @@ impl Runtime {
         *value = value.wrapping_sub(count);
     }
 
-    fn get_char(&mut self) {
+    fn get_char(&mut self, offset: isize) {
         let mut buf = [0];
 
         std::io::stdin().read_exact(&mut buf).unwrap();
 
-        *self.heap_value() = buf[0];
+        *self.heap_value_at_offset(offset) = buf[0];
     }
 
     fn add(&mut self, src_offset: isize, dest_offset: isize, multi: u8) {

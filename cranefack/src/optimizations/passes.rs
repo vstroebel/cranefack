@@ -152,7 +152,7 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                             break;
                         }
                         OpType::PutChar(..) |
-                        OpType::GetChar |
+                        OpType::GetChar(..) |
                         OpType::Inc(..) |
                         OpType::Dec(..) |
                         OpType::Set(..) |
@@ -254,8 +254,8 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
                 }
                 CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
-            OpType::GetChar => {
-                CellAccess::add(&mut access, start_offset, Cell::Write);
+            OpType::GetChar(offset) => {
+                CellAccess::add(&mut access, start_offset + offset, Cell::Write);
             }
             OpType::PutChar(..) => {
                 //Ignore
@@ -302,7 +302,7 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                 return false;
             }
             OpType::PutChar(..) |
-            OpType::GetChar |
+            OpType::GetChar(..) |
             OpType::Inc(..) |
             OpType::Dec(..) |
             OpType::Set(..) |
@@ -392,14 +392,15 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             }
                         }
 
-                        OpType::Inc(offset, _) | OpType::Set(offset, _) => {
+                        OpType::Inc(offset, _) |
+                        OpType::Set(offset, _) => {
                             if ptr_offset + offset == 0 {
                                 ignore = true;
                                 break;
                             }
                         }
-                        OpType::GetChar => {
-                            if ptr_offset == 0 {
+                        OpType::GetChar(offset) => {
+                            if ptr_offset + offset == 0 {
                                 ignore = true;
                                 break;
                             }
@@ -538,9 +539,9 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                     }
                 }
             }
-            OpType::GetChar => {
+            OpType::GetChar(offset) => {
                 for parent_offset in parent_offsets {
-                    if ptr_offset == *parent_offset {
+                    if ptr_offset + offset == *parent_offset {
                         return false;
                     }
                 }
@@ -1011,7 +1012,7 @@ fn is_zero_end_offset(ops: &[Op], start_offset: isize) -> bool {
             OpType::NzCSub(..) |
             OpType::Move(..) |
             OpType::Copy(..) |
-            OpType::GetChar |
+            OpType::GetChar(..) |
             OpType::PutChar(..) |
             OpType::LLoop(..) |
             OpType::ILoop(..) |
@@ -1205,7 +1206,8 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
                 OpType::Set(offset, _) |
                 OpType::Inc(offset, _) |
                 OpType::Dec(offset, _) |
-                OpType::PutChar(offset)
+                OpType::PutChar(offset) |
+                OpType::GetChar(offset)
                 => {
                     let op_offset = ptr_offset + *offset - start_offset;
                     if *offset != op_offset {
@@ -1730,7 +1732,8 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
             OpType::Move(_, offset) |
             OpType::Copy(_, offset) |
             OpType::Mul(_, offset, _) |
-            OpType::NzMul(_, offset, _)
+            OpType::NzMul(_, offset, _) |
+            OpType::GetChar(offset)
             => {
                 find_last_unread_set(&ops, *offset, i - 1)
             }
@@ -1739,7 +1742,6 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
             => {
                 find_last_unread_set(&ops, *offset, i - 1)
             }
-            OpType::GetChar |
             OpType::CLoop(..)
             => {
                 find_last_unread_set(&ops, 0, i - 1)
@@ -1801,8 +1803,8 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                     return Some(i as usize);
                 }
             }
-            OpType::GetChar => {
-                if cell_offset == 0 {
+            OpType::GetChar(offset) => {
+                if cell_offset + offset == 0 {
                     break;
                 }
             }

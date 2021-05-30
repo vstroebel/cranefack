@@ -119,7 +119,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 let target = self.heap_value_at_offset(&op.span, *dest_offset)?;
                 *target = source;
             }
-            OpType::GetChar => self.get_char(&op.span)?,
+            OpType::GetChar(offset) => self.get_char(&op.span, *offset)?,
             OpType::PutChar(offset) => self.put_char(&op.span, *offset)?,
             OpType::DLoop(ops) => {
                 while *self.heap_value(&op.span)? > 0 {
@@ -246,7 +246,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         Ok(&mut self.heap[pointer])
     }
 
-    fn get_char(&mut self, span: &Range<usize>) -> Result<(), RuntimeError> {
+    fn get_char(&mut self, span: &Range<usize>, offset: isize) -> Result<(), RuntimeError> {
         let mut buf = [0];
 
         if let Err(error) = self.input.read_exact(&mut buf) {
@@ -259,7 +259,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             }
         };
 
-        *self.heap_value(span)? = buf[0];
+        *self.heap_value_at_offset(span, offset)? = buf[0];
 
         Ok(())
     }

@@ -53,7 +53,7 @@ impl<'a> Builder<'a> {
                 OpType::TNz(ops, offset, _) => self.tnz(ops, *offset),
                 OpType::SearchZero(step) => self.search_zero(*step),
                 OpType::PutChar(offset) => self.put_char(*offset),
-                OpType::GetChar => self.get_char(),
+                OpType::GetChar(offset) => self.get_char(*offset),
             }
         }
     }
@@ -203,10 +203,10 @@ impl<'a> Builder<'a> {
         self.set(src_offset, 0);
     }
 
-    fn get_char(&mut self) {
+    fn get_char(&mut self, offset: isize) {
         let results = self.bcx.ins().call(self.get_char_func, &[self.env]);
         let results = self.bcx.inst_results(results)[0];
-        self.store(0, results);
+        self.store(offset, results);
     }
 
     fn put_char(&mut self, offset: isize) {
