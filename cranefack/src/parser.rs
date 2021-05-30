@@ -403,6 +403,10 @@ impl Cell {
     pub fn is_read(&self) -> bool {
         matches!(self, Cell::Read)
     }
+
+    pub fn is_write(&self) -> bool {
+        !self.is_read()
+    }
 }
 
 /// Hold information about a known modified cell
@@ -456,6 +460,36 @@ impl CellAccess {
             offset,
             value,
         });
+    }
+
+    pub fn get_value(cells: &[CellAccess], offset: isize) -> Option<Cell> {
+        for cell in cells {
+            if cell.offset == offset {
+                return Some(cell.value);
+            }
+        }
+
+        return None;
+    }
+
+    pub fn was_written(cells: &[CellAccess], offset: isize) -> bool {
+        for cell in cells {
+            if cell.offset == offset {
+                return cell.value.is_write();
+            }
+        }
+
+        return false;
+    }
+
+    pub fn was_accessed(cells: &[CellAccess], offset: isize) -> bool {
+        for cell in cells {
+            if cell.offset == offset {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

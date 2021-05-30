@@ -1604,6 +1604,43 @@ fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Ce
             OpType::PutChar => {
                 // Ignore
             }
+            OpType::LLoop(_, _, access) |
+            OpType::ILoop(_, _, _, access) |
+            OpType::TNz(_, _, access)
+            => {
+                if let Some(value) = CellAccess::get_value(access, cell_offset) {
+                    match value {
+                        Cell::Write => return CellValue::Unknown,
+                        Cell::Value(v) => {
+                            if i > 0 {
+                                if let CellValue::Value(v2) = find_heap_value(ops, cell_offset, i as usize - 1) {
+                                    if v == v2 {
+                                        return CellValue::Value(v);
+                                    }
+                                }
+                            }
+                            return CellValue::Unknown;
+                        }
+                        Cell::Read => {
+                            // ignore
+                        }
+                    }
+                }
+            }
+            OpType::CLoop(_, _, count, access)
+            => {
+                if *count > 0 {
+                    if let Some(value) = CellAccess::get_value(access, cell_offset) {
+                        match value {
+                            Cell::Write => return CellValue::Unknown,
+                            Cell::Value(v) => return CellValue::Value(v),
+                            Cell::Read => {
+                                // ignore
+                            }
+                        }
+                    }
+                }
+            }
             _ => return CellValue::Unknown
         }
 
@@ -1674,6 +1711,17 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                     return Some(i as usize);
                 }
             }
+            OpType::Add(src_offset, dest_offset, _) |
+            OpType::CAdd(src_offset, dest_offset, _) |
+            OpType::Sub(src_offset, dest_offset, _) |
+            OpType::CSub(src_offset, dest_offset, _) |
+            OpType::Mul(src_offset, dest_offset, _) |
+            OpType::Move(src_offset, dest_offset)
+            => {
+                if *src_offset == cell_offset || *dest_offset == cell_offset {
+                    break;
+                }
+            }
             OpType::NzAdd(src_offset, dest_offset, _) |
             OpType::NzCAdd(src_offset, dest_offset, _) |
             OpType::NzSub(src_offset, dest_offset, _) |
@@ -1692,6 +1740,15 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                     break;
                 }
             }
+            OpType::LLoop(_, _, access) |
+            OpType::ILoop(_, _, _, access) |
+            OpType::CLoop(_, _, _, access) |
+            OpType::TNz(_, _, access)
+            => {
+                if cell_offset == 0 || CellAccess::was_accessed(access, cell_offset) {
+                    break;
+                }
+            }
             _ => break,
         }
 
@@ -1699,6 +1756,29 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
     }
 
     None
+}
+
+pub fn update_loop_access(ops: &mut Vec<Op>) {
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            update_loop_access(children);
+        }
+    }
+
+    for op in ops {
+        match &mut op.op_type {
+            OpType::LLoop(children, offset, access) |
+            OpType::ILoop(children, offset, _, access) |
+            OpType::CLoop(children, offset, _, access) |
+            OpType::TNz(children, offset, access)
+            => {
+                *access = get_loop_access(children, *offset);
+            }
+            _ => {
+                // Ignore
+            }
+        }
+    }
 }
 
 #[cfg(test)]
