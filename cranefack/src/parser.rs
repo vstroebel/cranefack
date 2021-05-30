@@ -515,7 +515,6 @@ impl OpType {
             OpType::Set(offset, 0) => {
                 test_offset == *offset
             }
-            OpType::Start |
             OpType::DLoop(..) |
             OpType::LLoop(..) |
             OpType::ILoop(..) |
@@ -524,6 +523,7 @@ impl OpType {
             OpType::SearchZero(..) => {
                 test_offset == 0
             }
+            OpType::Start => true,
             _ => false,
         }
     }
