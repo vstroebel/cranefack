@@ -1685,6 +1685,16 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
             => {
                 find_last_unread_set(&ops, *offset, i - 1)
             }
+            OpType::CAdd(offset, ..) |
+            OpType::CSub(offset, ..)
+            => {
+                find_last_unread_set(&ops, *offset, i - 1)
+            }
+            OpType::GetChar |
+            OpType::CLoop(..)
+            => {
+                find_last_unread_set(&ops, 0, i - 1)
+            }
             _ => {
                 None
             }
