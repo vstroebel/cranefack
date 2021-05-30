@@ -1,15 +1,22 @@
 use crate::parser::{Op, OpType};
 use std::cmp::Ordering;
-use crate::optimizations::peephole::Change;
+use crate::optimizations::peephole::{Change, run_peephole_pass};
 
-// Loops at the beginning of a program will not be taken at all
-pub fn remove_preceding_loop(ops: &mut Vec<Op>) {
-    while !ops.is_empty() {
-        if let OpType::DLoop(_) = ops[0].op_type {
-            ops.remove(0);
-        } else {
-            break;
-        }
+pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
+    run_peephole_pass(ops, remove_dead_loops_check)
+}
+
+fn remove_dead_loops_check(ops: [&Op; 2]) -> Change {
+    if ops[0].op_type.is_zeroing(0) && matches!(ops[1].op_type,
+        OpType::DLoop(..) |
+        OpType::LLoop(..) |
+        OpType::ILoop(..) |
+        OpType::TNz(..) |
+        OpType::SearchZero(..)
+    ) {
+        Change::RemoveOffset(1)
+    } else {
+        Change::Ignore
     }
 }
 

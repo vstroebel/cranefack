@@ -70,9 +70,7 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
         progress = false;
         count += 1;
 
-        // No progress tracking needed
-        remove_preceding_loop(&mut program.ops);
-
+        progress |= remove_dead_loops(&mut program.ops);
         progress |= optimize_heap_initialization(&mut program.ops);
         progress |= optimize_zero_loops(&mut program.ops);
         progress |= run_peephole_pass(&mut program.ops, optimize_inc_dec);
