@@ -177,8 +177,8 @@ impl Runtime {
         self.pointer = pointer as usize;
     }
 
-    fn put_char(&mut self) {
-        let ch = *self.heap_value();
+    fn put_char(&mut self, offset: isize) {
+        let ch = *self.heap_value_at_offset(offset);
 
         if ch.is_ascii() {
             write!(std::io::stdout(), "{}", ch as char)

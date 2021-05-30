@@ -52,7 +52,7 @@ impl<'a> Builder<'a> {
                 OpType::CLoop(ops, offset, iterations, _) => self.c_loop(ops, *offset, *iterations),
                 OpType::TNz(ops, offset, _) => self.tnz(ops, *offset),
                 OpType::SearchZero(step) => self.search_zero(*step),
-                OpType::PutChar => self.put_char(),
+                OpType::PutChar(offset) => self.put_char(*offset),
                 OpType::GetChar => self.get_char(),
             }
         }
@@ -209,8 +209,8 @@ impl<'a> Builder<'a> {
         self.store(0, results);
     }
 
-    fn put_char(&mut self) {
-        let value = self.load(0);
+    fn put_char(&mut self, offset: isize) {
+        let value = self.load(offset);
         self.bcx.ins().call(self.put_char_func, &[self.env, value]);
     }
 

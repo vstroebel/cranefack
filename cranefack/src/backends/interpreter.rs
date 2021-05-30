@@ -120,7 +120,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 *target = source;
             }
             OpType::GetChar => self.get_char(&op.span)?,
-            OpType::PutChar => self.put_char(&op.span)?,
+            OpType::PutChar(offset) => self.put_char(&op.span, *offset)?,
             OpType::DLoop(ops) => {
                 while *self.heap_value(&op.span)? > 0 {
                     self.execute_ops(ops)?;
@@ -264,8 +264,8 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         Ok(())
     }
 
-    fn put_char(&mut self, span: &Range<usize>) -> Result<(), RuntimeError> {
-        let ch = *self.heap_value(span)?;
+    fn put_char(&mut self, span: &Range<usize>, offset: isize) -> Result<(), RuntimeError> {
+        let ch = *self.heap_value_at_offset(span, offset)?;
 
         if ch.is_ascii() {
             write!(self.output, "{}", ch as char)

@@ -151,7 +151,7 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                             ignore = true;
                             break;
                         }
-                        OpType::PutChar |
+                        OpType::PutChar(..) |
                         OpType::GetChar |
                         OpType::Inc(..) |
                         OpType::Dec(..) |
@@ -257,7 +257,7 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
             OpType::GetChar => {
                 CellAccess::add(&mut access, start_offset, Cell::Write);
             }
-            OpType::PutChar => {
+            OpType::PutChar(..) => {
                 //Ignore
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
@@ -301,7 +301,7 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::SearchZero(..) => {
                 return false;
             }
-            OpType::PutChar |
+            OpType::PutChar(..) |
             OpType::GetChar |
             OpType::Inc(..) |
             OpType::Dec(..) |
@@ -432,7 +432,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ignore = true;
                             break;
                         }
-                        OpType::PutChar => {
+                        OpType::PutChar(..) => {
                             // ignore
                         }
                     }
@@ -563,7 +563,7 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::SearchZero(..) => {
                 return false;
             }
-            OpType::PutChar => {
+            OpType::PutChar(..) => {
                 // ignore
             }
         }
@@ -1012,7 +1012,7 @@ fn is_zero_end_offset(ops: &[Op], start_offset: isize) -> bool {
             OpType::Move(..) |
             OpType::Copy(..) |
             OpType::GetChar |
-            OpType::PutChar |
+            OpType::PutChar(..) |
             OpType::LLoop(..) |
             OpType::ILoop(..) |
             OpType::CLoop(..) |
@@ -1204,7 +1204,9 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
             let remove = match &mut op.op_type {
                 OpType::Set(offset, _) |
                 OpType::Inc(offset, _) |
-                OpType::Dec(offset, _) => {
+                OpType::Dec(offset, _) |
+                OpType::PutChar(offset)
+                => {
                     let op_offset = ptr_offset + *offset - start_offset;
                     if *offset != op_offset {
                         *offset = op_offset;
@@ -1655,7 +1657,7 @@ fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Ce
                     return CellValue::Unknown;
                 }
             }
-            OpType::PutChar => {
+            OpType::PutChar(..) => {
                 // Ignore
             }
             OpType::LLoop(_, _, access) |

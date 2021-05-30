@@ -137,7 +137,7 @@ impl Program {
                 OpType::Copy(src_offset, dest_offset) =>
                     writeln!(output, "COPY src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
 
-                OpType::PutChar => writeln!(output, "PUT")?,
+                OpType::PutChar(offset) => writeln!(output, "PUT offset: {}", offset)?,
                 OpType::GetChar => writeln!(output, "GET")?,
 
                 OpType::DLoop(children) => {
@@ -240,7 +240,7 @@ impl Op {
 
     pub fn put_char(span: Range<usize>) -> Op {
         Op {
-            op_type: OpType::PutChar,
+            op_type: OpType::PutChar(0),
             span,
         }
     }
@@ -550,10 +550,10 @@ pub enum OpType {
     /// Copy value to value at offset without setting current value to 0
     Copy(isize, isize),
 
-    /// Read from stdin into current cell
-    PutChar,
-
     /// Output current cell
+    PutChar(isize),
+
+    /// Read from stdin into current cell
     GetChar,
 
     /// Dynamic loop as defined in raw brainfuck source
