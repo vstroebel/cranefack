@@ -108,56 +108,63 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
 
     while !ops.is_empty() && !ops.is_empty() && i < ops.len() {
         let replace = if let OpType::DLoop(children) = &mut ops[i].op_type {
-            let mut ptr_offset = 0_isize;
-            let mut ignore = false;
+            if children.is_empty() {
+                false
+            } else {
+                let mut ptr_offset = 0_isize;
+                let mut ignore = false;
 
-            for op in children {
-                match &op.op_type {
-                    OpType::IncPtr(value) => {
-                        ptr_offset += *value as isize;
-                    }
-                    OpType::DecPtr(value) => {
-                        ptr_offset -= *value as isize;
-                    }
-                    OpType::DLoop(..) => {
-                        ignore = true;
-                        break;
-                    }
-                    OpType::LLoop(children, offset) |
-                    OpType::ILoop(children, offset, ..) |
-                    OpType::CLoop(children, offset, ..) |
-                    OpType::TNz(children, offset) => {
-                        if !is_ops_block_local(children, &[-ptr_offset - *offset]) {
+                for op in children {
+                    match &op.op_type {
+                        OpType::Start => {
+                            // ignore
+                        }
+                        OpType::IncPtr(value) => {
+                            ptr_offset += *value as isize;
+                        }
+                        OpType::DecPtr(value) => {
+                            ptr_offset -= *value as isize;
+                        }
+                        OpType::DLoop(..) => {
                             ignore = true;
                             break;
                         }
-                    }
-                    OpType::SearchZero(..) => {
-                        ignore = true;
-                        break;
-                    }
-                    OpType::PutChar |
-                    OpType::GetChar |
-                    OpType::Inc(..) |
-                    OpType::Dec(..) |
-                    OpType::Set(..) |
-                    OpType::Add(..) |
-                    OpType::Sub(..) |
-                    OpType::CAdd(..) |
-                    OpType::CSub(..) |
-                    OpType::Move(..) |
-                    OpType::NzAdd(..) |
-                    OpType::NzSub(..) |
-                    OpType::NzCAdd(..) |
-                    OpType::NzCSub(..) |
-                    OpType::Copy(..)
-                    => {
-                        // ignore
+                        OpType::LLoop(children, offset) |
+                        OpType::ILoop(children, offset, ..) |
+                        OpType::CLoop(children, offset, ..) |
+                        OpType::TNz(children, offset) => {
+                            if !is_ops_block_local(children, &[-ptr_offset - *offset]) {
+                                ignore = true;
+                                break;
+                            }
+                        }
+                        OpType::SearchZero(..) => {
+                            ignore = true;
+                            break;
+                        }
+                        OpType::PutChar |
+                        OpType::GetChar |
+                        OpType::Inc(..) |
+                        OpType::Dec(..) |
+                        OpType::Set(..) |
+                        OpType::Add(..) |
+                        OpType::Sub(..) |
+                        OpType::CAdd(..) |
+                        OpType::CSub(..) |
+                        OpType::Move(..) |
+                        OpType::NzAdd(..) |
+                        OpType::NzSub(..) |
+                        OpType::NzCAdd(..) |
+                        OpType::NzCSub(..) |
+                        OpType::Copy(..)
+                        => {
+                            // ignore
+                        }
                     }
                 }
-            }
 
-            !ignore && ptr_offset == 0
+                !ignore && ptr_offset == 0
+            }
         } else {
             false
         };
@@ -248,6 +255,10 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
 
 // Optimize loops that are known to use the same counting variable
 pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
+    if ops.is_empty() {
+        return false;
+    }
+
     let mut progress = false;
 
     for op in ops.iter_mut() {
