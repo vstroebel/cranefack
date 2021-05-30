@@ -896,6 +896,53 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
+pub fn optimize_non_local_static_count_loops(ops: &mut Vec<Op>) -> bool {
+    let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_non_local_static_count_loops(children);
+        }
+    }
+
+    let mut i = 1;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &ops[i];
+
+        let count = match &op.op_type {
+            OpType::ILoop(_, _, step, ..) =>
+                if let CellValue::Value(v) = find_heap_value(&ops, 0, i - 1) {
+                    if *step != 0 && v % step == 0 {
+                        Some(v / step)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            _ => None,
+        };
+
+        if let Some(count) = count {
+            let loop_op = ops.remove(i);
+            let span = loop_op.span;
+
+            if let OpType::ILoop(children, offset, _, access) = loop_op.op_type {
+                ops.insert(i, Op::c_loop(span, children, offset, count, access));
+            } else {
+                unreachable!();
+            }
+
+            i += 1;
+        } else {
+            i += 1;
+        }
+    }
+
+    progress
+}
+
 // Replace loops only containing constant sets with TNz
 pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
     let mut progress = false;

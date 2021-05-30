@@ -100,6 +100,7 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
 
         if config.non_local {
             progress |= optimize_non_local_arithmetics(&mut program.ops);
+            progress |= optimize_non_local_static_count_loops(&mut program.ops);
             progress |= optimize_non_local_dead_stores(&mut program.ops);
 
             if progress {
