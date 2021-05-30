@@ -47,7 +47,7 @@ that can be compiled with rustc:
 ```shell
 cranefack compile -f=rust some_app.bf > some_app.rs
 rustc -O some_app.rs
-./some_source
+./some_app
 ```
 
 ```text
