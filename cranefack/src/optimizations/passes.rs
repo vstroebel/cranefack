@@ -1506,7 +1506,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn find_heap_value(ops: &[Op], cell_offset: isize, start_index: usize) -> CellValue {
+fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> CellValue {
     let mut i = start_index as isize;
 
     while i >= 0 {
@@ -1517,6 +1517,8 @@ fn find_heap_value(ops: &[Op], cell_offset: isize, start_index: usize) -> CellVa
         }
 
         match &op.op_type {
+            OpType::IncPtr(offset) => cell_offset += *offset as isize,
+            OpType::DecPtr(offset) => cell_offset -= *offset as isize,
             OpType::Set(offset, v) => {
                 if *offset == cell_offset {
                     return CellValue::Value(*v);
@@ -1600,11 +1602,13 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-fn find_last_unread_set(ops: &[Op], cell_offset: isize, start_index: usize) -> Option<usize> {
+fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Option<usize> {
     let mut i = start_index as isize;
 
     while i >= 0 {
         match &ops[i as usize].op_type {
+            OpType::IncPtr(offset) => cell_offset += *offset as isize,
+            OpType::DecPtr(offset) => cell_offset -= *offset as isize,
             OpType::Set(offset, _) |
             OpType::Inc(offset, _) |
             OpType::Dec(offset, _) => {
