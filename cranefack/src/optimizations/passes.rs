@@ -1696,6 +1696,87 @@ enum CellValue {
     Value(u8),
 }
 
+pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
+    let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_non_local_dead_stores(children);
+        }
+    }
+
+    let mut i = 1;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &ops[i];
+
+        let remove_index = match &op.op_type {
+            OpType::Set(offset, _) |
+            OpType::Move(_, offset) |
+            OpType::Copy(_, offset) |
+            OpType::Mul(_, offset, _) |
+            OpType::NzMul(_, offset, _)
+            => {
+                find_last_unread_set(&ops, *offset, i - 1)
+            }
+            _ => {
+                None
+            }
+        };
+
+        if let Some(remove_index) = remove_index {
+            ops.remove(remove_index);
+            progress = true;
+            if i > 1 {
+                i -= 1
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    progress
+}
+
+fn find_last_unread_set(ops: &[Op], cell_offset: isize, start_index: usize) -> Option<usize> {
+    let mut i = start_index as isize;
+
+    while i >= 0 {
+        match &ops[i as usize].op_type {
+            OpType::Set(offset, _) |
+            OpType::Inc(offset, _) |
+            OpType::Dec(offset, _) => {
+                if *offset == cell_offset {
+                    return Some(i as usize);
+                }
+            }
+            OpType::NzAdd(src_offset, dest_offset, _) |
+            OpType::NzCAdd(src_offset, dest_offset, _) |
+            OpType::NzSub(src_offset, dest_offset, _) |
+            OpType::NzCSub(src_offset, dest_offset, _) |
+            OpType::NzMul(src_offset, dest_offset, _) |
+            OpType::Copy(src_offset, dest_offset)
+            => {
+                if *src_offset == cell_offset {
+                    break;
+                } else if *dest_offset == cell_offset {
+                    return Some(i as usize);
+                }
+            }
+            OpType::GetChar => {
+                if cell_offset == 0 {
+                    break;
+                }
+            }
+            _ => break,
+        }
+
+        i -= 1
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use crate::optimizations::peephole::run_peephole_pass;
