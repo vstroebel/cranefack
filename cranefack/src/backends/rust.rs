@@ -47,27 +47,25 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::LLoop(children, offset, _) => {
+            OpType::LLoop(children, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "let heap_pointer = rt.pointer;")?;
-                writeln!(out, "let start_heap_pointer = (heap_pointer as isize).wrapping_add({}) as usize;", offset)?;
                 writeln!(out, "while *rt.heap_value() > 0 {{")?;
-                writeln!(out, "rt.pointer = start_heap_pointer;")?;
+                writeln!(out, "rt.pointer = heap_pointer;")?;
                 print_ops(out, children)?;
                 writeln!(out, "}}")?;
                 writeln!(out, "rt.pointer = heap_pointer;")?;
 
                 writeln!(out, "}}")?;
             }
-            OpType::ILoop(children, offset, step, _) => {
+            OpType::ILoop(children, step, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "let heap_pointer = rt.pointer;")?;
-                writeln!(out, "let start_heap_pointer = (heap_pointer as isize).wrapping_add({}) as usize;", offset)?;
                 writeln!(out, "let mut left = *rt.heap_value();")?;
                 writeln!(out, "while left > 0 {{")?;
-                writeln!(out, "rt.pointer = start_heap_pointer;")?;
+                writeln!(out, "rt.pointer = heap_pointer;")?;
                 print_ops(out, children)?;
                 writeln!(out, "left = left.wrapping_sub({});", step)?;
                 writeln!(out, "}}")?;
@@ -76,14 +74,13 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::CLoop(children, offset, iterations, _) => {
+            OpType::CLoop(children, iterations, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "let heap_pointer = rt.pointer;")?;
-                writeln!(out, "let start_heap_pointer = (heap_pointer as isize).wrapping_add({}) as usize;", offset)?;
 
                 writeln!(out, "for _ in 0..{} {{", iterations)?;
-                writeln!(out, "rt.pointer = start_heap_pointer;")?;
+                writeln!(out, "rt.pointer = heap_pointer;")?;
                 print_ops(out, children)?;
                 writeln!(out, "}}")?;
                 writeln!(out, "rt.pointer = heap_pointer;")?;
@@ -91,13 +88,12 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::TNz(children, offset, _) => {
+            OpType::TNz(children, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, "if *rt.heap_value() != 0 {{")?;
                 writeln!(out, "let heap_pointer = self.pointer;")?;
-                writeln!(out, "let start_heap_pointer = (heap_pointer as isize).wrapping_add({}) as usize;", offset)?;
-                writeln!(out, "rt.pointer = start_heap_pointer;")?;
+                writeln!(out, "rt.pointer = heap_pointer;")?;
                 print_ops(out, children)?;
                 writeln!(out, "rt.pointer = heap_pointer;")?;
                 writeln!(out, "*rt.heap_value() = 0;")?;

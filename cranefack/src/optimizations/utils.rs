@@ -62,3 +62,8 @@ impl Change {
         }
     }
 }
+
+pub enum CellValue {
+    Unknown,
+    Value(u8),
+}

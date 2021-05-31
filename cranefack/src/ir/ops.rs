@@ -92,23 +92,23 @@ impl Op {
         }
     }
 
-    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, info: BlockInfo) -> Op {
+    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::LLoop(ops, offset, info),
+            op_type: OpType::LLoop(ops, info),
             span,
         }
     }
 
-    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8, info: BlockInfo) -> Op {
+    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, step: u8, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::ILoop(ops, offset, step, info),
+            op_type: OpType::ILoop(ops, step, info),
             span,
         }
     }
 
-    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8, info: BlockInfo) -> Op {
+    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, iterations: u8, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::CLoop(ops, offset, iterations, info),
+            op_type: OpType::CLoop(ops, iterations, info),
             span,
         }
     }
@@ -204,9 +204,9 @@ impl Op {
         }
     }
 
-    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize, info: BlockInfo) -> Op {
+    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::TNz(ops, offset, info),
+            op_type: OpType::TNz(ops, info),
             span,
         }
     }
@@ -286,18 +286,18 @@ pub enum OpType {
     DLoop(Vec<Op>),
 
     /// Loop using the same iterator cell for each iteration
-    LLoop(Vec<Op>, isize, BlockInfo),
+    LLoop(Vec<Op>, BlockInfo),
 
     /// Loop with an iterator variable and know steps per iteration
-    ILoop(Vec<Op>, isize, u8, BlockInfo),
+    ILoop(Vec<Op>, u8, BlockInfo),
 
     /// Loop with compile time known iteration count
-    CLoop(Vec<Op>, isize, u8, BlockInfo),
+    CLoop(Vec<Op>, u8, BlockInfo),
 
     /// Test if not zero.
     ///
     /// Executes block if current value is not zero. Similar to `if true { ops }`
-    TNz(Vec<Op>, isize, BlockInfo),
+    TNz(Vec<Op>, BlockInfo),
 
     /// Move heap pointer to first cell containing zero based on step
     SearchZero(isize),
@@ -434,17 +434,6 @@ impl OpType {
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
             OpType::TNz(children, ..) => Some(children),
-            _ => None,
-        }
-    }
-
-    pub fn get_children_with_offset_mut(&mut self) -> Option<(isize, &mut Vec<Op>)> {
-        match self {
-            OpType::DLoop(children) => Some((0, children)),
-            OpType::LLoop(children, offset, ..) |
-            OpType::ILoop(children, offset, ..) |
-            OpType::CLoop(children, offset, ..) |
-            OpType::TNz(children, offset, ..) => Some((*offset, children)),
             _ => None,
         }
     }

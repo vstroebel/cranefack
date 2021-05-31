@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::io::{ErrorKind, Read, Write};
 use std::mem;
 use std::process::exit;
@@ -49,10 +48,10 @@ impl<'a> Builder<'a> {
                 OpType::Move(src_offset, dest_offset) => self._move(*src_offset, *dest_offset),
                 OpType::Copy(src_offset, dest_offset) => self.copy(*src_offset, *dest_offset),
                 OpType::DLoop(ops) => self.d_loop(ops),
-                OpType::LLoop(ops, offset, _) => self.l_loop(ops, *offset),
-                OpType::ILoop(ops, offset, step, _) => self.i_loop(ops, *offset, *step),
-                OpType::CLoop(ops, offset, iterations, _) => self.c_loop(ops, *offset, *iterations),
-                OpType::TNz(ops, offset, _) => self.tnz(ops, *offset),
+                OpType::LLoop(ops, _) => self.l_loop(ops),
+                OpType::ILoop(ops, step, _) => self.i_loop(ops, *step),
+                OpType::CLoop(ops, iterations, _) => self.c_loop(ops, *iterations),
+                OpType::TNz(ops, _) => self.tnz(ops),
                 OpType::SearchZero(step) => self.search_zero(*step),
                 OpType::PutChar(offset) => self.put_char(*offset),
                 OpType::GetChar(offset) => self.get_char(*offset),
@@ -62,24 +61,6 @@ impl<'a> Builder<'a> {
 
     fn const_u8(&mut self, value: u8) -> Value {
         self.bcx.ins().iconst(types::I8, value as i64)
-    }
-
-    fn const_isize(&mut self, value: isize) -> Value {
-        self.bcx.ins().iconst(self.pointer_type, value as i64)
-    }
-
-    fn add_offset(&mut self, value: Value, offset: isize) -> Value {
-        match offset.cmp(&0) {
-            Ordering::Equal => value,
-            Ordering::Greater => {
-                let offset = self.const_isize(offset);
-                self.bcx.ins().iadd(value, offset)
-            }
-            Ordering::Less => {
-                let offset = self.const_isize(-offset);
-                self.bcx.ins().isub(value, offset)
-            }
-        }
     }
 
     fn load(&mut self, offset: isize) -> Value {
@@ -248,12 +229,11 @@ impl<'a> Builder<'a> {
         self.set(0, 0);
     }
 
-    fn l_loop(&mut self, ops: &[Op], offset: isize) {
+    fn l_loop(&mut self, ops: &[Op]) {
         let head = self.bcx.create_block();
         self.bcx.append_block_param(head, self.pointer_type);
 
         let body = self.bcx.create_block();
-        self.bcx.append_block_param(body, self.pointer_type);
         self.bcx.append_block_param(body, self.pointer_type);
 
         let next = self.bcx.create_block();
@@ -266,17 +246,16 @@ impl<'a> Builder<'a> {
         self.heap_ptr = self.bcx.block_params(head)[0];
 
         let init_heap_ptr = self.heap_ptr;
-        let loop_heap_ptr = self.add_offset(init_heap_ptr, offset);
 
         let value = self.load(0);
         self.bcx.ins().brz(value, next, &[init_heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[loop_heap_ptr, init_heap_ptr]);
+        self.bcx.ins().fallthrough(body, &[init_heap_ptr]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
-        self.heap_ptr = self.bcx.block_params(body)[0];
+        let heap_ptr = self.bcx.block_params(body)[0];
+        self.heap_ptr = heap_ptr;
         self.append_ops(ops);
-        let heap_ptr = self.bcx.block_params(body)[1];
         self.bcx.ins().jump(head, &[heap_ptr]);
 
         // Start next block after loop
@@ -287,13 +266,12 @@ impl<'a> Builder<'a> {
         self.set(0, 0);
     }
 
-    fn i_loop(&mut self, ops: &[Op], offset: isize, step: u8) {
+    fn i_loop(&mut self, ops: &[Op], step: u8) {
         let head = self.bcx.create_block();
         self.bcx.append_block_param(head, self.pointer_type);
         self.bcx.append_block_param(head, types::I8);
 
         let body = self.bcx.create_block();
-        self.bcx.append_block_param(body, self.pointer_type);
         self.bcx.append_block_param(body, self.pointer_type);
         self.bcx.append_block_param(body, types::I8);
 
@@ -311,21 +289,20 @@ impl<'a> Builder<'a> {
         let counter = self.bcx.block_params(head)[1];
 
         let init_heap_ptr = self.heap_ptr;
-        let loop_heap_ptr = self.add_offset(init_heap_ptr, offset);
 
         self.bcx.ins().brz(counter, next, &[init_heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[loop_heap_ptr, init_heap_ptr, counter]);
+        self.bcx.ins().fallthrough(body, &[init_heap_ptr, counter]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
-        self.heap_ptr = self.bcx.block_params(body)[0];
-        let counter = self.bcx.block_params(body)[2];
+        let heap_ptr = self.bcx.block_params(body)[0];
+        self.heap_ptr = heap_ptr;
+        let counter = self.bcx.block_params(body)[1];
 
         self.append_ops(ops);
 
         let step = self.const_u8(step);
         let counter = self.bcx.ins().isub(counter, step);
-        let heap_ptr = self.bcx.block_params(body)[1];
         self.bcx.ins().jump(head, &[heap_ptr, counter]);
 
         // Start next block after loop
@@ -334,13 +311,12 @@ impl<'a> Builder<'a> {
         self.set(0, 0);
     }
 
-    fn c_loop(&mut self, ops: &[Op], offset: isize, iterations: u8) {
+    fn c_loop(&mut self, ops: &[Op], iterations: u8) {
         let head = self.bcx.create_block();
         self.bcx.append_block_param(head, self.pointer_type);
         self.bcx.append_block_param(head, types::I8);
 
         let body = self.bcx.create_block();
-        self.bcx.append_block_param(body, self.pointer_type);
         self.bcx.append_block_param(body, self.pointer_type);
         self.bcx.append_block_param(body, types::I8);
 
@@ -356,21 +332,20 @@ impl<'a> Builder<'a> {
         let counter = self.bcx.block_params(head)[1];
 
         let init_heap_ptr = self.heap_ptr;
-        let loop_heap_ptr = self.add_offset(init_heap_ptr, offset);
 
         self.bcx.ins().brz(counter, next, &[init_heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[loop_heap_ptr, init_heap_ptr, counter]);
+        self.bcx.ins().fallthrough(body, &[init_heap_ptr, counter]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
-        self.heap_ptr = self.bcx.block_params(body)[0];
-        let counter = self.bcx.block_params(body)[2];
+        let heap_ptr = self.bcx.block_params(body)[0];
+        self.heap_ptr = heap_ptr;
+        let counter = self.bcx.block_params(body)[1];
 
         self.append_ops(ops);
 
         let step = self.const_u8(1);
         let counter = self.bcx.ins().isub(counter, step);
-        let heap_ptr = self.bcx.block_params(body)[1];
         self.bcx.ins().jump(head, &[heap_ptr, counter]);
 
         // Start next block after loop
@@ -379,7 +354,7 @@ impl<'a> Builder<'a> {
         self.set(0, 0);
     }
 
-    fn tnz(&mut self, ops: &[Op], offset: isize) {
+    fn tnz(&mut self, ops: &[Op]) {
         let body = self.bcx.create_block();
         self.bcx.append_block_param(body, self.pointer_type);
 
@@ -395,7 +370,6 @@ impl<'a> Builder<'a> {
         self.heap_ptr = self.bcx.block_params(body)[0];
 
         let init_heap_ptr = self.heap_ptr;
-        self.heap_ptr = self.add_offset(init_heap_ptr, offset);
 
         self.append_ops(ops);
 
@@ -1318,12 +1292,13 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 5),
                 Op::l_loop(1..4, vec![
+                    Op::inc_ptr(1..2, 1),
                     Op::dec_ptr(1..2, 1),
                     Op::dec(1..2, 1),
                     Op::inc_ptr(1..2, 2),
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 1, BlockInfo::new_empty()),
+                ], BlockInfo::new_empty()),
             ]
         };
 
@@ -1343,9 +1318,10 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 5),
                 Op::i_loop(1..4, vec![
+                    Op::inc_ptr(1..2, 2),
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 1, BlockInfo::new_empty()),
+                ], 1, BlockInfo::new_empty()),
             ]
         };
 
@@ -1365,9 +1341,10 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 10),
                 Op::i_loop(1..4, vec![
+                    Op::inc_ptr(1..2, 2),
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 2, BlockInfo::new_empty()),
+                ], 2, BlockInfo::new_empty()),
             ]
         };
 
@@ -1387,9 +1364,9 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 10),
                 Op::c_loop(1..4, vec![
-                    Op::inc(1..2, 1),
-                    Op::inc(1..2, 1),
-                ], 2, 5, BlockInfo::new_empty()),
+                    Op::inc_with_offset(1..2, 2, 1),
+                    Op::inc_with_offset(1..2, 2, 1),
+                ], 5, BlockInfo::new_empty()),
             ]
         };
 
@@ -1409,8 +1386,8 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 1),
                 Op::t_nz(1..4, vec![
-                    Op::set(1..2, 10),
-                ], 2, BlockInfo::new_empty()),
+                    Op::set_with_offset(1..2, 2, 10),
+                ], BlockInfo::new_empty()),
             ]
         };
 
@@ -1429,8 +1406,8 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::t_nz(1..4, vec![
-                    Op::set(1..2, 10),
-                ], 2, BlockInfo::new_empty()),
+                    Op::set_with_offset(1..2, 2, 10),
+                ], BlockInfo::new_empty()),
             ]
         };
 

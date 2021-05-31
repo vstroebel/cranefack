@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 
 use crate::ir::ops::{Op, OpType};
-use crate::ir::opt_info::{Cell, CellAccess, BlockInfo};
+use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
-use crate::optimizations::utils::Change;
+use crate::optimizations::utils::{CellValue, Change};
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
     run_peephole_pass(ops, remove_dead_loops_check)
@@ -53,7 +53,7 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 }
 
 pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
-    if let OpType::ILoop(children, loop_offset, step, _) = &ops[0].op_type {
+    if let OpType::ILoop(children, step, _) = &ops[0].op_type {
         if *step == 1 {
             let mut replacement_indices = vec![];
             let mut replacements = vec![];
@@ -65,7 +65,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                             return Change::Ignore;
                         } else {
                             replacement_indices.push(*offset);
-                            replacements.push(OpType::NzAdd(0, loop_offset + *offset as isize, *multi));
+                            replacements.push(OpType::NzAdd(0, *offset as isize, *multi));
                         }
                     }
                     OpType::Dec(offset, multi) => {
@@ -73,7 +73,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                             return Change::Ignore;
                         } else {
                             replacement_indices.push(*offset);
-                            replacements.push(OpType::NzSub(0, loop_offset + *offset as isize, *multi));
+                            replacements.push(OpType::NzSub(0, *offset as isize, *multi));
                         }
                     }
                     _ => {
@@ -139,11 +139,11 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                             ignore = true;
                             break;
                         }
-                        OpType::LLoop(children, offset, ..) |
-                        OpType::ILoop(children, offset, ..) |
-                        OpType::CLoop(children, offset, ..) |
-                        OpType::TNz(children, offset, ..) => {
-                            if !is_ops_block_local(children, &[-ptr_offset - *offset]) {
+                        OpType::LLoop(children, ..) |
+                        OpType::ILoop(children, ..) |
+                        OpType::CLoop(children, ..) |
+                        OpType::TNz(children, ..) => {
+                            if !is_ops_block_local(children, &[-ptr_offset]) {
                                 ignore = true;
                                 break;
                             }
@@ -190,18 +190,9 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                     children.remove(children.len() - 1);
                 }
 
-                let offset = if children.is_empty() {
-                    0
-                } else if let Some(offset) = children[0].op_type.get_ptr_offset() {
-                    children.remove(0);
-                    offset
-                } else {
-                    0
-                };
+                let access = get_loop_access(&children, 0);
 
-                let access = get_loop_access(&children, offset);
-
-                ops.insert(i, Op::l_loop(span, children, offset, BlockInfo::new_access(access)));
+                ops.insert(i, Op::l_loop(span, children, BlockInfo::new_access(access)));
 
                 progress = true;
             } else {
@@ -245,10 +236,10 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
                 CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
                 CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
             }
-            OpType::LLoop(_, _, info) |
-            OpType::ILoop(_, _, _, info) |
-            OpType::CLoop(_, _, _, info) |
-            OpType::TNz(_, _, info)
+            OpType::LLoop(_, info) |
+            OpType::ILoop(_, _, info) |
+            OpType::CLoop(_, _, info) |
+            OpType::TNz(_, info)
             => {
                 for cell in info.cell_access() {
                     CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
@@ -284,15 +275,13 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::DecPtr(value) => {
                 ptr_offset -= *value as isize;
             }
-            OpType::LLoop(children, offset, ..) |
-            OpType::ILoop(children, offset, ..) |
-            OpType::CLoop(children, offset, ..) |
-            OpType::TNz(children, offset, ..) => {
-                let mut offsets = parent_offsets.iter().map(|o| {
-                    o - *offset
-                }).collect::<Vec<_>>();
+            OpType::LLoop(children, ..) |
+            OpType::ILoop(children, ..) |
+            OpType::CLoop(children, ..) |
+            OpType::TNz(children, ..) => {
+                let mut offsets = parent_offsets.to_vec();
 
-                offsets.push(-ptr_offset - *offset);
+                offsets.push(-ptr_offset);
 
                 if !is_ops_block_local(children, &offsets) {
                     return false;
@@ -345,8 +334,8 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
     let mut i = 0;
 
     while !ops.is_empty() && !ops.is_empty() && i < ops.len() {
-        let replace = if let OpType::LLoop(children, outer_offset, _) = &mut ops[i].op_type {
-            let mut ptr_offset = *outer_offset;
+        let replace = if let OpType::LLoop(children, _) = &mut ops[i].op_type {
+            let mut ptr_offset = 0;
             let mut ignore = false;
             let mut counter_decrements = vec![];
 
@@ -364,11 +353,14 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ptr_offset -= *value as isize;
                         }
                         OpType::Add(src_offset, dest_offset, _) |
+                        OpType::NzAdd(src_offset, dest_offset, _) |
                         OpType::Sub(src_offset, dest_offset, _) |
+                        OpType::NzSub(src_offset, dest_offset, _) |
                         OpType::CAdd(src_offset, dest_offset, _) |
                         OpType::CSub(src_offset, dest_offset, _) |
                         OpType::Mul(src_offset, dest_offset, _) |
-                        OpType::Move(src_offset, dest_offset)
+                        OpType::Move(src_offset, dest_offset) |
+                        OpType::Copy(src_offset, dest_offset)
                         => {
                             if ptr_offset + src_offset == 0 {
                                 ignore = true;
@@ -380,12 +372,9 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                                 break;
                             }
                         }
-                        OpType::NzAdd(_, dest_offset, _) |
-                        OpType::NzSub(_, dest_offset, _) |
                         OpType::NzCAdd(_, dest_offset, _) |
                         OpType::NzCSub(_, dest_offset, _) |
-                        OpType::NzMul(_, dest_offset, _) |
-                        OpType::Copy(_, dest_offset)
+                        OpType::NzMul(_, dest_offset, _)
                         => {
                             if ptr_offset + dest_offset == 0 {
                                 ignore = true;
@@ -417,15 +406,15 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ignore = true;
                             break;
                         }
-                        OpType::ILoop(children, offset, ..) |
-                        OpType::CLoop(children, offset, ..) |
-                        OpType::TNz(children, offset, ..) => {
+                        OpType::ILoop(children, ..) |
+                        OpType::CLoop(children, ..) |
+                        OpType::TNz(children, ..) => {
                             if ptr_offset == 0 {
                                 ignore = true;
                                 break;
                             }
 
-                            if !is_ops_block_unmodified_local(children, &[-ptr_offset - *offset]) {
+                            if !is_ops_block_unmodified_local(children, &[-ptr_offset]) {
                                 ignore = true;
                                 break;
                             }
@@ -455,7 +444,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             let prev = ops.remove(i);
             let span = prev.span;
 
-            if let OpType::LLoop(mut children, loop_offset, modifies) = prev.op_type {
+            if let OpType::LLoop(mut children, info) = prev.op_type {
                 let mut step = 0;
 
                 for (index, amount) in counter_decrements.iter().rev() {
@@ -467,14 +456,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                     children.remove(children.len() - 1);
                 }
 
-                let offset = if let Some(offset) = children[0].op_type.get_ptr_offset() {
-                    children.remove(0);
-                    offset
-                } else {
-                    0
-                };
-
-                ops.insert(i, Op::i_loop(span, children, loop_offset + offset, step, modifies));
+                ops.insert(i, Op::i_loop(span, children, step, info));
 
                 progress = true;
             } else {
@@ -547,14 +529,12 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                     }
                 }
             }
-            OpType::ILoop(children, offset, ..) |
-            OpType::CLoop(children, offset, ..) |
-            OpType::TNz(children, offset, ..) => {
-                let mut offsets = parent_offsets.iter().map(|o| {
-                    o - *offset
-                }).collect::<Vec<_>>();
+            OpType::ILoop(children, ..) |
+            OpType::CLoop(children, ..) |
+            OpType::TNz(children, ..) => {
+                let mut offsets = parent_offsets.to_vec();
 
-                offsets.push(-ptr_offset - *offset);
+                offsets.push(-ptr_offset);
 
                 if !is_ops_block_unmodified_local(children, &offsets) {
                     return false;
@@ -855,7 +835,7 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
         let op2 = &ops[i + 1];
 
         let count = match (&op1.op_type, &op2.op_type) {
-            (OpType::Set(0, v), OpType::ILoop(_, _, step, ..)) =>
+            (OpType::Set(0, v), OpType::ILoop(_, step, ..)) =>
                 if *step != 0 && v % step == 0 {
                     Some(v / step)
                 } else {
@@ -873,8 +853,8 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
                 let loop_op = ops.remove(i);
                 let span = prev.span.start..loop_op.span.end;
 
-                if let OpType::ILoop(children, offset, _, access) = loop_op.op_type {
-                    ops.insert(i, Op::c_loop(span, children, offset, count, access));
+                if let OpType::ILoop(children, _, access) = loop_op.op_type {
+                    ops.insert(i, Op::c_loop(span, children, count, access));
                 } else {
                     unreachable!();
                 }
@@ -913,7 +893,7 @@ pub fn optimize_non_local_static_count_loops(ops: &mut Vec<Op>) -> bool {
         let op = &ops[i];
 
         let count = match &op.op_type {
-            OpType::ILoop(_, _, step, ..) =>
+            OpType::ILoop(_, step, ..) =>
                 if let CellValue::Value(v) = find_heap_value(&ops, 0, i - 1) {
                     if *step != 0 && v % step == 0 {
                         Some(v / step)
@@ -930,8 +910,8 @@ pub fn optimize_non_local_static_count_loops(ops: &mut Vec<Op>) -> bool {
             let loop_op = ops.remove(i);
             let span = loop_op.span;
 
-            if let OpType::ILoop(children, offset, _, access) = loop_op.op_type {
-                ops.insert(i, Op::c_loop(span, children, offset, count, access));
+            if let OpType::ILoop(children, _, access) = loop_op.op_type {
+                ops.insert(i, Op::c_loop(span, children, count, access));
             } else {
                 unreachable!();
             }
@@ -964,9 +944,9 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) =>
                 contains_only_constant_sets(children),
-            OpType::LLoop(children, offset, _) => {
+            OpType::LLoop(children, _) => {
                 !children.is_empty()
-                    && is_zero_end_offset(children, *offset)
+                    && is_zero_end_offset(children, 0)
                     && children[children.len() - 1].op_type.is_zeroing(0)
             }
             _ => false,
@@ -978,10 +958,10 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
             let span = prev.span;
 
             match prev.op_type {
-                OpType::LLoop(children, offset, access) |
-                OpType::ILoop(children, offset, _, access) |
-                OpType::CLoop(children, offset, _, access) => {
-                    ops.insert(i, Op::t_nz(span, children, offset, access));
+                OpType::LLoop(children, info) |
+                OpType::ILoop(children, _, info) |
+                OpType::CLoop(children, _, info) => {
+                    ops.insert(i, Op::t_nz(span, children, info));
                 }
                 _ => unreachable!(),
             }
@@ -1102,15 +1082,16 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
             let span = prev.span;
 
             match prev.op_type {
-                OpType::CLoop(children, offset, iterations, _) => {
-                    let mut ptr_offset = offset;
+                OpType::CLoop(children, iterations, _) => {
+                    let mut ptr_offset = 0;
 
                     let mut pos = i;
 
+                    #[allow(clippy::comparison_chain)]
                     if ptr_offset > 0 {
                         ops.insert(pos, Op::inc_ptr(span.start..span.start + 1, ptr_offset as usize));
                         pos += 1;
-                    } else if offset < 0 {
+                    } else if ptr_offset < 0 {
                         ops.insert(pos, Op::dec_ptr(span.start..span.start + 1, -ptr_offset as usize));
                         pos += 1;
                     }
@@ -1131,9 +1112,10 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
                         pos += 1;
                     }
 
+                    #[allow(clippy::comparison_chain)]
                     if ptr_offset > 0 {
                         ops.insert(pos, Op::dec_ptr(span.end - 1..span.end, ptr_offset as usize));
-                    } else if offset < 0 {
+                    } else if ptr_offset < 0 {
                         ops.insert(pos, Op::inc_ptr(span.end - 1..span.end, -ptr_offset as usize));
                     }
                 }
@@ -1279,8 +1261,8 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
     }
 
     for op in ops {
-        if let Some((offset, children)) = op.op_type.get_children_with_offset_mut() {
-            progress |= optimize_offsets(children, offset);
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_offsets(children, 0);
         }
     }
 
@@ -1674,9 +1656,9 @@ fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Ce
             OpType::PutChar(..) => {
                 // Ignore
             }
-            OpType::LLoop(_, _, info) |
-            OpType::ILoop(_, _, _, info) |
-            OpType::TNz(_, _, info)
+            OpType::LLoop(_, info) |
+            OpType::ILoop(_, _, info) |
+            OpType::TNz(_, info)
             => {
                 if let Some(value) = info.get_access_value(cell_offset) {
                     match value {
@@ -1697,7 +1679,7 @@ fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Ce
                     }
                 }
             }
-            OpType::CLoop(_, _, count, info)
+            OpType::CLoop(_, count, info)
             => {
                 if *count > 0 {
                     if let Some(value) = info.get_access_value(cell_offset) {
@@ -1718,11 +1700,6 @@ fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Ce
     }
 
     CellValue::Unknown
-}
-
-enum CellValue {
-    Unknown,
-    Value(u8),
 }
 
 pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
@@ -1856,10 +1833,10 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                     break;
                 }
             }
-            OpType::LLoop(_, _, info) |
-            OpType::ILoop(_, _, _, info) |
-            OpType::CLoop(_, _, _, info) |
-            OpType::TNz(_, _, info)
+            OpType::LLoop(_, info) |
+            OpType::ILoop(_, _, info) |
+            OpType::CLoop(_, _, info) |
+            OpType::TNz(_, info)
             => {
                 if cell_offset == 0 || info.was_cell_accessed(cell_offset) {
                     break;
@@ -1883,12 +1860,12 @@ pub fn update_loop_access(ops: &mut Vec<Op>) {
 
     for op in ops {
         match &mut op.op_type {
-            OpType::LLoop(children, offset, info) |
-            OpType::ILoop(children, offset, _, info) |
-            OpType::CLoop(children, offset, _, info) |
-            OpType::TNz(children, offset, info)
+            OpType::LLoop(children, info) |
+            OpType::ILoop(children, _, info) |
+            OpType::CLoop(children, _, info) |
+            OpType::TNz(children, info)
             => {
-                info.set_cell_access(get_loop_access(children, *offset));
+                info.set_cell_access(get_loop_access(children, 0));
             }
             _ => {
                 // Ignore
@@ -2071,14 +2048,14 @@ mod tests {
     #[test]
     fn test_optimize_inc_dec_zeroing_inc() {
         let mut ops = vec![
-            Op::c_loop(0..2, vec![], 1, 1, BlockInfo::new_empty()),
+            Op::c_loop(0..2, vec![], 1, BlockInfo::new_empty()),
             Op::inc(2..3, 3),
         ];
 
         run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
-            Op::c_loop(0..2, vec![], 1, 1, BlockInfo::new_empty()),
+            Op::c_loop(0..2, vec![], 1, BlockInfo::new_empty()),
             Op::set(2..3, 3),
         ])
     }
@@ -2121,6 +2098,7 @@ mod tests {
         ];
 
         optimize_local_loops(&mut ops);
+        optimize_offsets(&mut ops, 1);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
@@ -2141,6 +2119,7 @@ mod tests {
         ];
 
         optimize_local_loops(&mut ops);
+        optimize_offsets(&mut ops, 1);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
@@ -2161,6 +2140,7 @@ mod tests {
         ];
 
         optimize_local_loops(&mut ops);
+        optimize_offsets(&mut ops, 1);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
@@ -2182,6 +2162,7 @@ mod tests {
         ];
 
         optimize_local_loops(&mut ops);
+        optimize_offsets(&mut ops, 1);
         optimize_count_loops(&mut ops);
         run_peephole_pass(&mut ops, optimize_arithmetic_loops);
 
@@ -2210,7 +2191,7 @@ mod tests {
                 Op::dec(1..2, 1),
                 Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], 0, BlockInfo::new_access(vec![CellAccess::new_write(1)]))
+            ], BlockInfo::new_access(vec![CellAccess::new_write(1)]))
         ])
     }
 
@@ -2232,8 +2213,9 @@ mod tests {
         assert_eq!(ops, vec![
             Op::set(0..1, 6),
             Op::i_loop(0..1, vec![
+                Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], 1, 1, BlockInfo::new_access(vec![CellAccess::new_write(1)]))
+            ], 1, BlockInfo::new_access(vec![CellAccess::new_write(1)]))
         ])
     }
 
@@ -2255,8 +2237,9 @@ mod tests {
         assert_eq!(ops, vec![
             Op::set(0..1, 6),
             Op::i_loop(0..1, vec![
+                Op::dec_ptr(1..2, 1),
                 Op::dec(2..3, 3),
-            ], -1, 2, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
+            ], 2, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
         ])
     }
 
@@ -2273,13 +2256,14 @@ mod tests {
         ];
 
         optimize_local_loops(&mut ops);
+        optimize_offsets(&mut ops, 1);
         optimize_count_loops(&mut ops);
         optimize_static_count_loops(&mut ops);
 
         assert_eq!(ops, vec![
             Op::c_loop(0..1, vec![
-                Op::dec(2..3, 3),
-            ], -1, 3, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
+                Op::dec_with_offset(2..3, -1, 3),
+            ], 3, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
         ])
     }
 
@@ -2307,7 +2291,7 @@ mod tests {
         let mut ops = vec![
             Op::i_loop(0..2, vec![
                 Op::set(1..2, 1),
-            ], 1, 1, BlockInfo::new_empty())
+            ], 1, BlockInfo::new_empty())
         ];
 
         optimize_conditional_loops(&mut ops);
@@ -2315,7 +2299,7 @@ mod tests {
         assert_eq!(ops, vec![
             Op::t_nz(0..2, vec![
                 Op::set(1..2, 1),
-            ], 1, BlockInfo::new_empty())
+            ], BlockInfo::new_empty())
         ])
     }
 
@@ -2417,8 +2401,9 @@ mod tests {
     fn test_optimize_constant_arithmetic_loop() {
         let mut ops = vec![
             Op::c_loop(0..3, vec![
+                Op::inc_ptr(0..1, 2),
                 Op::inc(1..2, 3)
-            ], 2, 5, BlockInfo::new_empty())
+            ], 5, BlockInfo::new_empty())
         ];
 
         optimize_constant_arithmetic_loop(&mut ops);
@@ -2504,7 +2489,7 @@ mod tests {
             Op::i_loop(0..3, vec![
                 Op::c_add(1..2, -1, 72),
                 Op::dec_ptr(2..3, 1),
-            ], 1, 5, BlockInfo::new_empty()),
+            ], 5, BlockInfo::new_empty()),
             Op::inc_ptr(3..4, 1),
         ];
 
@@ -2513,7 +2498,7 @@ mod tests {
         assert_eq!(ops, vec![
             Op::i_loop(0..3, vec![
                 Op::c_add(1..2, -1, 72),
-            ], 1, 5, BlockInfo::new_empty()),
+            ], 5, BlockInfo::new_empty()),
         ])
     }
 

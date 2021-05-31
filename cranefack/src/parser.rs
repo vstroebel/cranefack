@@ -145,20 +145,20 @@ impl Program {
                     writeln!(output, "DLOOP")?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::LLoop(children, offset, access) => {
-                    writeln!(output, "LLOOP offset: {} access: {:?}", offset, access)?;
+                OpType::LLoop(children, info) => {
+                    writeln!(output, "LLOOP info: {:?}", info)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::ILoop(children, offset, step, access) => {
-                    writeln!(output, "ILOOP offset: {} step: {} access: {:?}", offset, step, access)?;
+                OpType::ILoop(children, step, info) => {
+                    writeln!(output, "ILOOP step: {} info: {:?}", step, info)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::CLoop(children, offset, iterations, access) => {
-                    writeln!(output, "CLOOP offset: {} iterations: {} modifies: {:?}", offset, iterations, access)?;
+                OpType::CLoop(children, iterations, info) => {
+                    writeln!(output, "CLOOP iterations: {} info: {:?}", iterations, info)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
-                OpType::TNz(children, offset, access) => {
-                    writeln!(output, "TNZ offset: {}  modifies: {:?}", offset, access)?;
+                OpType::TNz(children, info) => {
+                    writeln!(output, "TNZ info: {:?}", info)?;
                     self.dump_ops(output, children, indent + 1)?;
                 }
                 OpType::SearchZero(step) => writeln!(output, "S_ZERO {} ", step)?,

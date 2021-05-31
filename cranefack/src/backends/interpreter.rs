@@ -127,49 +127,40 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     self.execute_ops(ops)?;
                 }
             }
-            OpType::LLoop(ops, offset, _) => {
+            OpType::LLoop(ops, _) => {
                 let heap_pointer = self.pointer;
-                let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
                 while *self.heap_value(&op.span)? > 0 {
-                    self.pointer = start_heap_pointer;
                     self.execute_ops(ops)?;
                     self.pointer = heap_pointer;
                 }
             }
-            OpType::ILoop(ops, offset, step, _) => {
+            OpType::ILoop(ops, step, _) => {
                 let heap_pointer = self.pointer;
-                let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
                 let mut left = *self.heap_value(&op.span)?;
                 while left > 0 {
-                    self.pointer = start_heap_pointer;
-
                     self.execute_ops(ops)?;
                     left = left.wrapping_sub(*step);
+                    self.pointer = heap_pointer;
                 }
 
-                self.pointer = heap_pointer;
                 *self.heap_value(&op.span)? = 0;
             }
-            OpType::CLoop(ops, offset, iterations, _) => {
+            OpType::CLoop(ops, iterations, _) => {
                 let heap_pointer = self.pointer;
-                let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
                 for _ in 0..*iterations {
-                    self.pointer = start_heap_pointer;
                     self.execute_ops(ops)?;
+                    self.pointer = heap_pointer;
                 }
 
-                self.pointer = heap_pointer;
                 *self.heap_value(&op.span)? = 0;
             }
-            OpType::TNz(ops, offset, _) => {
+            OpType::TNz(ops,  _) => {
                 if *self.heap_value(&op.span)? != 0 {
                     let heap_pointer = self.pointer;
-                    let start_heap_pointer = (heap_pointer as isize).wrapping_add(*offset) as usize;
 
-                    self.pointer = start_heap_pointer;
                     self.execute_ops(ops)?;
 
                     self.pointer = heap_pointer;
