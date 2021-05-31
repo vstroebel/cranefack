@@ -329,9 +329,9 @@ impl OpType {
     /// Test for arithmetic ops without offsets
     pub fn is_simple_arithmetic(&self) -> bool {
         matches!(self,
-            OpType::Set(0, _) |
-            OpType::Inc(0, _) |
-            OpType::Dec(0, _) |
+            OpType::Set(_, _) |
+            OpType::Inc(_, _) |
+            OpType::Dec(_, _) |
             OpType::IncPtr(_) |
             OpType::DecPtr(_)
         )

@@ -1099,7 +1099,7 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
                     for mut child in children {
                         match &mut child.op_type {
                             OpType::Inc(_, v) |
-                            OpType::Dec(_, v) => *v *= iterations,
+                            OpType::Dec(_, v) => *v = v.wrapping_mul(iterations),
                             OpType::IncPtr(v) => ptr_offset += *v as isize,
                             OpType::DecPtr(v) => ptr_offset -= *v as isize,
                             _ => {
