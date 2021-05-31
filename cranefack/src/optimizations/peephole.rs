@@ -1,7 +1,7 @@
 use std::mem::MaybeUninit;
 
 use crate::optimizations::utils::Change;
-use crate::parser::Op;
+use crate::ir::ops::Op;
 
 pub fn run_peephole_pass<F, const WINDOW: usize>(mut ops: &mut Vec<Op>, func: F) -> bool
     where F: Fn([&Op; WINDOW]) -> Change + Copy

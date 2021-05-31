@@ -54,6 +54,7 @@ mod errors;
 mod optimizations;
 mod backends;
 mod analyzer;
+mod ir;
 
 pub use backends::interpreter::Interpreter;
 pub use backends::cranelift::CompiledJitModule;

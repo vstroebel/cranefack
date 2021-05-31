@@ -1,7 +1,8 @@
+use std::error::Error;
 use std::fmt::Write;
 
-use crate::parser::{Program, Op, OpType};
-use std::error::Error;
+use crate::ir::ops::{Op, OpType};
+use crate::parser::Program;
 
 /// Compile program into a rust file that can be compiled with rustc
 pub fn compile_to_rust(program: &Program) -> String {

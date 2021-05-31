@@ -1,17 +1,19 @@
-use crate::parser::{Program, Op, OpType};
+use std::cmp::Ordering;
+use std::io::{ErrorKind, Read, Write};
+use std::mem;
+use std::process::exit;
 
 use cranelift::prelude::*;
 use cranelift_codegen::binemit::{NullStackMapSink, NullTrapSink};
+use cranelift_codegen::ir::FuncRef;
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{default_libcall_names, Linkage, Module, FuncId};
-use std::mem;
-use std::io::{Read, Write, ErrorKind};
-use cranelift_codegen::ir::FuncRef;
-use std::cmp::Ordering;
+use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
+
 use crate::errors::CompilerError;
-use std::process::exit;
+use crate::ir::ops::{Op, OpType};
 use crate::OptimizeConfig;
+use crate::parser::Program;
 
 struct Builder<'a> {
     pointer_type: Type,
@@ -652,9 +654,12 @@ impl Drop for CompiledJitModule {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse, optimize, OptimizeConfig};
-    use std::io::{Cursor, Write, Read};
-    use crate::parser::{Program, Op};
+    use std::io::{Cursor, Read, Write};
+
+    use crate::{optimize, OptimizeConfig, parse};
+    use crate::ir::ops::Op;
+    use crate::parser::Program;
+
     use super::CompiledJitModule;
 
     fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {

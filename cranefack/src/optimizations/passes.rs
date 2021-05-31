@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
 
+use crate::ir::ops::{Op, OpType};
+use crate::ir::opt_info::{Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
 use crate::optimizations::utils::Change;
-use crate::parser::{Op, OpType, CellAccess, Cell};
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
     run_peephole_pass(ops, remove_dead_loops_check)
@@ -1898,8 +1899,8 @@ pub fn update_loop_access(ops: &mut Vec<Op>) {
 
 #[cfg(test)]
 mod tests {
+    use crate::ir::ops::Op;
     use crate::optimizations::peephole::run_peephole_pass;
-    use crate::parser::Op;
 
     use super::*;
 

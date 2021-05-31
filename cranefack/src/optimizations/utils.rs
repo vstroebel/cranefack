@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::parser::{OpType, Op};
+use crate::ir::ops::{Op, OpType};
 
 #[derive(Debug)]
 pub enum Change {

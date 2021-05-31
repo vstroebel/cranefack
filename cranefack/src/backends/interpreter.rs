@@ -1,9 +1,10 @@
-use std::io::{Read, ErrorKind};
+use std::io::{ErrorKind, Read};
 use std::io::Write;
+use std::ops::Range;
 
 use crate::errors::RuntimeError;
-use crate::parser::{Op, Program, OpType};
-use std::ops::Range;
+use crate::ir::ops::{Op, OpType};
+use crate::parser::Program;
 
 const MAX_HEAP_SIZE: usize = 16 * 1024 * 1024;
 
@@ -284,8 +285,8 @@ mod tests {
     use std::io::Cursor;
 
     use crate::backends::interpreter::Interpreter;
-    use crate::parser::parse;
     use crate::optimizations::optimize;
+    use crate::parser::parse;
 
     #[test]
     fn test_out_1() {

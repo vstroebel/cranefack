@@ -1,9 +1,12 @@
-use crate::parser::{Program, Op, OpType};
-use std::ops::Range;
-use codespan_reporting::files::SimpleFiles;
 use std::error::Error;
-use codespan_reporting::diagnostic::{Label, Diagnostic};
-use codespan_reporting::term::termcolor::{StandardStream, ColorChoice};
+use std::ops::Range;
+
+use codespan_reporting::diagnostic::{Diagnostic, Label};
+use codespan_reporting::files::SimpleFiles;
+use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
+
+use crate::ir::ops::{Op, OpType};
+use crate::parser::Program;
 
 /// WarningType found in a call to [analyze]
 #[derive(Debug, Clone, PartialEq)]
@@ -89,7 +92,7 @@ fn check_infinite_loop(warnings: &mut Vec<Warning>, op1: &Op, op2: &Op) {
 
 #[cfg(test)]
 mod test {
-    use crate::{parse, optimize};
+    use crate::{optimize, parse};
     use crate::analyzer::{analyze, Warning};
 
     #[test]

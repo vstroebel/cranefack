@@ -1,11 +1,12 @@
-use crate::parser::{Program, Op, OpType};
+use passes::*;
+
+use crate::ir::ops::{Op, OpType};
+use crate::optimizations::peephole::run_peephole_pass;
+use crate::parser::Program;
 
 mod passes;
 mod peephole;
 mod utils;
-
-use passes::*;
-use crate::optimizations::peephole::run_peephole_pass;
 
 /// Configuration to control optimization of the program
 pub struct OptimizeConfig {
