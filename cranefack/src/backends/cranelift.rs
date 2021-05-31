@@ -661,6 +661,7 @@ mod tests {
     use crate::parser::Program;
 
     use super::CompiledJitModule;
+    use crate::ir::opt_info::BlockInfo;
 
     fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {
         CompiledJitModule::new(program, &OptimizeConfig::o2()).unwrap().execute(input, output)
@@ -1322,7 +1323,7 @@ mod tests {
                     Op::inc_ptr(1..2, 2),
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 1, vec![]),
+                ], 1, BlockInfo::new_empty()),
             ]
         };
 
@@ -1344,7 +1345,7 @@ mod tests {
                 Op::i_loop(1..4, vec![
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 1, vec![]),
+                ], 2, 1, BlockInfo::new_empty()),
             ]
         };
 
@@ -1366,7 +1367,7 @@ mod tests {
                 Op::i_loop(1..4, vec![
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 2, vec![]),
+                ], 2, 2, BlockInfo::new_empty()),
             ]
         };
 
@@ -1388,7 +1389,7 @@ mod tests {
                 Op::c_loop(1..4, vec![
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
-                ], 2, 5, vec![]),
+                ], 2, 5, BlockInfo::new_empty()),
             ]
         };
 
@@ -1409,7 +1410,7 @@ mod tests {
                 Op::set(0..1, 1),
                 Op::t_nz(1..4, vec![
                     Op::set(1..2, 10),
-                ], 2, vec![]),
+                ], 2, BlockInfo::new_empty()),
             ]
         };
 
@@ -1429,7 +1430,7 @@ mod tests {
             ops: vec![
                 Op::t_nz(1..4, vec![
                     Op::set(1..2, 10),
-                ], 2, vec![]),
+                ], 2, BlockInfo::new_empty()),
             ]
         };
 

@@ -1,6 +1,5 @@
-
 use std::ops::Range;
-use crate::ir::opt_info::CellAccess;
+use crate::ir::opt_info::BlockInfo;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Op {
@@ -93,23 +92,23 @@ impl Op {
         }
     }
 
-    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<CellAccess>) -> Op {
+    pub fn l_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::LLoop(ops, offset, modified),
+            op_type: OpType::LLoop(ops, offset, info),
             span,
         }
     }
 
-    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8, modified: Vec<CellAccess>) -> Op {
+    pub fn i_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, step: u8, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::ILoop(ops, offset, step, modified),
+            op_type: OpType::ILoop(ops, offset, step, info),
             span,
         }
     }
 
-    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8, modified: Vec<CellAccess>) -> Op {
+    pub fn c_loop(span: Range<usize>, ops: Vec<Op>, offset: isize, iterations: u8, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::CLoop(ops, offset, iterations, modified),
+            op_type: OpType::CLoop(ops, offset, iterations, info),
             span,
         }
     }
@@ -205,9 +204,9 @@ impl Op {
         }
     }
 
-    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize, modified: Vec<CellAccess>) -> Op {
+    pub fn t_nz(span: Range<usize>, ops: Vec<Op>, offset: isize, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::TNz(ops, offset, modified),
+            op_type: OpType::TNz(ops, offset, info),
             span,
         }
     }
@@ -287,18 +286,18 @@ pub enum OpType {
     DLoop(Vec<Op>),
 
     /// Loop using the same iterator cell for each iteration
-    LLoop(Vec<Op>, isize, Vec<CellAccess>),
+    LLoop(Vec<Op>, isize, BlockInfo),
 
     /// Loop with an iterator variable and know steps per iteration
-    ILoop(Vec<Op>, isize, u8, Vec<CellAccess>),
+    ILoop(Vec<Op>, isize, u8, BlockInfo),
 
     /// Loop with compile time known iteration count
-    CLoop(Vec<Op>, isize, u8, Vec<CellAccess>),
+    CLoop(Vec<Op>, isize, u8, BlockInfo),
 
     /// Test if not zero.
     ///
     /// Executes block if current value is not zero. Similar to `if true { ops }`
-    TNz(Vec<Op>, isize, Vec<CellAccess>),
+    TNz(Vec<Op>, isize, BlockInfo),
 
     /// Move heap pointer to first cell containing zero based on step
     SearchZero(isize),

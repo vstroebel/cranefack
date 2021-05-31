@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::ir::ops::{Op, OpType};
-use crate::ir::opt_info::{Cell, CellAccess};
+use crate::ir::opt_info::{Cell, CellAccess, BlockInfo};
 use crate::optimizations::peephole::run_peephole_pass;
 use crate::optimizations::utils::Change;
 
@@ -201,7 +201,7 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
 
                 let access = get_loop_access(&children, offset);
 
-                ops.insert(i, Op::l_loop(span, children, offset, access));
+                ops.insert(i, Op::l_loop(span, children, offset, BlockInfo::new_access(access)));
 
                 progress = true;
             } else {
@@ -245,12 +245,12 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
                 CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
                 CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
             }
-            OpType::LLoop(_, _, loop_modifications) |
-            OpType::ILoop(_, _, _, loop_modifications) |
-            OpType::CLoop(_, _, _, loop_modifications) |
-            OpType::TNz(_, _, loop_modifications)
+            OpType::LLoop(_, _, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::CLoop(_, _, _, info) |
+            OpType::TNz(_, _, info)
             => {
-                for cell in loop_modifications {
+                for cell in info.cell_access() {
                     CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
                 }
                 CellAccess::add(&mut access, start_offset, Cell::Value(0));
@@ -1674,11 +1674,11 @@ fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Ce
             OpType::PutChar(..) => {
                 // Ignore
             }
-            OpType::LLoop(_, _, access) |
-            OpType::ILoop(_, _, _, access) |
-            OpType::TNz(_, _, access)
+            OpType::LLoop(_, _, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::TNz(_, _, info)
             => {
-                if let Some(value) = CellAccess::get_value(access, cell_offset) {
+                if let Some(value) = info.get_access_value(cell_offset) {
                     match value {
                         Cell::Write => return CellValue::Unknown,
                         Cell::Value(v) => {
@@ -1697,10 +1697,10 @@ fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Ce
                     }
                 }
             }
-            OpType::CLoop(_, _, count, access)
+            OpType::CLoop(_, _, count, info)
             => {
                 if *count > 0 {
-                    if let Some(value) = CellAccess::get_value(access, cell_offset) {
+                    if let Some(value) = info.get_access_value(cell_offset) {
                         match value {
                             Cell::Write => return CellValue::Unknown,
                             Cell::Value(v) => return CellValue::Value(v),
@@ -1856,12 +1856,12 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                     break;
                 }
             }
-            OpType::LLoop(_, _, access) |
-            OpType::ILoop(_, _, _, access) |
-            OpType::CLoop(_, _, _, access) |
-            OpType::TNz(_, _, access)
+            OpType::LLoop(_, _, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::CLoop(_, _, _, info) |
+            OpType::TNz(_, _, info)
             => {
-                if cell_offset == 0 || CellAccess::was_accessed(access, cell_offset) {
+                if cell_offset == 0 || info.was_cell_accessed(cell_offset) {
                     break;
                 }
             }
@@ -1883,12 +1883,12 @@ pub fn update_loop_access(ops: &mut Vec<Op>) {
 
     for op in ops {
         match &mut op.op_type {
-            OpType::LLoop(children, offset, access) |
-            OpType::ILoop(children, offset, _, access) |
-            OpType::CLoop(children, offset, _, access) |
-            OpType::TNz(children, offset, access)
+            OpType::LLoop(children, offset, info) |
+            OpType::ILoop(children, offset, _, info) |
+            OpType::CLoop(children, offset, _, info) |
+            OpType::TNz(children, offset, info)
             => {
-                *access = get_loop_access(children, *offset);
+                info.set_cell_access(get_loop_access(children, *offset));
             }
             _ => {
                 // Ignore
@@ -2071,14 +2071,14 @@ mod tests {
     #[test]
     fn test_optimize_inc_dec_zeroing_inc() {
         let mut ops = vec![
-            Op::c_loop(0..2, vec![], 1, 1, vec![]),
+            Op::c_loop(0..2, vec![], 1, 1, BlockInfo::new_empty()),
             Op::inc(2..3, 3),
         ];
 
         run_peephole_pass(&mut ops, optimize_arithmetics);
 
         assert_eq!(ops, vec![
-            Op::c_loop(0..2, vec![], 1, 1, vec![]),
+            Op::c_loop(0..2, vec![], 1, 1, BlockInfo::new_empty()),
             Op::set(2..3, 3),
         ])
     }
@@ -2210,7 +2210,7 @@ mod tests {
                 Op::dec(1..2, 1),
                 Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], 0, vec![CellAccess::new_write(1)])
+            ], 0, BlockInfo::new_access(vec![CellAccess::new_write(1)]))
         ])
     }
 
@@ -2233,7 +2233,7 @@ mod tests {
             Op::set(0..1, 6),
             Op::i_loop(0..1, vec![
                 Op::dec(3..4, 2),
-            ], 1, 1, vec![CellAccess::new_write(1)])
+            ], 1, 1, BlockInfo::new_access(vec![CellAccess::new_write(1)]))
         ])
     }
 
@@ -2256,7 +2256,7 @@ mod tests {
             Op::set(0..1, 6),
             Op::i_loop(0..1, vec![
                 Op::dec(2..3, 3),
-            ], -1, 2, vec![CellAccess::new_write(-1)])
+            ], -1, 2, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
         ])
     }
 
@@ -2279,7 +2279,7 @@ mod tests {
         assert_eq!(ops, vec![
             Op::c_loop(0..1, vec![
                 Op::dec(2..3, 3),
-            ], -1, 3, vec![CellAccess::new_write(-1)])
+            ], -1, 3, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
         ])
     }
 
@@ -2307,7 +2307,7 @@ mod tests {
         let mut ops = vec![
             Op::i_loop(0..2, vec![
                 Op::set(1..2, 1),
-            ], 1, 1, vec![])
+            ], 1, 1, BlockInfo::new_empty())
         ];
 
         optimize_conditional_loops(&mut ops);
@@ -2315,7 +2315,7 @@ mod tests {
         assert_eq!(ops, vec![
             Op::t_nz(0..2, vec![
                 Op::set(1..2, 1),
-            ], 1, vec![])
+            ], 1, BlockInfo::new_empty())
         ])
     }
 
@@ -2418,7 +2418,7 @@ mod tests {
         let mut ops = vec![
             Op::c_loop(0..3, vec![
                 Op::inc(1..2, 3)
-            ], 2, 5, vec![])
+            ], 2, 5, BlockInfo::new_empty())
         ];
 
         optimize_constant_arithmetic_loop(&mut ops);
@@ -2504,7 +2504,7 @@ mod tests {
             Op::i_loop(0..3, vec![
                 Op::c_add(1..2, -1, 72),
                 Op::dec_ptr(2..3, 1),
-            ], 1, 5, vec![]),
+            ], 1, 5, BlockInfo::new_empty()),
             Op::inc_ptr(3..4, 1),
         ];
 
@@ -2513,7 +2513,7 @@ mod tests {
         assert_eq!(ops, vec![
             Op::i_loop(0..3, vec![
                 Op::c_add(1..2, -1, 72),
-            ], 1, 5, vec![]),
+            ], 1, 5, BlockInfo::new_empty()),
         ])
     }
 
