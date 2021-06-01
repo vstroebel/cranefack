@@ -1685,7 +1685,7 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
             OpType::SearchZero(step) => {
                 let mut ptr_offset = None;
 
-                for test in 0..10 {
+                for test in 0..100 {
                     let offset = test * step;
                     let value = utils::find_heap_value(ops, offset, i as isize - 1, zeroed, inputs);
 
@@ -2872,6 +2872,35 @@ mod tests {
             Op::put_char_with_offset(5..6, 2),
             Op::set_with_offset(6..7, 0, 3),
             Op::set_with_offset(7..8, 2, 30),
+        ])
+    }
+
+    #[test]
+    fn test_non_local_zero_search() {
+        let mut ops = vec![
+            Op::set_with_offset(0..1, 0, 1),
+            Op::set_with_offset(1..2, 1, 2),
+            Op::set_with_offset(2..3, 3, 3),
+            Op::set_with_offset(3..4, 4, 4),
+            Op::set_with_offset(4..5, 5, 5),
+            Op::set_with_offset(5..6, 6, 6),
+            Op::set_with_offset(6..7, 8, 7),
+            Op::inc_ptr(7..8, 8),
+            Op::search_zero(8..9, -2),
+        ];
+
+        optimize_non_local_arithmetics(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set_with_offset(0..1, 0, 1),
+            Op::set_with_offset(1..2, 1, 2),
+            Op::set_with_offset(2..3, 3, 3),
+            Op::set_with_offset(3..4, 4, 4),
+            Op::set_with_offset(4..5, 5, 5),
+            Op::set_with_offset(5..6, 6, 6),
+            Op::set_with_offset(6..7, 8, 7),
+            Op::inc_ptr(7..8, 8),
+            Op::dec_ptr(8..9, 6),
         ])
     }
 }
