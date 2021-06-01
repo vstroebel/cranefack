@@ -250,8 +250,8 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
             OpType::GetChar(offset) => {
                 CellAccess::add(&mut access, start_offset + offset, Cell::Write);
             }
-            OpType::PutChar(..) => {
-                //Ignore
+            OpType::PutChar(offset) => {
+                CellAccess::add(&mut access, start_offset + offset, Cell::Read);
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
             OpType::DLoop(_) => unreachable!("Must not be called with dloops in children"),
@@ -1924,7 +1924,7 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                 }
             }
             OpType::GetChar(offset) => {
-                if cell_offset + offset == 0 {
+                if cell_offset == *offset {
                     break;
                 }
             }
@@ -1937,6 +1937,12 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                     break;
                 }
             }
+            OpType::PutChar(offset) => {
+                if cell_offset == *offset {
+                    break;
+                }
+            }
+
             _ => break,
         }
 
@@ -2766,6 +2772,32 @@ mod tests {
         assert_eq!(ops, vec![
             Op::copy(1..2, 0, 2),
             Op::set_with_offset(2..3, 1, 0),
+        ])
+    }
+
+
+    #[test]
+    fn test_non_local_dead_stores() {
+        let mut ops = vec![
+            Op::set_with_offset(0..1, 0, 1),
+            Op::set_with_offset(1..2, 2, 10),
+            Op::put_char_with_offset(2..3, 2),
+            Op::set_with_offset(3..4, 0, 2),
+            Op::set_with_offset(4..5, 2, 20),
+            Op::put_char_with_offset(5..6, 2),
+            Op::set_with_offset(6..7, 0, 3),
+            Op::set_with_offset(7..8, 2, 30),
+        ];
+
+        optimize_non_local_dead_stores(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set_with_offset(1..2, 2, 10),
+            Op::put_char_with_offset(2..3, 2),
+            Op::set_with_offset(4..5, 2, 20),
+            Op::put_char_with_offset(5..6, 2),
+            Op::set_with_offset(6..7, 0, 3),
+            Op::set_with_offset(7..8, 2, 30),
         ])
     }
 }

@@ -85,6 +85,13 @@ impl Op {
         }
     }
 
+    pub fn put_char_with_offset(span: Range<usize>, offset: isize) -> Op {
+        Op {
+            op_type: OpType::PutChar(offset),
+            span,
+        }
+    }
+
     pub fn get_char(span: Range<usize>) -> Op {
         Op {
             op_type: OpType::GetChar(0),
