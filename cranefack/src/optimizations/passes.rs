@@ -2089,7 +2089,13 @@ fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isi
 
         let prepend = if let OpType::DLoop(children) = &op.op_type {
             if let CellValue::Value(v) = find_heap_value(ops, 0, i as isize - 1, zeroed, inputs) {
-                if v > 0 && count_ops_recursive(children) < 20 {
+                if v == 0 {
+                    ops.remove(i);
+                    if i > 0 {
+                        i -= 1;
+                    }
+                    None
+                } else if count_ops_recursive(children) < 20 {
                     Some(children.clone())
                 } else {
                     None
