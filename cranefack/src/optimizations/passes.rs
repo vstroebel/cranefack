@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::ir::ops::{Op, OpType, LoopDecrement};
 use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
-use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass};
+use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass, find_heap_value};
 use crate::optimizations::utils;
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
@@ -2074,6 +2074,48 @@ pub fn optimize_non_local_redundant_copies(ops: &mut Vec<Op>) -> bool {
 
     progress
 }
+
+pub fn partially_unroll_d_loops(ops: &mut Vec<Op>) -> bool {
+    run_non_local_pass(ops, partially_unroll_d_loops_pass, true, &[])
+}
+
+fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)]) -> bool {
+    let mut progress = false;
+
+    let mut i = 0;
+
+    while i < ops.len() {
+        let op = &ops[i];
+
+        let prepend = if let OpType::DLoop(children) = &op.op_type {
+            if let CellValue::Value(v) = find_heap_value(ops, 0, i as isize - 1, zeroed, inputs) {
+                if v > 0 && count_ops_recursive(children) < 20 {
+                    Some(children.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(prepend) = prepend {
+            let len = prepend.len();
+            for (index, op) in prepend.into_iter().enumerate() {
+                ops.insert(i + index, op);
+            }
+            i += len;
+            progress = true;
+        }
+
+        i += 1;
+    }
+
+    progress
+}
+
 
 #[cfg(test)]
 mod tests {

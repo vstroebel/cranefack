@@ -30,6 +30,9 @@ pub struct OptimizeConfig {
     /// Limit for loop unrolling pass
     pub unroll_loop_limit: usize,
 
+    /// Partially unroll loops that are take at least one time
+    pub partially_unroll_d_loops: bool,
+
     /// Print statistics after each pass
     pub debug: bool,
 }
@@ -43,6 +46,7 @@ impl OptimizeConfig {
             max_loops: 0,
             jit_level: None,
             unroll_loop_limit: 0,
+            partially_unroll_d_loops: false,
             debug: false,
         }
     }
@@ -71,6 +75,7 @@ impl OptimizeConfig {
         OptimizeConfig {
             max_loops: 50,
             unroll_loop_limit: 150,
+            partially_unroll_d_loops: true,
             jit_level: Some("speed_and_size".to_owned()),
             ..Self::o2()
         }
@@ -197,6 +202,11 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                     progress = true;
                 }
                 print_debug(program, config, "Unroll constant loops");
+            }
+
+            if !progress && config.partially_unroll_d_loops {
+                progress |= partially_unroll_d_loops(&mut program.ops);
+                print_debug(program, config, "Partially unroll dynamic loops");
             }
         } else if config.complex_loops {
             progress |= remove_useless_loops(&mut program.ops);
