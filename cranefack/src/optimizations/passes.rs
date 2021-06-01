@@ -1383,6 +1383,27 @@ pub fn remove_useless_copy(ops: [&Op; 2]) -> Change {
     }
 }
 
+pub fn remove_useless_loops(ops: &mut Vec<Op>) -> bool {
+    run_peephole_pass(ops, remove_useless_loops_pass)
+}
+
+pub fn remove_useless_loops_pass(ops: [&Op; 1]) -> Change {
+    match &ops[0].op_type {
+        OpType::CLoop(children, _, _) |
+        OpType::TNz(children, _)
+        => {
+            if children.is_empty() {
+                Change::Replace(vec![OpType::Set(0, 0)])
+            } else {
+                Change::Ignore
+            }
+        }
+        _ => {
+            Change::Ignore
+        }
+    }
+}
+
 /// Non local and slower version of arithmetic optimizations
 pub fn optimize_non_local_arithmetics(ops: &mut Vec<Op>) -> bool {
     run_non_local_pass(ops, optimize_non_local_arithmetics_pass, true, &[])

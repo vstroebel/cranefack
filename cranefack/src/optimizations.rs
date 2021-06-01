@@ -168,6 +168,9 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
             progress |= optimize_non_local_dead_stores(&mut program.ops);
             print_debug(program, config, "Optimize non local dead stores");
 
+            progress |= remove_useless_loops(&mut program.ops);
+            print_debug(program, config, "Remove useless loops");
+
             if config.unroll_loop_limit > 0 {
                 progress |= unroll_constant_loops(&mut program.ops, config.unroll_loop_limit);
                 print_debug(program, config, "Unroll constant loops");
@@ -177,6 +180,9 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                 update_loop_access(&mut program.ops);
                 print_debug(program, config, "Updating loop access");
             }
+        } else if config.complex_loops {
+            progress |= remove_useless_loops(&mut program.ops);
+            print_debug(program, config, "Remove useless loops");
         }
     }
 
