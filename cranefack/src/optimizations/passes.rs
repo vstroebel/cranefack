@@ -2035,6 +2035,38 @@ pub fn optimize_non_local_redundant_copies(ops: &mut Vec<Op>) -> bool {
 
             progress = true;
             i -= 1;
+        } else {
+            let remove = if let OpType::Copy(src_offset, dest_offset) = &op.op_type {
+                let mut result = false;
+
+                for op2 in ops[0..i].iter().rev() {
+                    match &op2.op_type {
+                        OpType::Copy(src_offset2, dest_offset2)
+                        => {
+                            if src_offset == dest_offset2 {
+                                if dest_offset == src_offset2 {
+                                    result = true;
+                                }
+                                break;
+                            }
+                        }
+                        _ => {
+                            break;
+                        }
+                    }
+                }
+
+                result
+            } else {
+                false
+            };
+
+            if remove {
+                ops.remove(i);
+
+                progress = true;
+                i -= 1;
+            }
         }
 
         i += 1;
