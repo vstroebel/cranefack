@@ -204,7 +204,7 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                 print_debug(program, config, "Unroll constant loops");
             }
 
-            if !progress && config.partially_unroll_d_loops {
+            if config.partially_unroll_d_loops && (!progress || count > 4) {
                 progress |= partially_unroll_d_loops(&mut program.ops);
                 print_debug(program, config, "Partially unroll dynamic loops");
             }
