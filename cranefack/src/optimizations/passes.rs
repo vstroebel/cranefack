@@ -880,13 +880,11 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
 }
 
 pub fn optimize_non_local_static_count_loops(ops: &mut Vec<Op>) -> bool {
-    let mut progress = false;
+    run_non_local_pass(ops, optimize_non_local_static_count_loops_pass, true, &[])
+}
 
-    for op in ops.iter_mut() {
-        if let Some(children) = op.op_type.get_children_mut() {
-            progress |= optimize_non_local_static_count_loops(children);
-        }
-    }
+pub fn optimize_non_local_static_count_loops_pass(ops: &mut Vec<Op>, zeroing: bool, inputs: &[(isize, CellValue)]) -> bool {
+    let mut progress = false;
 
     let mut i = 1;
 
@@ -895,7 +893,7 @@ pub fn optimize_non_local_static_count_loops(ops: &mut Vec<Op>) -> bool {
 
         let count = match &op.op_type {
             OpType::ILoop(_, step, ..) =>
-                if let CellValue::Value(v) = utils::find_heap_value(&ops, 0, i as isize - 1, false, &[]) {
+                if let CellValue::Value(v) = utils::find_heap_value(&ops, 0, i as isize - 1, zeroing, inputs) {
                     if *step != 0 && v % step == 0 {
                         Some(v / step)
                     } else {
@@ -911,16 +909,19 @@ pub fn optimize_non_local_static_count_loops(ops: &mut Vec<Op>) -> bool {
             let loop_op = ops.remove(i);
             let span = loop_op.span;
 
-            if let OpType::ILoop(children, _, access) = loop_op.op_type {
-                ops.insert(i, Op::c_loop(span, children, count, access));
+            if let OpType::ILoop(children, _, info) = loop_op.op_type {
+                if count == 1 {
+                    ops.insert(i, Op::t_nz(span, children, info));
+                } else if count > 1 {
+                    ops.insert(i, Op::c_loop(span, children, count, info));
+                }
             } else {
                 unreachable!();
             }
 
-            i += 1;
-        } else {
-            i += 1;
+            progress = true;
         }
+        i += 1;
     }
 
     progress
