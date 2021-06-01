@@ -61,6 +61,14 @@ impl BlockInfo {
 
         false
     }
+
+    pub fn asm(&self, debug: bool) -> String {
+        if debug {
+            format!("access: {:?}", self.cell_access)
+        } else {
+            format!("access: {}", self.cell_access.len())
+        }
+    }
 }
 
 /// Cell content inferred during optimization

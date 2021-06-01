@@ -84,11 +84,11 @@ impl Program {
     }
 
     /// Dump program into a assembly like structure
-    pub fn dump<W: Write>(&self, mut output: W) -> Result<(), Box<dyn Error>> {
-        self.dump_ops(&mut output, &self.ops, 0)
+    pub fn dump<W: Write>(&self, mut output: W, debug: bool) -> Result<(), Box<dyn Error>> {
+        self.dump_ops(&mut output, &self.ops, 0, debug)
     }
 
-    fn dump_ops<W: Write>(&self, output: &mut W, ops: &[Op], indent: usize) -> Result<(), Box<dyn Error>> {
+    fn dump_ops<W: Write>(&self, output: &mut W, ops: &[Op], indent: usize, debug: bool) -> Result<(), Box<dyn Error>> {
         for op in ops {
             let mut pos = format!("0x{:x}..0x{:x}", op.span.start, op.span.end - 1);
 
@@ -143,23 +143,23 @@ impl Program {
 
                 OpType::DLoop(children) => {
                     writeln!(output, "DLOOP")?;
-                    self.dump_ops(output, children, indent + 1)?;
+                    self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::LLoop(children, info) => {
-                    writeln!(output, "LLOOP info: {:?}", info)?;
-                    self.dump_ops(output, children, indent + 1)?;
+                    writeln!(output, "LLOOP info: {}", info.asm(debug))?;
+                    self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::ILoop(children, step, info) => {
-                    writeln!(output, "ILOOP step: {} info: {:?}", step, info)?;
-                    self.dump_ops(output, children, indent + 1)?;
+                    writeln!(output, "ILOOP step: {} info: {}", step, info.asm(debug))?;
+                    self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::CLoop(children, iterations, info) => {
-                    writeln!(output, "CLOOP iterations: {} info: {:?}", iterations, info)?;
-                    self.dump_ops(output, children, indent + 1)?;
+                    writeln!(output, "CLOOP iterations: {} info: {}", iterations, info.asm(debug))?;
+                    self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::TNz(children, info) => {
-                    writeln!(output, "TNZ info: {:?}", info)?;
-                    self.dump_ops(output, children, indent + 1)?;
+                    writeln!(output, "TNZ info: {}", info.asm(debug))?;
+                    self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::SearchZero(step) => writeln!(output, "S_ZERO {} ", step)?,
             }

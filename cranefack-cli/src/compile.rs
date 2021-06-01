@@ -73,7 +73,7 @@ pub fn compile_file(opt_mode: OptimizeConfig, verbose: bool, format: &str, path:
     match format {
         "rust" => println!("{}", compile_to_rust(&program)),
         "clir" => println!("{}", build_clir(&program, &opt_mode)?),
-        _ => program.dump(stdout())?
+        _ => program.dump(stdout(), opt_mode.debug)?
     }
 
     Ok(())
