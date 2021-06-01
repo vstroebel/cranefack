@@ -141,6 +141,13 @@ impl Op {
         }
     }
 
+    pub fn add_with_offset(span: Range<usize>, src_offset: isize, dest_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::Add(src_offset, dest_offset, multi),
+            span,
+        }
+    }
+
     pub fn nz_add(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
         Op {
             op_type: OpType::NzAdd(0, dest_offset, multi),
@@ -186,6 +193,13 @@ impl Op {
     pub fn nz_sub(span: Range<usize>, dest_offset: isize, multi: u8) -> Op {
         Op {
             op_type: OpType::NzSub(0, dest_offset, multi),
+            span,
+        }
+    }
+
+    pub fn nz_sub_with_offset(span: Range<usize>, src_offset: isize, dest_offset: isize, multi: u8) -> Op {
+        Op {
+            op_type: OpType::NzSub(src_offset, dest_offset, multi),
             span,
         }
     }
@@ -441,6 +455,16 @@ impl OpType {
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
             OpType::TNz(children, ..) => Some(children),
+            _ => None,
+        }
+    }
+
+    pub fn get_block_info(&mut self) -> Option<&BlockInfo> {
+        match self {
+            OpType::LLoop(_, info) |
+            OpType::ILoop(_, _, info) |
+            OpType::CLoop(_, _, info) |
+            OpType::TNz(_, info) => Some(info),
             _ => None,
         }
     }

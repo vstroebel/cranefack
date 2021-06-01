@@ -3,7 +3,8 @@ use std::cmp::Ordering;
 use crate::ir::ops::{Op, OpType};
 use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
-use crate::optimizations::utils::{CellValue, Change, count_ops_recursive};
+use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass};
+use crate::optimizations::utils;
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
     run_peephole_pass(ops, remove_dead_loops_check)
@@ -894,7 +895,7 @@ pub fn optimize_non_local_static_count_loops(ops: &mut Vec<Op>) -> bool {
 
         let count = match &op.op_type {
             OpType::ILoop(_, step, ..) =>
-                if let CellValue::Value(v) = find_heap_value(&ops, 0, i - 1) {
+                if let CellValue::Value(v) = utils::find_heap_value(&ops, 0, i as isize - 1, false, &[]) {
                     if *step != 0 && v % step == 0 {
                         Some(v / step)
                     } else {
@@ -1383,37 +1384,35 @@ pub fn remove_useless_copy(ops: [&Op; 2]) -> Change {
 }
 
 /// Non local and slower version of arithmetic optimizations
-pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
+pub fn optimize_non_local_arithmetics(ops: &mut Vec<Op>) -> bool {
+    run_non_local_pass(ops, optimize_non_local_arithmetics_pass, true, &[])
+}
+
+fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)]) -> bool {
     let mut progress = false;
 
-    for op in ops.iter_mut() {
-        if let Some(children) = op.op_type.get_children_mut() {
-            progress |= optimize_non_local_arithmetics(children);
-        }
-    }
-
-    let mut i = 1;
+    let mut i = 0;
 
     while !ops.is_empty() && i < ops.len() {
         let op = &ops[i];
 
         let change = match &op.op_type {
             OpType::Inc(offset, value) => {
-                if let CellValue::Value(v) = find_heap_value(ops, *offset, i - 1) {
+                if let CellValue::Value(v) = utils::find_heap_value(ops, *offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![OpType::Set(*offset, v.wrapping_add(*value))])
                 } else {
                     Change::Ignore
                 }
             }
             OpType::Dec(offset, value) => {
-                if let CellValue::Value(v) = find_heap_value(ops, *offset, i - 1) {
+                if let CellValue::Value(v) = utils::find_heap_value(ops, *offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![OpType::Set(*offset, v.wrapping_sub(*value))])
                 } else {
                     Change::Ignore
                 }
             }
             OpType::Set(offset, value) => {
-                if let CellValue::Value(v) = find_heap_value(ops, *offset, i - 1) {
+                if let CellValue::Value(v) = utils::find_heap_value(ops, *offset, i as isize - 1, zeroed, inputs) {
                     if *value == v {
                         Change::Remove
                     } else {
@@ -1424,8 +1423,8 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::Add(src_offset, dest_offset, multi) => {
-                let src = find_heap_value(ops, *src_offset, i - 1);
-                let dest = find_heap_value(ops, *dest_offset, i - 1);
+                let src = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs);
+                let dest = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs);
 
                 match (src, dest) {
                     (CellValue::Value(0), CellValue::Value(_)) => {
@@ -1459,8 +1458,8 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::NzAdd(src_offset, dest_offset, multi) => {
-                let src = find_heap_value(ops, *src_offset, i - 1);
-                let dest = find_heap_value(ops, *dest_offset, i - 1);
+                let src = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs);
+                let dest = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs);
 
                 match (src, dest) {
                     (CellValue::Value(0), CellValue::Value(_)) => {
@@ -1493,7 +1492,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::CAdd(src_offset, dest_offset, value) => {
-                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                if let CellValue::Value(value2) = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![
                         OpType::Set(*dest_offset, value2.wrapping_add(*value)),
                         OpType::Set(*src_offset, 0),
@@ -1503,7 +1502,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::NzCAdd(_src_offset, dest_offset, value) => {
-                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                if let CellValue::Value(value2) = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![
                         OpType::Set(*dest_offset, value2.wrapping_add(*value)),
                     ])
@@ -1512,8 +1511,8 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::Sub(src_offset, dest_offset, multi) => {
-                let src = find_heap_value(ops, *src_offset, i - 1);
-                let dest = find_heap_value(ops, *dest_offset, i - 1);
+                let src = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs);
+                let dest = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs);
 
                 match (src, dest) {
                     (CellValue::Value(0), CellValue::Value(_)) => {
@@ -1540,8 +1539,8 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::NzSub(src_offset, dest_offset, multi) => {
-                let src = find_heap_value(ops, *src_offset, i - 1);
-                let dest = find_heap_value(ops, *dest_offset, i - 1);
+                let src = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs);
+                let dest = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs);
 
                 match (src, dest) {
                     (CellValue::Value(0), CellValue::Value(_)) => {
@@ -1567,7 +1566,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::CSub(src_offset, dest_offset, value) => {
-                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                if let CellValue::Value(value2) = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![
                         OpType::Set(*dest_offset, value2.wrapping_sub(*value)),
                         OpType::Set(*src_offset, 0),
@@ -1577,7 +1576,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::NzCSub(_src_offset, dest_offset, value) => {
-                if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
+                if let CellValue::Value(value2) = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![
                         OpType::Set(*dest_offset, value2.wrapping_sub(*value)),
                     ])
@@ -1586,7 +1585,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::Mul(src_offset, dest_offset, multi) => {
-                if let CellValue::Value(value) = find_heap_value(ops, *src_offset, i - 1) {
+                if let CellValue::Value(value) = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs) {
                     if value == 0 {
                         Change::Remove
                     } else {
@@ -1600,7 +1599,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                 }
             }
             OpType::NzMul(src_offset, dest_offset, multi) => {
-                if let CellValue::Value(value) = find_heap_value(ops, *src_offset, i - 1) {
+                if let CellValue::Value(value) = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs) {
                     if value == 0 {
                         Change::Remove
                     } else {
@@ -1617,7 +1616,7 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
 
                 for test in 0..10 {
                     let offset = test * step;
-                    let value = find_heap_value(ops, offset, i - 1);
+                    let value = utils::find_heap_value(ops, offset, i as isize - 1, zeroed, inputs);
 
                     if matches!(value, CellValue::Value(0)) {
                         ptr_offset = Some(offset);
@@ -1648,92 +1647,6 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
     }
 
     progress
-}
-
-fn find_heap_value(ops: &[Op], mut cell_offset: isize, start_index: usize) -> CellValue {
-    let mut i = start_index as isize;
-
-    while i >= 0 {
-        let op = &ops[i as usize];
-
-        if op.op_type.is_zeroing(cell_offset) {
-            return CellValue::Value(0);
-        }
-
-        match &op.op_type {
-            OpType::IncPtr(offset) => cell_offset += *offset as isize,
-            OpType::DecPtr(offset) => cell_offset -= *offset as isize,
-            OpType::Set(offset, v) => {
-                if *offset == cell_offset {
-                    return CellValue::Value(*v);
-                }
-            }
-            OpType::Inc(offset, _) |
-            OpType::Dec(offset, _) |
-            OpType::Add(_, offset, _) |
-            OpType::NzAdd(_, offset, _) |
-            OpType::CAdd(_, offset, _) |
-            OpType::NzCAdd(_, offset, _) |
-            OpType::Sub(_, offset, _) |
-            OpType::NzSub(_, offset, _) |
-            OpType::CSub(_, offset, _) |
-            OpType::NzCSub(_, offset, _) |
-            OpType::Mul(_, offset, _) |
-            OpType::NzMul(_, offset, _) |
-            OpType::Move(_, offset) |
-            OpType::Copy(_, offset)
-            => {
-                if *offset == cell_offset {
-                    return CellValue::Unknown;
-                }
-            }
-            OpType::PutChar(..) => {
-                // Ignore
-            }
-            OpType::LLoop(_, info) |
-            OpType::ILoop(_, _, info) |
-            OpType::TNz(_, info)
-            => {
-                if let Some(value) = info.get_access_value(cell_offset) {
-                    match value {
-                        Cell::Write => return CellValue::Unknown,
-                        Cell::Value(v) => {
-                            if i > 0 {
-                                if let CellValue::Value(v2) = find_heap_value(ops, cell_offset, i as usize - 1) {
-                                    if v == v2 {
-                                        return CellValue::Value(v);
-                                    }
-                                }
-                            }
-                            return CellValue::Unknown;
-                        }
-                        Cell::Read => {
-                            // ignore
-                        }
-                    }
-                }
-            }
-            OpType::CLoop(_, count, info)
-            => {
-                if *count > 0 {
-                    if let Some(value) = info.get_access_value(cell_offset) {
-                        match value {
-                            Cell::Write => return CellValue::Unknown,
-                            Cell::Value(v) => return CellValue::Value(v),
-                            Cell::Read => {
-                                // ignore
-                            }
-                        }
-                    }
-                }
-            }
-            _ => return CellValue::Unknown
-        }
-
-        i -= 1;
-    }
-
-    CellValue::Unknown
 }
 
 pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
@@ -2648,11 +2561,47 @@ mod tests {
             Op::nz_add(1..2, 1, 2),
         ];
 
-        optimize_non_local_arithmetics(&mut ops);
+        run_non_local_pass(&mut ops, optimize_non_local_arithmetics_pass, false, &[]);
 
         assert_eq!(ops, vec![
             Op::set_with_offset(0..1, 1, 0),
             Op::nz_mul(1..2, 1, 2),
         ])
+    }
+
+    #[test]
+    fn test_non_local_bug() {
+        let mut ops = vec![
+            Op::d_loop(0..1, vec![
+                Op::inc_ptr(0..1, 1),
+                Op::i_loop(0..1, vec![
+                    Op::inc_with_offset(0..1, 5, 1),
+                    Op::inc_ptr(0..1, 1),
+                    Op::i_loop(0..1, vec![
+                        Op::dec_with_offset(0..1, 4, 1),
+                        Op::inc_with_offset(0..1, -10, 1),
+                        Op::add_with_offset(0..1, 1, 4, 1),
+                    ], 1, BlockInfo::new_empty()),
+                    Op::nz_sub_with_offset(0..1, 1, 4, 1),
+                    Op::add_with_offset(0..1, 1, -10, 1),
+                ], 1, BlockInfo::new_empty()),
+                Op::inc_ptr(0..1, 1),
+                Op::i_loop(0..1, vec![
+                    Op::inc_with_offset(0..1, 4, 1),
+                    Op::nz_sub_with_offset(0..1, 1, 4, 1),
+                    Op::add_with_offset(0..1, 1, -10, 1)
+                ], 1, BlockInfo::new_empty()),
+                Op::add_with_offset(0..1, 1, 4, 1),
+            ]),
+            Op::dec_ptr(0..1, 11),
+        ];
+
+        update_loop_access(&mut ops);
+
+        let inputs = ops.clone();
+
+        run_non_local_pass(&mut ops, optimize_non_local_arithmetics_pass, false, &[]);
+
+        assert_eq!(ops, inputs)
     }
 }
