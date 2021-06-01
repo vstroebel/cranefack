@@ -3,7 +3,7 @@ use std::io::Write;
 use std::ops::Range;
 
 use crate::errors::RuntimeError;
-use crate::ir::ops::{Op, OpType};
+use crate::ir::ops::{Op, OpType, LoopDecrement};
 use crate::parser::Program;
 
 const MAX_HEAP_SIZE: usize = 16 * 1024 * 1024;
@@ -135,29 +135,89 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     self.pointer = heap_pointer;
                 }
             }
-            OpType::ILoop(ops, step, _) => {
-                let heap_pointer = self.pointer;
+            OpType::ILoop(ops, step, decrement, _) => {
+                match decrement {
+                    LoopDecrement::Pre => {
+                        let heap_pointer = self.pointer;
 
-                let mut left = *self.heap_value(&op.span)?;
-                while left > 0 {
-                    self.execute_ops(ops)?;
-                    left = left.wrapping_sub(*step);
-                    self.pointer = heap_pointer;
+                        let mut left = *self.heap_value(&op.span)?;
+                        while left > 0 {
+                            left = left.wrapping_sub(*step);
+                            *self.heap_value(&op.span)? = left;
+                            self.execute_ops(ops)?;
+                            self.pointer = heap_pointer;
+                        }
+
+                        *self.heap_value(&op.span)? = 0;
+                    }
+                    LoopDecrement::Post => {
+                        let heap_pointer = self.pointer;
+
+                        let mut left = *self.heap_value(&op.span)?;
+                        while left > 0 {
+                            self.execute_ops(ops)?;
+                            left = left.wrapping_sub(*step);
+                            *self.heap_value(&op.span)? = left;
+                            self.pointer = heap_pointer;
+                        }
+
+                        *self.heap_value(&op.span)? = 0;
+                    }
+                    LoopDecrement::Auto => {
+                        let heap_pointer = self.pointer;
+
+                        let mut left = *self.heap_value(&op.span)?;
+                        while left > 0 {
+                            self.execute_ops(ops)?;
+                            left = left.wrapping_sub(*step);
+                            self.pointer = heap_pointer;
+                        }
+
+                        *self.heap_value(&op.span)? = 0;
+                    }
                 }
-
-                *self.heap_value(&op.span)? = 0;
             }
-            OpType::CLoop(ops, iterations, _) => {
-                let heap_pointer = self.pointer;
+            OpType::CLoop(ops, iterations, decrement, _) => {
+                match decrement {
+                    LoopDecrement::Pre => {
+                        let heap_pointer = self.pointer;
 
-                for _ in 0..*iterations {
-                    self.execute_ops(ops)?;
-                    self.pointer = heap_pointer;
+                        *self.heap_value(&op.span)? = *iterations;
+                        let mut left = *self.heap_value(&op.span)?;
+                        while left > 0 {
+                            left = left.wrapping_sub(1);
+                            *self.heap_value(&op.span)? = left;
+                            self.execute_ops(ops)?;
+                            self.pointer = heap_pointer;
+                        }
+
+                        *self.heap_value(&op.span)? = 0;
+                    }
+                    LoopDecrement::Post => {
+                        let heap_pointer = self.pointer;
+
+                        *self.heap_value(&op.span)? = *iterations;
+                        let mut left = *self.heap_value(&op.span)?;
+                        while left > 0 {
+                            self.execute_ops(ops)?;
+                            self.pointer = heap_pointer;
+                            left = left.wrapping_sub(1);
+                            *self.heap_value(&op.span)? = left;
+                        }
+
+                        *self.heap_value(&op.span)? = 0;
+                    }
+                    LoopDecrement::Auto => {
+                        let heap_pointer = self.pointer;
+                        for _ in 0..*iterations {
+                            self.execute_ops(ops)?;
+                            self.pointer = heap_pointer;
+                        }
+                        *self.heap_value(&op.span)? = 0;
+                    }
                 }
-
-                *self.heap_value(&op.span)? = 0;
             }
-            OpType::TNz(ops,  _) => {
+            OpType::TNz(ops, _) => {
                 if *self.heap_value(&op.span)? != 0 {
                     let heap_pointer = self.pointer;
 
@@ -278,6 +338,9 @@ mod tests {
     use crate::backends::interpreter::Interpreter;
     use crate::optimizations::optimize;
     use crate::parser::parse;
+    use crate::Program;
+    use crate::ir::ops::{Op, LoopDecrement};
+    use crate::ir::opt_info::BlockInfo;
 
     #[test]
     fn test_out_1() {
@@ -596,5 +659,95 @@ mod tests {
         Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
 
         assert_eq!(output, b"8 bit cells\n");
+    }
+
+    #[test]
+    fn test_i_loop_pre() {
+        let program = Program {
+            ops: vec![
+                Op::set(0..1, 5),
+                Op::i_loop_with_decrement(1..4, vec![
+                    Op::inc_ptr(1..2, 1),
+                    Op::inc(1..2, 1),
+                    Op::dec_ptr(1..2, 1),
+                    Op::put_char(1..2),
+                ], 1, LoopDecrement::Pre, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 5);
+        assert_eq!(&output, &[4, 3, 2, 1, 0]);
+    }
+
+    #[test]
+    fn test_i_loop_post() {
+        let program = Program {
+            ops: vec![
+                Op::set(0..1, 5),
+                Op::i_loop_with_decrement(1..4, vec![
+                    Op::put_char(1..2),
+                ], 1, LoopDecrement::Post, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(&output, &[5, 4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn test_c_loop_pre() {
+        let program = Program {
+            ops: vec![
+                Op::c_loop_with_decrement(1..4, vec![
+                    Op::inc_ptr(1..2, 1),
+                    Op::inc(1..2, 1),
+                    Op::dec_ptr(1..2, 1),
+                    Op::put_char(1..2),
+                ], 5, LoopDecrement::Pre, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(interpreter.heap[1], 5);
+        assert_eq!(&output, &[4, 3, 2, 1, 0]);
+    }
+
+    #[test]
+    fn test_c_loop_post() {
+        let program = Program {
+            ops: vec![
+                Op::c_loop_with_decrement(1..4, vec![
+                    Op::put_char(1..2),
+                ], 5, LoopDecrement::Post, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let mut interpreter = Interpreter::new(Cursor::new(input), &mut output);
+        interpreter.execute(&program).unwrap();
+
+        assert_eq!(interpreter.heap[0], 0);
+        assert_eq!(&output, &[5, 4, 3, 2, 1]);
     }
 }

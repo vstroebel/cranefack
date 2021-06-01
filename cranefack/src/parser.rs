@@ -159,12 +159,12 @@ impl Program {
                     writeln!(output, "LLOOP info: {}", info.asm(debug))?;
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
-                OpType::ILoop(children, step, info) => {
-                    writeln!(output, "ILOOP step: {} info: {}", step, info.asm(debug))?;
+                OpType::ILoop(children, step, increment, info) => {
+                    writeln!(output, "ILOOP step: {} increment: {:?} info: {}", step, increment, info.asm(debug))?;
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
-                OpType::CLoop(children, iterations, info) => {
-                    writeln!(output, "CLOOP iterations: {} info: {}", iterations, info.asm(debug))?;
+                OpType::CLoop(children, iterations, increment, info) => {
+                    writeln!(output, "CLOOP iterations: {} increment: {:?} info: {}", iterations, increment, info.asm(debug))?;
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::TNz(children, info) => {

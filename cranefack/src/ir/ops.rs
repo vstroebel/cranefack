@@ -108,14 +108,28 @@ impl Op {
 
     pub fn i_loop(span: Range<usize>, ops: Vec<Op>, step: u8, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::ILoop(ops, step, info),
+            op_type: OpType::ILoop(ops, step, LoopDecrement::Auto, info),
+            span,
+        }
+    }
+
+    pub fn i_loop_with_decrement(span: Range<usize>, ops: Vec<Op>, step: u8, decrement: LoopDecrement, info: BlockInfo) -> Op {
+        Op {
+            op_type: OpType::ILoop(ops, step, decrement, info),
             span,
         }
     }
 
     pub fn c_loop(span: Range<usize>, ops: Vec<Op>, iterations: u8, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::CLoop(ops, iterations, info),
+            op_type: OpType::CLoop(ops, iterations, LoopDecrement::Auto, info),
+            span,
+        }
+    }
+
+    pub fn c_loop_with_decrement(span: Range<usize>, ops: Vec<Op>, iterations: u8, decrement: LoopDecrement, info: BlockInfo) -> Op {
+        Op {
+            op_type: OpType::CLoop(ops, iterations, decrement, info),
             span,
         }
     }
@@ -240,6 +254,21 @@ impl Op {
     }
 }
 
+/// Information about when to decrement a loop counter
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum LoopDecrement {
+    /// Decrement before body invocation
+    Pre,
+
+    /// Decrement after body invocation
+    Post,
+
+    /// Doesn't matter.
+    /// The counter isn't accessed during loop invocation
+    Auto,
+}
+
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpType {
     /// Start of application
@@ -310,10 +339,10 @@ pub enum OpType {
     LLoop(Vec<Op>, BlockInfo),
 
     /// Loop with an iterator variable and know steps per iteration
-    ILoop(Vec<Op>, u8, BlockInfo),
+    ILoop(Vec<Op>, u8, LoopDecrement, BlockInfo),
 
     /// Loop with compile time known iteration count
-    CLoop(Vec<Op>, u8, BlockInfo),
+    CLoop(Vec<Op>, u8, LoopDecrement, BlockInfo),
 
     /// Test if not zero.
     ///
@@ -462,8 +491,8 @@ impl OpType {
     pub fn get_block_info(&mut self) -> Option<&BlockInfo> {
         match self {
             OpType::LLoop(_, info) |
-            OpType::ILoop(_, _, info) |
-            OpType::CLoop(_, _, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info) => Some(info),
             _ => None,
         }

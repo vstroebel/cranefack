@@ -335,7 +335,7 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                 // Ignore
             }
             OpType::LLoop(_, info) |
-            OpType::ILoop(_, _, info) |
+            OpType::ILoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
                 if let Some(value) = info.get_access_value(cell_offset) {
@@ -361,7 +361,7 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                     }
                 }
             }
-            OpType::CLoop(_, count, info)
+            OpType::CLoop(_, count, _, info)
             => {
                 if *count > 0 {
                     if let Some(value) = info.get_access_value(cell_offset) {

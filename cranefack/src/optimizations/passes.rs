@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::ir::ops::{Op, OpType};
+use crate::ir::ops::{Op, OpType, LoopDecrement};
 use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
 use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass};
@@ -54,7 +54,7 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 }
 
 pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
-    if let OpType::ILoop(children, step, _) = &ops[0].op_type {
+    if let OpType::ILoop(children, step, _, _) = &ops[0].op_type {
         if *step == 1 {
             let mut replacement_indices = vec![];
             let mut replacements = vec![];
@@ -238,8 +238,8 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
                 CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
             }
             OpType::LLoop(_, info) |
-            OpType::ILoop(_, _, info) |
-            OpType::CLoop(_, _, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
                 for cell in info.cell_access() {
@@ -339,6 +339,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             let mut ptr_offset = 0;
             let mut ignore = false;
             let mut counter_decrements = vec![];
+            let mut counter_reads = vec![];
 
             let num_ops = children.len();
             if num_ops >= 2 {
@@ -354,14 +355,11 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ptr_offset -= *value as isize;
                         }
                         OpType::Add(src_offset, dest_offset, _) |
-                        OpType::NzAdd(src_offset, dest_offset, _) |
-                        OpType::Sub(src_offset, dest_offset, _) |
-                        OpType::NzSub(src_offset, dest_offset, _) |
                         OpType::CAdd(src_offset, dest_offset, _) |
+                        OpType::Sub(src_offset, dest_offset, _) |
                         OpType::CSub(src_offset, dest_offset, _) |
                         OpType::Mul(src_offset, dest_offset, _) |
-                        OpType::Move(src_offset, dest_offset) |
-                        OpType::Copy(src_offset, dest_offset)
+                        OpType::Move(src_offset, dest_offset)
                         => {
                             if ptr_offset + src_offset == 0 {
                                 ignore = true;
@@ -373,13 +371,32 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                                 break;
                             }
                         }
-                        OpType::NzCAdd(_, dest_offset, _) |
-                        OpType::NzCSub(_, dest_offset, _) |
-                        OpType::NzMul(_, dest_offset, _)
+                        OpType::NzAdd(src_offset, dest_offset, _) |
+                        OpType::NzSub(src_offset, dest_offset, _) |
+                        OpType::NzMul(src_offset, dest_offset, _) |
+                        OpType::Copy(src_offset, dest_offset)
                         => {
                             if ptr_offset + dest_offset == 0 {
                                 ignore = true;
                                 break;
+                            }
+
+                            if ptr_offset + src_offset == 0 {
+                                counter_reads.push(i)
+                            }
+                        }
+                        OpType::NzCAdd(_, dest_offset, _) |
+                        OpType::NzCSub(_, dest_offset, _)
+                        => {
+                            if ptr_offset + dest_offset == 0 {
+                                ignore = true;
+                                break;
+                            }
+                        }
+
+                        OpType::PutChar(offset) => {
+                            if ptr_offset + offset == 0 {
+                                counter_reads.push(i);
                             }
                         }
 
@@ -424,16 +441,29 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ignore = true;
                             break;
                         }
-                        OpType::PutChar(..) => {
-                            // ignore
-                        }
                     }
                 }
             }
 
             #[allow(clippy::manual_map)]
             if !ignore {
-                Some(counter_decrements)
+                if !counter_reads.is_empty() {
+                    let min_counter = counter_decrements.iter().map(|(i, _)| *i).min().unwrap_or(0);
+                    let max_counter = counter_decrements.iter().map(|(i, _)| *i).max().unwrap_or(usize::MAX);
+
+                    let min_read = counter_reads.iter().cloned().min().unwrap_or(0);
+                    let max_read = counter_reads.iter().cloned().max().unwrap_or(usize::MAX);
+
+                    if max_counter < min_read {
+                        Some((counter_decrements, LoopDecrement::Pre))
+                    } else if min_counter > max_read {
+                        Some((counter_decrements, LoopDecrement::Post))
+                    } else {
+                        None
+                    }
+                } else {
+                    Some((counter_decrements, LoopDecrement::Auto))
+                }
             } else {
                 None
             }
@@ -441,7 +471,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             None
         };
 
-        if let Some(counter_decrements) = replace {
+        if let Some((counter_decrements, loop_decrement)) = replace {
             let prev = ops.remove(i);
             let span = prev.span;
 
@@ -457,7 +487,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                     children.remove(children.len() - 1);
                 }
 
-                ops.insert(i, Op::i_loop(span, children, step, info));
+                ops.insert(i, Op::i_loop_with_decrement(span, children, step, loop_decrement, info));
 
                 progress = true;
             } else {
@@ -854,8 +884,8 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
                 let loop_op = ops.remove(i);
                 let span = prev.span.start..loop_op.span.end;
 
-                if let OpType::ILoop(children, _, access) = loop_op.op_type {
-                    ops.insert(i, Op::c_loop(span, children, count, access));
+                if let OpType::ILoop(children, _, decrements, access) = loop_op.op_type {
+                    ops.insert(i, Op::c_loop_with_decrement(span, children, count, decrements, access));
                 } else {
                     unreachable!();
                 }
@@ -909,11 +939,11 @@ pub fn optimize_non_local_static_count_loops_pass(ops: &mut Vec<Op>, zeroing: bo
             let loop_op = ops.remove(i);
             let span = loop_op.span;
 
-            if let OpType::ILoop(children, _, info) = loop_op.op_type {
-                if count == 1 {
+            if let OpType::ILoop(children, _, decrement, info) = loop_op.op_type {
+                if decrement == LoopDecrement::Auto && count == 1 {
                     ops.insert(i, Op::t_nz(span, children, info));
                 } else if count > 1 {
-                    ops.insert(i, Op::c_loop(span, children, count, info));
+                    ops.insert(i, Op::c_loop_with_decrement(span, children, count, decrement, info));
                 }
             } else {
                 unreachable!();
@@ -961,8 +991,8 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
 
             match prev.op_type {
                 OpType::LLoop(children, info) |
-                OpType::ILoop(children, _, info) |
-                OpType::CLoop(children, _, info) => {
+                OpType::ILoop(children, _, _, info) |
+                OpType::CLoop(children, _, _, info) => {
                     ops.insert(i, Op::t_nz(span, children, info));
                 }
                 _ => unreachable!(),
@@ -1084,7 +1114,7 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
             let span = prev.span;
 
             match prev.op_type {
-                OpType::CLoop(children, iterations, _) => {
+                OpType::CLoop(children, iterations, _, _) => {
                     let mut ptr_offset = 0;
 
                     let mut pos = i;
@@ -1390,7 +1420,7 @@ pub fn remove_useless_loops(ops: &mut Vec<Op>) -> bool {
 
 pub fn remove_useless_loops_pass(ops: [&Op; 1]) -> Change {
     match &ops[0].op_type {
-        OpType::CLoop(children, _, _) |
+        OpType::CLoop(children, _, _, _) |
         OpType::TNz(children, _)
         => {
             if children.is_empty() {
@@ -1742,7 +1772,7 @@ pub fn unroll_constant_loops(ops: &mut Vec<Op>, limit: usize) -> bool {
     while !ops.is_empty() && i < ops.len() {
         let op = &ops[i];
 
-        let changes = if let OpType::CLoop(children, iterations, _) = &op.op_type {
+        let changes = if let OpType::CLoop(children, iterations, decrement, _) = &op.op_type {
             let num_ops = count_ops_recursive(children);
 
             let complexity = num_ops * *iterations as usize + ops.len() / 5;
@@ -1758,12 +1788,20 @@ pub fn unroll_constant_loops(ops: &mut Vec<Op>, limit: usize) -> bool {
                     }
                 }
 
-                for _ in 0..*iterations {
+                for counter in (0..*iterations).rev() {
+                    if *decrement == LoopDecrement::Pre {
+                        changes.push(Op::set(ops[i].span.clone(), counter));
+                    }
+
                     for op in children {
                         changes.push(op.clone());
                     }
                     if ptr_offset != 0 {
                         changes.push(Op::ptr_offset(ops[i].span.clone(), -ptr_offset));
+                    }
+
+                    if *decrement == LoopDecrement::Post {
+                        changes.push(Op::set(ops[i].span.clone(), counter));
                     }
                 }
 
@@ -1872,8 +1910,8 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                 }
             }
             OpType::LLoop(_, info) |
-            OpType::ILoop(_, _, info) |
-            OpType::CLoop(_, _, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
                 if cell_offset == 0 || info.was_cell_accessed(cell_offset) {
@@ -1899,8 +1937,8 @@ pub fn update_loop_access(ops: &mut Vec<Op>) {
     for op in ops {
         match &mut op.op_type {
             OpType::LLoop(children, info) |
-            OpType::ILoop(children, _, info) |
-            OpType::CLoop(children, _, info) |
+            OpType::ILoop(children, _, _, info) |
+            OpType::CLoop(children, _, _, info) |
             OpType::TNz(children, info)
             => {
                 info.set_cell_access(get_loop_access(children, 0));

@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::Write;
 
-use crate::ir::ops::{Op, OpType};
+use crate::ir::ops::{Op, OpType, LoopDecrement};
 use crate::parser::Program;
 
 /// Compile program into a rust file that can be compiled with rustc
@@ -59,32 +59,75 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::ILoop(children, step, _) => {
+            OpType::ILoop(children, step, decrement, _) => {
                 writeln!(out, "{{")?;
 
-                writeln!(out, "let heap_pointer = rt.pointer;")?;
-                writeln!(out, "let mut left = *rt.heap_value();")?;
-                writeln!(out, "while left > 0 {{")?;
-                writeln!(out, "rt.pointer = heap_pointer;")?;
-                print_ops(out, children)?;
-                writeln!(out, "left = left.wrapping_sub({});", step)?;
-                writeln!(out, "}}")?;
-                writeln!(out, "rt.pointer = heap_pointer;")?;
-                writeln!(out, "*rt.heap_value() = 0;")?;
+                match decrement {
+                    LoopDecrement::Pre => {
+                        writeln!(out, "let heap_pointer = rt.pointer;")?;
+                        writeln!(out, "let mut left = *rt.heap_value();")?;
+                        writeln!(out, "while left > 0 {{")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        writeln!(out, "left = left.wrapping_sub({});", step)?;
+                        print_ops(out, children)?;
+                        writeln!(out, "}}")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        writeln!(out, "*rt.heap_value() = 0;")?;
+                    }
+                    LoopDecrement::Post |
+                    LoopDecrement::Auto => {
+                        writeln!(out, "let heap_pointer = rt.pointer;")?;
+                        writeln!(out, "let mut left = *rt.heap_value();")?;
+                        writeln!(out, "while left > 0 {{")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        print_ops(out, children)?;
+                        writeln!(out, "left = left.wrapping_sub({});", step)?;
+                        writeln!(out, "}}")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        writeln!(out, "*rt.heap_value() = 0;")?;
+                    }
+                }
 
                 writeln!(out, "}}")?;
             }
-            OpType::CLoop(children, iterations, _) => {
+            OpType::CLoop(children, iterations, decrement, _) => {
                 writeln!(out, "{{")?;
 
-                writeln!(out, "let heap_pointer = rt.pointer;")?;
-
-                writeln!(out, "for _ in 0..{} {{", iterations)?;
-                writeln!(out, "rt.pointer = heap_pointer;")?;
-                print_ops(out, children)?;
-                writeln!(out, "}}")?;
-                writeln!(out, "rt.pointer = heap_pointer;")?;
-                writeln!(out, "*rt.heap_value() = 0;")?;
+                match decrement {
+                    LoopDecrement::Pre => {
+                        writeln!(out, "let heap_pointer = rt.pointer;")?;
+                        writeln!(out, "*rt.heap_value() = {}", iterations)?;
+                        writeln!(out, "let mut left = *rt.heap_value();")?;
+                        writeln!(out, "while left > 0 {{")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        writeln!(out, "left = left.wrapping_sub(1);")?;
+                        print_ops(out, children)?;
+                        writeln!(out, "}}")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        writeln!(out, "*rt.heap_value() = 0;")?;
+                    }
+                    LoopDecrement::Post => {
+                        writeln!(out, "let heap_pointer = rt.pointer;")?;
+                        writeln!(out, "*rt.heap_value() = {}", iterations)?;
+                        writeln!(out, "let mut left = *rt.heap_value();")?;
+                        writeln!(out, "while left > 0 {{")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        print_ops(out, children)?;
+                        writeln!(out, "left = left.wrapping_sub(1);")?;
+                        writeln!(out, "}}")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        writeln!(out, "*rt.heap_value() = 0;")?;
+                    }
+                    LoopDecrement::Auto => {
+                        writeln!(out, "let heap_pointer = rt.pointer;")?;
+                        writeln!(out, "for _ in 0..{} {{", iterations)?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        print_ops(out, children)?;
+                        writeln!(out, "}}")?;
+                        writeln!(out, "rt.pointer = heap_pointer;")?;
+                        writeln!(out, "*rt.heap_value() = 0;")?;
+                    }
+                }
 
                 writeln!(out, "}}")?;
             }

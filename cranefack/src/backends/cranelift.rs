@@ -10,7 +10,7 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
 
 use crate::errors::CompilerError;
-use crate::ir::ops::{Op, OpType};
+use crate::ir::ops::{Op, OpType, LoopDecrement};
 use crate::OptimizeConfig;
 use crate::parser::Program;
 
@@ -49,8 +49,8 @@ impl<'a> Builder<'a> {
                 OpType::Copy(src_offset, dest_offset) => self.copy(*src_offset, *dest_offset),
                 OpType::DLoop(ops) => self.d_loop(ops),
                 OpType::LLoop(ops, _) => self.l_loop(ops),
-                OpType::ILoop(ops, step, _) => self.i_loop(ops, *step),
-                OpType::CLoop(ops, iterations, _) => self.c_loop(ops, *iterations),
+                OpType::ILoop(ops, step, decrement, _) => self.i_loop(ops, *step, *decrement),
+                OpType::CLoop(ops, iterations, decrement, _) => self.c_loop(ops, *iterations, *decrement),
                 OpType::TNz(ops, _) => self.tnz(ops),
                 OpType::SearchZero(step) => self.search_zero(*step),
                 OpType::PutChar(offset) => self.put_char(*offset),
@@ -266,7 +266,7 @@ impl<'a> Builder<'a> {
         self.set(0, 0);
     }
 
-    fn i_loop(&mut self, ops: &[Op], step: u8) {
+    fn i_loop(&mut self, ops: &[Op], step: u8, decrement: LoopDecrement) {
         let head = self.bcx.create_block();
         self.bcx.append_block_param(head, self.pointer_type);
         self.bcx.append_block_param(head, types::I8);
@@ -297,12 +297,25 @@ impl<'a> Builder<'a> {
         self.bcx.switch_to_block(body);
         let heap_ptr = self.bcx.block_params(body)[0];
         self.heap_ptr = heap_ptr;
-        let counter = self.bcx.block_params(body)[1];
+        let mut counter = self.bcx.block_params(body)[1];
+        let step = self.const_u8(step);
+
+        if decrement == LoopDecrement::Pre {
+            counter = self.bcx.ins().isub(counter, step);
+            self.store(0, counter);
+        }
 
         self.append_ops(ops);
 
-        let step = self.const_u8(step);
-        let counter = self.bcx.ins().isub(counter, step);
+        self.heap_ptr = heap_ptr;
+
+        if decrement == LoopDecrement::Post {
+            counter = self.bcx.ins().isub(counter, step);
+            self.store(0, counter);
+        } else if decrement == LoopDecrement::Auto {
+            counter = self.bcx.ins().isub(counter, step);
+        }
+
         self.bcx.ins().jump(head, &[heap_ptr, counter]);
 
         // Start next block after loop
@@ -311,7 +324,7 @@ impl<'a> Builder<'a> {
         self.set(0, 0);
     }
 
-    fn c_loop(&mut self, ops: &[Op], iterations: u8) {
+    fn c_loop(&mut self, ops: &[Op], iterations: u8, decrement: LoopDecrement) {
         let head = self.bcx.create_block();
         self.bcx.append_block_param(head, self.pointer_type);
         self.bcx.append_block_param(head, types::I8);
@@ -324,6 +337,11 @@ impl<'a> Builder<'a> {
         self.bcx.append_block_param(next, self.pointer_type);
 
         let iterations = self.const_u8(iterations);
+
+        if decrement == LoopDecrement::Post {
+            self.store(0, iterations);
+        }
+
         self.bcx.ins().fallthrough(head, &[self.heap_ptr, iterations]);
 
         // Head with condition
@@ -340,12 +358,26 @@ impl<'a> Builder<'a> {
         self.bcx.switch_to_block(body);
         let heap_ptr = self.bcx.block_params(body)[0];
         self.heap_ptr = heap_ptr;
-        let counter = self.bcx.block_params(body)[1];
+        let mut counter = self.bcx.block_params(body)[1];
+
+        let step = self.const_u8(1);
+
+        if decrement == LoopDecrement::Pre {
+            counter = self.bcx.ins().isub(counter, step);
+            self.store(0, counter);
+        }
 
         self.append_ops(ops);
 
-        let step = self.const_u8(1);
-        let counter = self.bcx.ins().isub(counter, step);
+        self.heap_ptr = heap_ptr;
+
+        if decrement == LoopDecrement::Post {
+            counter = self.bcx.ins().isub(counter, step);
+            self.store(0, counter);
+        } else if decrement == LoopDecrement::Auto {
+            counter = self.bcx.ins().isub(counter, step);
+        }
+
         self.bcx.ins().jump(head, &[heap_ptr, counter]);
 
         // Start next block after loop
@@ -631,7 +663,7 @@ mod tests {
     use std::io::{Cursor, Read, Write};
 
     use crate::{optimize, OptimizeConfig, parse};
-    use crate::ir::ops::Op;
+    use crate::ir::ops::{Op, LoopDecrement};
     use crate::parser::Program;
 
     use super::CompiledJitModule;
@@ -1359,6 +1391,50 @@ mod tests {
     }
 
     #[test]
+    fn test_i_loop_pre() {
+        let program = Program {
+            ops: vec![
+                Op::set(0..1, 5),
+                Op::i_loop_with_decrement(1..4, vec![
+                    Op::inc_ptr(1..2, 1),
+                    Op::inc(1..2, 1),
+                    Op::dec_ptr(1..2, 1),
+                    Op::put_char(1..2),
+                ], 1, LoopDecrement::Pre, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(heap[0], 0);
+        assert_eq!(heap[1], 5);
+        assert_eq!(&output, b"\x04\x03\x02\x01\\0x0");
+    }
+
+    #[test]
+    fn test_i_loop_post() {
+        let program = Program {
+            ops: vec![
+                Op::set(0..1, 5),
+                Op::i_loop_with_decrement(1..4, vec![
+                    Op::put_char(1..2),
+                ], 1, LoopDecrement::Post, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(heap[0], 0);
+        assert_eq!(&output, &[5, 4, 3, 2, 1]);
+    }
+
+    #[test]
     fn test_c_loop() {
         let program = Program {
             ops: vec![
@@ -1378,6 +1454,48 @@ mod tests {
         assert_eq!(heap[0], 0);
         assert_eq!(heap[1], 0);
         assert_eq!(heap[2], 10);
+    }
+
+    #[test]
+    fn test_c_loop_pre() {
+        let program = Program {
+            ops: vec![
+                Op::c_loop_with_decrement(1..4, vec![
+                    Op::inc_ptr(1..2, 1),
+                    Op::inc(1..2, 1),
+                    Op::dec_ptr(1..2, 1),
+                    Op::put_char(1..2),
+                ], 5, LoopDecrement::Pre, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(heap[0], 0);
+        assert_eq!(heap[1], 5);
+        assert_eq!(&output, b"\x04\x03\x02\x01\\0x0");
+    }
+
+    #[test]
+    fn test_c_loop_post() {
+        let program = Program {
+            ops: vec![
+                Op::c_loop_with_decrement(1..4, vec![
+                    Op::put_char(1..2),
+                ], 5, LoopDecrement::Post, BlockInfo::new_empty()),
+            ]
+        };
+
+        let input = b"";
+        let mut output = Vec::new();
+
+        let heap = run(&program, Cursor::new(input), &mut output);
+
+        assert_eq!(heap[0], 0);
+        assert_eq!(&output, &[5, 4, 3, 2, 1]);
     }
 
     #[test]
