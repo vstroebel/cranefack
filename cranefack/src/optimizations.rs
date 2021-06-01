@@ -159,26 +159,44 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
         print_debug(program, config, "Remove useless copy");
 
         if config.non_local {
-            progress |= optimize_non_local_arithmetics(&mut program.ops);
+            update_loop_access(&mut program.ops);
+
+            if optimize_non_local_arithmetics(&mut program.ops) {
+                update_loop_access(&mut program.ops);
+                progress = true;
+            }
             print_debug(program, config, "Optimize non local arithmetics");
 
-            progress |= optimize_non_local_static_count_loops(&mut program.ops);
+            if optimize_non_local_static_count_loops(&mut program.ops) {
+                update_loop_access(&mut program.ops);
+                progress = true;
+            }
             print_debug(program, config, "Optimize non local constant loops");
 
-            progress |= optimize_non_local_dead_stores(&mut program.ops);
+            if optimize_non_local_redundant_copies(&mut program.ops) {
+                update_loop_access(&mut program.ops);
+                progress = true;
+            }
+            print_debug(program, config, "Optimize non local redundant copies");
+
+            if optimize_non_local_dead_stores(&mut program.ops) {
+                update_loop_access(&mut program.ops);
+                progress = true;
+            }
             print_debug(program, config, "Optimize non local dead stores");
 
-            progress |= remove_useless_loops(&mut program.ops);
+            if remove_useless_loops(&mut program.ops) {
+                update_loop_access(&mut program.ops);
+                progress = true;
+            }
             print_debug(program, config, "Remove useless loops");
 
             if config.unroll_loop_limit > 0 {
-                progress |= unroll_constant_loops(&mut program.ops, config.unroll_loop_limit);
+                if unroll_constant_loops(&mut program.ops, config.unroll_loop_limit) {
+                    update_loop_access(&mut program.ops);
+                    progress = true;
+                }
                 print_debug(program, config, "Unroll constant loops");
-            }
-
-            if progress {
-                update_loop_access(&mut program.ops);
-                print_debug(program, config, "Updating loop access");
             }
         } else if config.complex_loops {
             progress |= remove_useless_loops(&mut program.ops);

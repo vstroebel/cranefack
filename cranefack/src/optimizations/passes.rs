@@ -243,7 +243,7 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
             OpType::TNz(_, info)
             => {
                 for cell in info.cell_access() {
-                    CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                    CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
                 }
                 CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
@@ -1912,6 +1912,74 @@ pub fn update_loop_access(ops: &mut Vec<Op>) {
     }
 }
 
+/// Try to find redundant copy/move ops
+///
+/// If a cell is copied this is typically done by copying the value
+/// into two cells and move the value back into the origin which
+/// results in sequences like this:
+/// ```text
+/// COPY src_offset: 0 dest_offset: 1
+/// COPY src_offset: 0 dest_offset: 2
+/// MOVE src_offset: 1 dest_offset: 0
+/// ```
+/// This can be replaced with:
+/// ```text
+/// COPY src_offset: 0 dest_offset: 2
+/// SET 0 offset 1
+/// ```
+pub fn optimize_non_local_redundant_copies(ops: &mut Vec<Op>) -> bool {
+    let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_non_local_redundant_copies(children);
+        }
+    }
+
+    let mut i = 1;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &ops[i];
+
+        let indices = if let OpType::Move(src_offset, dest_offset) = &op.op_type {
+            let mut result = None;
+
+            for (test_index, op2) in ops[0..i].iter().enumerate().rev() {
+                match &op2.op_type {
+                    OpType::Copy(src_offset2, dest_offset2)
+                    => {
+                        if src_offset == dest_offset2 {
+                            if dest_offset == src_offset2 {
+                                result = Some((test_index, *src_offset));
+                            }
+                            break;
+                        }
+                    }
+                    _ => {
+                        break;
+                    }
+                }
+            }
+
+            result
+        } else {
+            None
+        };
+
+        if let Some((remove_index, reset_index)) = indices {
+            ops[i].op_type = OpType::Set(reset_index, 0);
+            ops.remove(remove_index);
+
+            progress = true;
+            i -= 1;
+        }
+
+        i += 1;
+    }
+
+    progress
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ir::ops::Op;
@@ -2625,5 +2693,22 @@ mod tests {
         run_non_local_pass(&mut ops, optimize_non_local_arithmetics_pass, false, &[]);
 
         assert_eq!(ops, inputs)
+    }
+
+
+    #[test]
+    fn test_non_local_redundant_copies() {
+        let mut ops = vec![
+            Op::copy(0..1, 0, 1),
+            Op::copy(1..2, 0, 2),
+            Op::_move(2..3, 1, 0),
+        ];
+
+        optimize_non_local_redundant_copies(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::copy(1..2, 0, 2),
+            Op::set_with_offset(2..3, 1, 0),
+        ])
     }
 }

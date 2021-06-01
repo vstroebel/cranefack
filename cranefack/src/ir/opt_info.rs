@@ -146,4 +146,35 @@ impl CellAccess {
             value,
         });
     }
+
+    pub fn add_conditional(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
+        // Ignore loop counters
+        if offset == 0 {
+            return;
+        }
+
+        for exiting_cell in cells.iter_mut() {
+            if exiting_cell.offset == offset {
+                match (&exiting_cell.value, value) {
+                    (Cell::Value(v1), Cell::Value(v2)) => {
+                        if *v1 != v2 {
+                            exiting_cell.value = Cell::Write
+                        }
+                    }
+                    (_, Cell::Read) => {
+                        // Ignore
+                    }
+                    _ => {
+                        exiting_cell.value = Cell::Write
+                    }
+                }
+                return;
+            }
+        }
+
+        cells.push(CellAccess {
+            offset,
+            value,
+        });
+    }
 }

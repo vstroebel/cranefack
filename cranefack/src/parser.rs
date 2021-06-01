@@ -89,6 +89,8 @@ impl Program {
     }
 
     fn dump_ops<W: Write>(&self, output: &mut W, ops: &[Op], indent: usize, debug: bool) -> Result<(), Box<dyn Error>> {
+        let mut ptr_offset = 0;
+
         for op in ops {
             let mut pos = format!("0x{:x}..0x{:x}", op.span.start, op.span.end - 1);
 
@@ -98,9 +100,17 @@ impl Program {
 
             write!(output, "{}", pos)?;
 
+            if debug {
+                write!(output, "{}  ", ptr_offset)?;
+                if let Some(offset) = op.op_type.get_ptr_offset() {
+                    ptr_offset += offset;
+                }
+            }
+
             for _ in 0..indent {
                 write!(output, "  ")?;
             }
+
 
             match &op.op_type {
                 OpType::Start => writeln!(output, "START")?,
