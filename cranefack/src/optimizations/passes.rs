@@ -1458,6 +1458,40 @@ pub fn optimize_non_local_arithmetics(mut ops: &mut Vec<Op>) -> bool {
                     }
                 }
             }
+            OpType::NzAdd(src_offset, dest_offset, multi) => {
+                let src = find_heap_value(ops, *src_offset, i - 1);
+                let dest = find_heap_value(ops, *dest_offset, i - 1);
+
+                match (src, dest) {
+                    (CellValue::Value(0), CellValue::Value(_)) => {
+                        Change::Remove
+                    }
+                    (CellValue::Value(src), CellValue::Value(dest)) => {
+                        let value = dest.wrapping_add(src.wrapping_mul(*multi));
+
+                        Change::Replace(vec![
+                            OpType::Set(*dest_offset, value),
+                        ])
+                    }
+                    (CellValue::Value(src), CellValue::Unknown) => {
+                        let value = src.wrapping_mul(*multi);
+
+                        Change::Replace(vec![
+                            OpType::NzCAdd(*src_offset, *dest_offset, value),
+                        ])
+                    }
+                    (CellValue::Unknown, CellValue::Value(0)) => {
+                        if *multi == 1 {
+                            Change::Replace(vec![OpType::Copy(*src_offset, *dest_offset)])
+                        } else {
+                            Change::Replace(vec![OpType::NzMul(*src_offset, *dest_offset, *multi)])
+                        }
+                    }
+                    _ => {
+                        Change::Ignore
+                    }
+                }
+            }
             OpType::CAdd(src_offset, dest_offset, value) => {
                 if let CellValue::Value(value2) = find_heap_value(ops, *dest_offset, i - 1) {
                     Change::Replace(vec![
@@ -2604,6 +2638,21 @@ mod tests {
             Op::inc_with_offset(1..2, 2, 1),
             Op::inc_with_offset(2..3, 1, 2),
             Op::set(0..4, 0),
+        ])
+    }
+
+    #[test]
+    fn test_nz_mul() {
+        let mut ops = vec![
+            Op::set_with_offset(0..1, 1, 0),
+            Op::nz_add(1..2, 1, 2),
+        ];
+
+        optimize_non_local_arithmetics(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set_with_offset(0..1, 1, 0),
+            Op::nz_mul(1..2, 1, 2),
         ])
     }
 }
