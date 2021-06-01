@@ -43,6 +43,7 @@ fn create_clap_app() -> App<'static, 'static> {
                 .help("Use JIT compiler"))
             .arg(get_opt_mode_arg())
             .arg(get_jit_level())
+            .arg(get_debug_opt_arg())
             .arg(get_verbose_arg())
         )
         .subcommand(SubCommand::with_name("compile")
@@ -58,6 +59,7 @@ fn create_clap_app() -> App<'static, 'static> {
             )
             .arg(get_opt_mode_arg())
             .arg(get_jit_level())
+            .arg(get_debug_opt_arg())
             .arg(get_verbose_arg())
         )
         .subcommand(SubCommand::with_name("benchmark")
@@ -105,6 +107,12 @@ fn get_opt_mode_arg<'a, 'b>() -> Arg<'a, 'b> {
         .value_names(&["mode"])
         .default_value("2")
         .help("Optimization mode")
+}
+
+fn get_debug_opt_arg<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("DEBUG_OPT")
+        .long("debug-optimizations")
+        .help("Print statistics for optimization passes")
 }
 
 fn is_verbose(matches: &ArgMatches) -> bool {

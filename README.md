@@ -24,10 +24,11 @@ USAGE:
     cranefack run [FLAGS] [OPTIONS] <FILE>
 
 FLAGS:
-    -j, --jit        Use JIT compiler
+        --debug-optimizations    Print statistics for optimization passes
+    -j, --jit                    Use JIT compiler
     -v, --verbose    
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    -h, --help                   Prints help information
+    -V, --version                Prints version information
 
 OPTIONS:
         --jit-level <level>    Optimization level for JIT [possible values: none, speed, speed_and_size]
@@ -55,9 +56,10 @@ USAGE:
     cranefack compile [FLAGS] [OPTIONS] <FILE>
 
 FLAGS:
+        --debug-optimizations    Print statistics for optimization passes
     -v, --verbose    
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    -h, --help                   Prints help information
+    -V, --version                Prints version information
 
 OPTIONS:
     -f, --format <format>      Format of compiled code [default: dump]  [possible values: dump, clir, rust]
@@ -132,5 +134,5 @@ This project is licensed under either of
 
 ## Contribution
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in cranefack by
-you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in cranefack by you, as
+defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

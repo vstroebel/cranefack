@@ -29,6 +29,13 @@ impl Op {
         }
     }
 
+    pub fn ptr_offset(span: Range<usize>, offset: isize) -> Op {
+        Op {
+            op_type: OpType::new_ptr_offset(offset),
+            span,
+        }
+    }
+
     pub fn inc(span: Range<usize>, count: u8) -> Op {
         Op {
             op_type: OpType::Inc(0, count),

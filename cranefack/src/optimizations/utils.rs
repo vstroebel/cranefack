@@ -67,3 +67,15 @@ pub enum CellValue {
     Unknown,
     Value(u8),
 }
+
+pub fn count_ops_recursive(ops: &[Op]) -> usize {
+    let mut count = ops.len();
+
+    for op in ops {
+        if let Some(children) = op.op_type.get_children() {
+            count += count_ops_recursive(children);
+        }
+    }
+
+    count
+}

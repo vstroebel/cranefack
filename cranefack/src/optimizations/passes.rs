@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::ir::ops::{Op, OpType};
 use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
-use crate::optimizations::utils::{CellValue, Change};
+use crate::optimizations::utils::{CellValue, Change, count_ops_recursive};
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
     run_peephole_pass(ops, remove_dead_loops_check)
@@ -1759,6 +1759,75 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
+pub fn unroll_constant_loops(ops: &mut Vec<Op>, limit: usize) -> bool {
+    let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= unroll_constant_loops(children, limit);
+        }
+    }
+
+    let mut i = 0;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &ops[i];
+
+        let changes = if let OpType::CLoop(children, iterations, _) = &op.op_type {
+            let num_ops = count_ops_recursive(children);
+
+            let complexity = num_ops * *iterations as usize + ops.len() / 5;
+
+            if complexity < limit {
+                let mut changes = vec![];
+
+                let mut ptr_offset = 0;
+
+                for op in children {
+                    if let Some(offset) = op.op_type.get_ptr_offset() {
+                        ptr_offset += offset;
+                    }
+                }
+
+                for _ in 0..*iterations {
+                    for op in children {
+                        changes.push(op.clone());
+                    }
+                    if ptr_offset != 0 {
+                        changes.push(Op::ptr_offset(ops[i].span.clone(), -ptr_offset));
+                    }
+                }
+
+                Some(changes)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(changes) = changes {
+            let old = ops.remove(i);
+
+            let len = changes.len();
+
+            for (index, op) in changes.into_iter().enumerate() {
+                ops.insert(i + index, op);
+            }
+
+            ops.insert(i + len, Op::set(old.span, 0));
+
+            // All possible loops within the current loop should already haven been unrolled
+            i += len + 1;
+            progress = true;
+        } else {
+            i += 1;
+        }
+    }
+
+    progress
+}
+
 fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) -> Option<(usize, Option<OpType>)> {
     let mut i = start_index as isize;
 
@@ -2513,6 +2582,28 @@ mod tests {
 
         assert_eq!(ops, vec![
             Op::copy(0..2, 3, 7),
+        ])
+    }
+
+    #[test]
+    fn test_unroll_constant_loops() {
+        let mut ops = vec![
+            Op::c_loop(0..4, vec![
+                Op::inc_with_offset(1..2, 2, 1),
+                Op::inc_with_offset(2..3, 1, 2),
+            ], 3, BlockInfo::new_empty())
+        ];
+
+        unroll_constant_loops(&mut ops, 40);
+
+        assert_eq!(ops, vec![
+            Op::inc_with_offset(1..2, 2, 1),
+            Op::inc_with_offset(2..3, 1, 2),
+            Op::inc_with_offset(1..2, 2, 1),
+            Op::inc_with_offset(2..3, 1, 2),
+            Op::inc_with_offset(1..2, 2, 1),
+            Op::inc_with_offset(2..3, 1, 2),
+            Op::set(0..4, 0),
         ])
     }
 }
