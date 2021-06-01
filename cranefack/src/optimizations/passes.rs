@@ -1663,6 +1663,25 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                     Change::Ignore
                 }
             }
+            OpType::Move(src_offset, dest_offset) => {
+                if let CellValue::Value(value) = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs) {
+                    Change::Replace(vec![
+                        OpType::Set(*dest_offset, value),
+                        OpType::Set(*src_offset, 0),
+                    ])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::Copy(src_offset, dest_offset) => {
+                if let CellValue::Value(value) = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs) {
+                    Change::Replace(vec![
+                        OpType::Set(*dest_offset, value),
+                    ])
+                } else {
+                    Change::Ignore
+                }
+            }
             OpType::SearchZero(step) => {
                 let mut ptr_offset = None;
 
