@@ -2075,11 +2075,14 @@ pub fn optimize_non_local_redundant_copies(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-pub fn partially_unroll_d_loops(ops: &mut Vec<Op>) -> bool {
-    run_non_local_pass(ops, partially_unroll_d_loops_pass, true, &[])
+pub fn partially_unroll_d_loops(ops: &mut Vec<Op>, limit: usize) -> bool {
+    run_non_local_pass(ops,
+                       |ops, zeroing, inputs| partially_unroll_d_loops_pass(ops, zeroing, inputs, limit),
+                       true,
+                       &[])
 }
 
-fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)]) -> bool {
+fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)], limit: usize) -> bool {
     let mut progress = false;
 
     let mut i = 0;
@@ -2095,7 +2098,7 @@ fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isi
                         i -= 1;
                     }
                     None
-                } else if count_ops_recursive(children) < 20 {
+                } else if count_ops_recursive(children) < limit {
                     Some(children.clone())
                 } else {
                     None

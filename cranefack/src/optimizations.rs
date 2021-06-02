@@ -30,8 +30,8 @@ pub struct OptimizeConfig {
     /// Limit for loop unrolling pass
     pub unroll_loop_limit: usize,
 
-    /// Partially unroll loops that are take at least one time
-    pub partially_unroll_d_loops: bool,
+    /// Limit for partially unrolling loops known to be take at least one time
+    pub partially_unroll_loops_limit: usize,
 
     /// Print statistics after each pass
     pub debug: bool,
@@ -46,7 +46,7 @@ impl OptimizeConfig {
             max_loops: 0,
             jit_level: None,
             unroll_loop_limit: 0,
-            partially_unroll_d_loops: false,
+            partially_unroll_loops_limit: 0,
             debug: false,
         }
     }
@@ -66,6 +66,7 @@ impl OptimizeConfig {
             complex_loops: true,
             non_local: true,
             unroll_loop_limit: 25,
+            partially_unroll_loops_limit: 4,
             ..Self::o1()
         }
     }
@@ -75,7 +76,7 @@ impl OptimizeConfig {
         OptimizeConfig {
             max_loops: 50,
             unroll_loop_limit: 150,
-            partially_unroll_d_loops: true,
+            partially_unroll_loops_limit: 20,
             jit_level: Some("speed_and_size".to_owned()),
             ..Self::o2()
         }
@@ -86,6 +87,7 @@ impl OptimizeConfig {
         OptimizeConfig {
             max_loops: 50,
             unroll_loop_limit: 5,
+            partially_unroll_loops_limit: 0,
             ..Self::o2()
         }
     }
@@ -204,8 +206,8 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                 print_debug(program, config, "Unroll constant loops");
             }
 
-            if config.partially_unroll_d_loops && (!progress || count > 4) {
-                progress |= partially_unroll_d_loops(&mut program.ops);
+            if config.partially_unroll_loops_limit > 0 && (!progress || count > 2) {
+                progress |= partially_unroll_d_loops(&mut program.ops, config.partially_unroll_loops_limit);
                 print_debug(program, config, "Partially unroll dynamic loops");
             }
         } else if config.complex_loops {
