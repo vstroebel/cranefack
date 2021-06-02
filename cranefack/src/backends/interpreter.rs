@@ -122,6 +122,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             }
             OpType::GetChar(offset) => self.get_char(&op.span, *offset)?,
             OpType::PutChar(offset) => self.put_char(&op.span, *offset)?,
+            OpType::PutString(array) => self.put_string(&op.span, array)?,
             OpType::DLoop(ops) => {
                 while *self.heap_value(&op.span)? > 0 {
                     self.execute_ops(ops)?;
@@ -327,6 +328,21 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             span: span.clone(),
             error,
         })
+    }
+
+    fn put_string(&mut self, span: &Range<usize>, array: &[u8]) -> Result<(), RuntimeError> {
+        for &ch in array {
+            if ch.is_ascii() {
+                write!(self.output, "{}", ch as char)
+            } else {
+                write!(self.output, "\\0x{:x}", ch)
+            }.map_err(|error| RuntimeError::IoError {
+                span: span.clone(),
+                error,
+            })?;
+        }
+
+        Ok(())
     }
 }
 

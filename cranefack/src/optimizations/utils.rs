@@ -200,7 +200,8 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
             => {
                 true
             }
-            OpType::PutChar(_)
+            OpType::PutChar(_) |
+            OpType::PutString(..)
             => {
                 // Ignore
                 false
@@ -374,6 +375,9 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                         }
                     }
                 }
+            }
+            OpType::PutString(_) => {
+                // Ignore
             }
             _ => return CellValue::Unknown
         }

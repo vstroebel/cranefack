@@ -37,6 +37,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
             OpType::Mul(src_offset, dest_offset, multi) => writeln!(out, "rt.mul({}, {}, {});", src_offset, dest_offset, multi)?,
             OpType::NzMul(src_offset, dest_offset, multi) => writeln!(out, "rt.nz_mul({}, {}, {});", src_offset, dest_offset, multi)?,
             OpType::GetChar(offset) => writeln!(out, "rt.get_char({});", offset)?,
+            OpType::PutString(array) => writeln!(out, "rt.put_string({:?});", array)?,
             OpType::PutChar(offset) => writeln!(out, "rt.put_char({});", offset)?,
             OpType::DLoop(children) => {
                 writeln!(out, "{{")?;

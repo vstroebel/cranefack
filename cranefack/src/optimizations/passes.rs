@@ -154,6 +154,7 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                             break;
                         }
                         OpType::PutChar(..) |
+                        OpType::PutString(..) |
                         OpType::GetChar(..) |
                         OpType::Inc(..) |
                         OpType::Dec(..) |
@@ -256,6 +257,9 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
             OpType::Start => unreachable!("Must not be called with start in children"),
             OpType::DLoop(_) => unreachable!("Must not be called with dloops in children"),
             OpType::SearchZero(_) => unreachable!("Must not be called with zero search in children"),
+            OpType::PutString(..) => {
+                // ignore
+            }
         }
     }
 
@@ -293,6 +297,7 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                 return false;
             }
             OpType::PutChar(..) |
+            OpType::PutString(..) |
             OpType::GetChar(..) |
             OpType::Inc(..) |
             OpType::Dec(..) |
@@ -441,6 +446,9 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                             ignore = true;
                             break;
                         }
+                        OpType::PutString(..) => {
+                            // ignore
+                        }
                     }
                 }
             }
@@ -576,7 +584,8 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
             OpType::SearchZero(..) => {
                 return false;
             }
-            OpType::PutChar(..) => {
+            OpType::PutChar(..) |
+            OpType::PutString(..) => {
                 // ignore
             }
         }
@@ -652,6 +661,18 @@ pub fn optimize_arithmetics(ops: [&Op; 2]) -> Change {
             } else {
                 Change::Ignore
             }
+        }
+        (OpType::Set(offset, v1), OpType::PutChar(offset2)) => {
+            if *offset == *offset2 {
+                Change::ReplaceOffset(1, ops[1].span.clone(), vec![OpType::PutString(vec![*v1])])
+            } else {
+                Change::Ignore
+            }
+        }
+        (OpType::PutString(a1), OpType::PutString(a2)) => {
+            let mut value = a1.clone();
+            value.extend_from_slice(a2);
+            Change::Replace(vec![OpType::PutString(value)])
         }
         (op_type, OpType::Inc(offset, v)) => {
             if op_type.is_zeroing(*offset) {
@@ -1474,6 +1495,13 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                     Change::Ignore
                 }
             }
+            OpType::PutChar(offset) => {
+                if let CellValue::Value(v) = utils::find_heap_value(ops, *offset, i as isize - 1, zeroed, inputs) {
+                    Change::Replace(vec![OpType::PutString(vec![v])])
+                } else {
+                    Change::Ignore
+                }
+            }
             OpType::Add(src_offset, dest_offset, multi) => {
                 let src = utils::find_heap_value(ops, *src_offset, i as isize - 1, zeroed, inputs);
                 let dest = utils::find_heap_value(ops, *dest_offset, i as isize - 1, zeroed, inputs);
@@ -1942,7 +1970,9 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
                     break;
                 }
             }
-
+            OpType::PutString(_) => {
+                // Ignore
+            }
             _ => break,
         }
 

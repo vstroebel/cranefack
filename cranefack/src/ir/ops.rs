@@ -336,6 +336,9 @@ pub enum OpType {
     /// Output current cell
     PutChar(isize),
 
+    ///  Outputs a constant string/array
+    PutString(Vec<u8>),
+
     /// Read from stdin into current cell
     GetChar(isize),
 

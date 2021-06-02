@@ -54,6 +54,7 @@ impl<'a> Builder<'a> {
                 OpType::TNz(ops, _) => self.tnz(ops),
                 OpType::SearchZero(step) => self.search_zero(*step),
                 OpType::PutChar(offset) => self.put_char(*offset),
+                OpType::PutString(array) => self.put_string(array),
                 OpType::GetChar(offset) => self.get_char(*offset),
             }
         }
@@ -195,6 +196,13 @@ impl<'a> Builder<'a> {
     fn put_char(&mut self, offset: isize) {
         let value = self.load(offset);
         self.bcx.ins().call(self.put_char_func, &[self.env, value]);
+    }
+
+    fn put_string(&mut self, array: &[u8]) {
+        for value in array {
+            let value = self.const_u8(*value);
+            self.bcx.ins().call(self.put_char_func, &[self.env, value]);
+        }
     }
 
     fn d_loop(&mut self, ops: &[Op]) {
