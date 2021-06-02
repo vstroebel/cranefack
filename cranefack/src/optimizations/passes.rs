@@ -2126,6 +2126,84 @@ fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isi
 }
 
 
+pub fn remove_true_conditions(ops: &mut Vec<Op>) -> bool {
+    run_non_local_pass(ops, remove_true_conditions_pass, true, &[])
+}
+
+fn remove_true_conditions_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)]) -> bool {
+    let mut progress = false;
+
+    let mut i = 0;
+
+    while i < ops.len() {
+        let op = &ops[i];
+
+        let unroll = match &op.op_type {
+            OpType::TNz(_, _) => {
+                if let CellValue::Value(v) = find_heap_value(ops, 0, i as isize - 1, zeroed, inputs) {
+                    v != 0
+                } else {
+                    false
+                }
+            }
+            _ => {
+                false
+            }
+        };
+
+        if unroll {
+            let old = ops.remove(i);
+
+            if let OpType::TNz(children, _) = old.op_type {
+                let len = children.len();
+
+                let mut ptr_offset = 0;
+
+                for child in &children {
+                    if let Some(offset) = child.op_type.get_ptr_offset() {
+                        ptr_offset += offset;
+                    }
+                }
+
+                for (index, op) in children.into_iter().enumerate() {
+                    let index = i + index;
+                    if index < ops.len() - 1 {
+                        ops.insert(index, op);
+                    } else {
+                        ops.push(op);
+                    }
+                }
+
+                let mut index = i + len;
+
+                if ptr_offset != 0 {
+                    if index < ops.len() - 1 {
+                        ops.insert(index, Op::ptr_offset(old.span.clone(), -ptr_offset));
+                    } else {
+                        ops.push(Op::ptr_offset(old.span.clone(), -ptr_offset));
+                    }
+                    index += 1;
+                }
+
+                if index < ops.len() - 1 {
+                    ops.insert(index, Op::set(old.span, 0));
+                } else {
+                    ops.push(Op::set(old.span, 0));
+                }
+
+                progress = true;
+            } else {
+                unreachable!()
+            }
+        }
+
+        i += 1;
+    }
+
+    progress
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::ir::ops::Op;

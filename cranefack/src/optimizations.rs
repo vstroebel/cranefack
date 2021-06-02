@@ -62,11 +62,11 @@ impl OptimizeConfig {
     /// Complex loop and non local optimizations
     pub fn o2() -> OptimizeConfig {
         OptimizeConfig {
-            max_loops: 30,
+            max_loops: 50,
             complex_loops: true,
             non_local: true,
             unroll_loop_limit: 25,
-            partially_unroll_loops_limit: 4,
+            partially_unroll_loops_limit: 5,
             ..Self::o1()
         }
     }
@@ -74,9 +74,9 @@ impl OptimizeConfig {
     /// Unroll more loops
     pub fn o3() -> OptimizeConfig {
         OptimizeConfig {
-            max_loops: 50,
+            max_loops: 100,
             unroll_loop_limit: 150,
-            partially_unroll_loops_limit: 20,
+            partially_unroll_loops_limit: 25,
             jit_level: Some("speed_and_size".to_owned()),
             ..Self::o2()
         }
