@@ -198,6 +198,12 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
             }
             print_debug(program, config, "Remove useless loops");
 
+            if remove_true_conditions(&mut program.ops) {
+                update_loop_access(&mut program.ops);
+                progress = true;
+            }
+            print_debug(program, config, "Remove true conditions");
+
             if config.unroll_loop_limit > 0 {
                 if unroll_constant_loops(&mut program.ops, config.unroll_loop_limit) {
                     update_loop_access(&mut program.ops);
