@@ -103,7 +103,7 @@ fn get_verbose_arg<'a, 'b>() -> Arg<'a, 'b> {
 fn get_opt_mode_arg<'a, 'b>() -> Arg<'a, 'b> {
     Arg::with_name("OPT_MODE")
         .short("O")
-        .possible_values(&["0", "1", "2", "3", "s"])
+        .possible_values(&["0", "1", "2", "3", "s", "wtf"])
         .value_names(&["mode"])
         .default_value("2")
         .help("Optimization mode")

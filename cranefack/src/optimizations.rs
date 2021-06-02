@@ -92,6 +92,21 @@ impl OptimizeConfig {
         }
     }
 
+    /// Turn on all optimization passes on the max
+    ///
+    /// Only useful for testing...
+    pub fn wtf() -> OptimizeConfig {
+        OptimizeConfig {
+            complex_loops: true,
+            non_local: true,
+            max_loops: usize::MAX,
+            jit_level: None,
+            unroll_loop_limit: usize::MAX,
+            partially_unroll_loops_limit: usize::MAX,
+            debug: false,
+        }
+    }
+
     /// Check if configuration has an optimization enabled
     pub fn optimize(&self) -> bool {
         self.max_loops > 0

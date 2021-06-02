@@ -32,6 +32,7 @@ pub fn get_optimize_config_from_args(matches: &ArgMatches) -> OptimizeConfig {
         "2" => OptimizeConfig::o2(),
         "3" => OptimizeConfig::o3(),
         "s" => OptimizeConfig::size(),
+        "wtf" => OptimizeConfig::wtf(),
         _ => OptimizeConfig::o0(),
     };
 
