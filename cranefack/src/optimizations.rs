@@ -66,7 +66,7 @@ impl OptimizeConfig {
             complex_loops: true,
             non_local: true,
             unroll_loop_limit: 25,
-            partially_unroll_loops_limit: 5,
+            partially_unroll_loops_limit: 10,
             ..Self::o1()
         }
     }
