@@ -2,50 +2,57 @@ use std::fmt::{Debug, Formatter};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct BlockInfo {
-    cell_access: Vec<CellAccess>,
+    cell_access: Option<Vec<CellAccess>>,
 }
 
 impl Debug for BlockInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "access: {}", self.cell_access.len())
+        if let Some(cell_access) = self.cell_access() {
+            write!(f, "access: {}", cell_access.len())
+        } else {
+            write!(f, "access: None")
+        }
     }
 }
 
 impl BlockInfo {
     pub fn new_empty() -> BlockInfo {
         BlockInfo {
-            cell_access: vec![]
+            cell_access: None,
         }
     }
 
     pub fn new_access(cell_access: Vec<CellAccess>) -> BlockInfo {
         BlockInfo {
-            cell_access
+            cell_access: Some(cell_access),
         }
     }
 
-    pub fn cell_access(&self) -> &[CellAccess] {
-        &self.cell_access
+    pub fn cell_access(&self) -> Option<&Vec<CellAccess>> {
+        self.cell_access.as_ref()
     }
 
     pub fn set_cell_access(&mut self, cell_access: Vec<CellAccess>) {
-        self.cell_access = cell_access;
+        self.cell_access = Some(cell_access);
     }
 
     pub fn get_access_value(&self, offset: isize) -> Option<Cell> {
-        for cell in &self.cell_access {
-            if cell.offset == offset {
-                return Some(cell.value);
+        if let Some(cell_access) = &self.cell_access {
+            for cell in cell_access {
+                if cell.offset == offset {
+                    return Some(cell.value);
+                }
             }
         }
-
         None
     }
 
     pub fn was_cell_written(&self, offset: isize) -> bool {
-        for cell in &self.cell_access {
-            if cell.offset == offset {
-                return cell.value.is_write();
+        if let Some(cell_access) = &self.cell_access {
+            for cell in cell_access {
+                if cell.offset == offset {
+                    return cell.value.is_write();
+                }
             }
         }
 
@@ -53,9 +60,11 @@ impl BlockInfo {
     }
 
     pub fn was_cell_accessed(&self, offset: isize) -> bool {
-        for cell in &self.cell_access {
-            if cell.offset == offset {
-                return true;
+        if let Some(cell_access) = &self.cell_access {
+            for cell in cell_access {
+                if cell.offset == offset {
+                    return true;
+                }
             }
         }
 
@@ -63,10 +72,14 @@ impl BlockInfo {
     }
 
     pub fn asm(&self, debug: bool) -> String {
-        if debug {
-            format!("access: {:?}", self.cell_access)
+        if let Some(cell_access) = self.cell_access() {
+            if debug {
+                format!("access: {:?}", cell_access)
+            } else {
+                format!("access: {}", cell_access.len())
+            }
         } else {
-            format!("access: {}", self.cell_access.len())
+            format!("access: None")
         }
     }
 }

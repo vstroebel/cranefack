@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::ir::ops::{Op, OpType, LoopDecrement};
 use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
-use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass, find_heap_value, find_last_accessing_inc_dec, OpCodes};
+use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass, find_heap_value, find_last_accessing_inc_dec, OpCodes, find_last_put_string};
 use crate::optimizations::utils;
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
@@ -243,8 +243,10 @@ fn get_loop_access(ops: &[Op], mut start_offset: isize) -> Vec<CellAccess> {
             OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
-                for cell in info.cell_access() {
-                    CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
+                if let Some(cell_access) = info.cell_access() {
+                    for cell in cell_access {
+                        CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
+                    }
                 }
                 CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
@@ -1525,6 +1527,17 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
             OpType::PutChar(offset) => {
                 if let CellValue::Value(v) = utils::find_heap_value(ops, *offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![OpType::PutString(vec![v])])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::PutString(value) => {
+                if let Some((index, mut value2)) = find_last_put_string(ops, i as isize - 1) {
+                    let remove_index = index - (i as isize);
+
+                    value2.extend_from_slice(&value);
+
+                    Change::RemoveAndReplace(remove_index, vec![OpType::PutString(value2)])
                 } else {
                     Change::Ignore
                 }

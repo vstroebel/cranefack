@@ -243,50 +243,52 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
             }).collect::<Vec<_>>();
 
             if let Some(info) = ops[i].op_type.get_block_info() {
-                for cell in info.cell_access() {
-                    match &cell.value {
-                        Cell::Read => {
-                            //ignore
-                        }
-                        Cell::Write => {
-                            let mut found = false;
+                if let Some(cell_access) = info.cell_access() {
+                    for cell in cell_access {
+                        match &cell.value {
+                            Cell::Read => {
+                                //ignore
+                            }
+                            Cell::Write => {
+                                let mut found = false;
 
-                            for (offset, value) in loop_inputs.iter_mut() {
-                                if *offset == cell.offset {
-                                    *value = CellValue::Unknown;
-                                    found = true;
+                                for (offset, value) in loop_inputs.iter_mut() {
+                                    if *offset == cell.offset {
+                                        *value = CellValue::Unknown;
+                                        found = true;
+                                    }
+                                }
+
+                                if !found {
+                                    loop_inputs.push((cell.offset, CellValue::Unknown))
                                 }
                             }
+                            Cell::Value(v) => {
+                                let mut found = false;
 
-                            if !found {
-                                loop_inputs.push((cell.offset, CellValue::Unknown))
-                            }
-                        }
-                        Cell::Value(v) => {
-                            let mut found = false;
-
-                            for (offset, value) in loop_inputs.iter_mut() {
-                                if *offset == cell.offset {
-                                    match value {
-                                        CellValue::Unknown => {
-                                            // Keep as is
-                                        }
-                                        CellValue::Value(v2) => {
-                                            if *v != *v2 {
-                                                *value = CellValue::Unknown;
+                                for (offset, value) in loop_inputs.iter_mut() {
+                                    if *offset == cell.offset {
+                                        match value {
+                                            CellValue::Unknown => {
+                                                // Keep as is
+                                            }
+                                            CellValue::Value(v2) => {
+                                                if *v != *v2 {
+                                                    *value = CellValue::Unknown;
+                                                }
                                             }
                                         }
+                                        found = true;
+                                        break;
                                     }
-                                    found = true;
-                                    break;
                                 }
-                            }
 
-                            if !found {
-                                if *v == 0 && access.zeroed() {
-                                    loop_inputs.push((cell.offset, CellValue::Value(*v)))
-                                } else {
-                                    loop_inputs.push((cell.offset, CellValue::Unknown))
+                                if !found {
+                                    if *v == 0 && access.zeroed() {
+                                        loop_inputs.push((cell.offset, CellValue::Value(*v)))
+                                    } else {
+                                        loop_inputs.push((cell.offset, CellValue::Unknown))
+                                    }
                                 }
                             }
                         }
@@ -303,8 +305,10 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
             }
 
             if let Some(info) = ops[i].op_type.get_block_info() {
-                for cell in info.cell_access() {
-                    access.add(cell.offset);
+                if let Some(cell_access) = info.cell_access() {
+                    for cell in cell_access {
+                        access.add(cell.offset);
+                    }
                 }
             } else {
                 unreachable!("Local loops must a block info");
@@ -482,6 +486,38 @@ pub fn find_last_accessing_inc_dec(ops: &[Op], start_offset: isize, start_index:
                 }
             }
             OpType::PutString(_) => {
+                // Ignore
+            }
+        }
+
+        i -= 1;
+    }
+
+    None
+}
+
+pub fn find_last_put_string(ops: &[Op], start_index: isize) -> Option<(isize, Vec<u8>)> {
+    let mut i = start_index;
+
+    while i >= 0 {
+        let op = &ops[i as usize];
+
+        match &op.op_type {
+            OpType::PutString(string) => {
+                return Some((i, string.to_vec()));
+            }
+            OpType::PutChar(_) |
+            OpType::GetChar(_) |
+            OpType::SearchZero(_) |
+            OpType::DLoop(_) |
+            OpType::LLoop(..) |
+            OpType::ILoop(..) |
+            OpType::CLoop(..) |
+            OpType::TNz(..)
+            => {
+                return None;
+            }
+            _ => {
                 // Ignore
             }
         }
