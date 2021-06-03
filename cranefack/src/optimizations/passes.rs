@@ -1205,14 +1205,14 @@ pub fn optimize_constant_arithmetics(ops: [&Op; 2]) -> Change {
     match (&ops[0].op_type, &ops[1].op_type) {
         (OpType::Set(offset, value), OpType::Add(src_offset, dest_offset, multi)) => {
             if *offset == *src_offset {
-                Change::Replace(vec![OpType::CAdd(*src_offset, *dest_offset, value * multi)])
+                Change::Replace(vec![OpType::CAdd(*src_offset, *dest_offset, value.wrapping_mul(*multi))])
             } else {
                 Change::Ignore
             }
         }
         (OpType::Set(offset, value), OpType::Sub(src_offset, dest_offset, multi)) => {
             if *offset == *src_offset {
-                Change::Replace(vec![OpType::CSub(*src_offset, *dest_offset, value * multi)])
+                Change::Replace(vec![OpType::CSub(*src_offset, *dest_offset, value.wrapping_mul(*multi))])
             } else {
                 Change::Ignore
             }
@@ -1722,8 +1722,12 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                     let offset = test * step;
                     let value = utils::find_heap_value(ops, offset, i as isize - 1, zeroed, inputs);
 
-                    if matches!(value, CellValue::Value(0)) {
-                        ptr_offset = Some(offset);
+                    if let CellValue::Value(v) = value {
+                        if v == 0 {
+                            ptr_offset = Some(offset);
+                            break;
+                        }
+                    } else {
                         break;
                     }
                 }
@@ -2781,6 +2785,7 @@ mod tests {
             Op::inc_ptr(0..1, 2),
             Op::inc(1..2, 15),
             Op::dec_ptr(2..3, 2),
+            Op::set(2..3, 0),
         ])
     }
 
