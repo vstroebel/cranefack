@@ -28,6 +28,10 @@ impl BlockInfo {
         }
     }
 
+    pub fn has_cell_access(&self) -> bool {
+        return self.cell_access.is_some();
+    }
+
     pub fn cell_access(&self) -> Option<&Vec<CellAccess>> {
         self.cell_access.as_ref()
     }

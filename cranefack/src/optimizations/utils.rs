@@ -366,6 +366,9 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
             OpType::ILoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
+                if !info.has_cell_access() {
+                    return CellValue::Unknown;
+                }
                 if let Some(value) = info.get_access_value(cell_offset) {
                     match value {
                         Cell::Write => return CellValue::Unknown,
@@ -481,7 +484,7 @@ pub fn find_last_accessing_inc_dec(ops: &[Op], start_offset: isize, start_index:
             OpType::CLoop(.., info) |
             OpType::TNz(.., info)
             => {
-                if info.get_access_value(ptr_offset).is_some() {
+                if info.has_cell_access() || info.get_access_value(ptr_offset).is_some() {
                     return None;
                 }
             }
