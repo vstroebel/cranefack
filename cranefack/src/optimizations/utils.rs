@@ -10,22 +10,23 @@ pub enum Change {
     RemoveOffset(usize),
     Replace(Vec<OpType>),
     ReplaceOffset(usize, Range<usize>, Vec<OpType>),
+    RemoveAndReplace(isize, Vec<OpType>),
 }
 
 impl Change {
-    pub fn apply(self, ops: &mut Vec<Op>, i: usize, size: usize) -> bool {
+    pub fn apply(self, ops: &mut Vec<Op>, i: usize, size: usize) -> (bool, usize) {
         match self {
             Change::Remove => {
                 for _ in 0..size {
                     ops.remove(i);
                 }
 
-                true
+                (true, 0)
             }
             Change::RemoveOffset(offset) => {
                 ops.remove(i + offset);
 
-                true
+                (true, 0)
             }
             Change::Replace(op_types) => {
                 let span = ops[i].span.start..ops[i + size - 1].span.end;
@@ -35,13 +36,35 @@ impl Change {
                 }
 
                 for op_type in op_types.into_iter().rev() {
-                    ops.insert(i, Op {
+                    ops.insert_or_push(i, Op {
                         op_type,
                         span: span.clone(),
                     });
                 }
 
-                true
+                (true, 0)
+            }
+            Change::RemoveAndReplace(remove_index, op_types) => {
+                let span = ops[i].span.start..ops[i + size - 1].span.end;
+
+                for _ in 0..size {
+                    ops.remove(i);
+                }
+
+                for op_type in op_types.into_iter().rev() {
+                    ops.insert_or_push(i, Op {
+                        op_type,
+                        span: span.clone(),
+                    });
+                }
+
+                let remove_index = i as isize + remove_index;
+
+                debug_assert!(remove_index >= 0 && remove_index < ops.len() as isize, "Bad remove index {} Length: {}", remove_index, ops.len());
+
+                ops.remove(remove_index as usize);
+
+                (true, 1)
             }
             Change::ReplaceOffset(offset, span, op_types) => {
                 for _ in offset..size {
@@ -49,16 +72,16 @@ impl Change {
                 }
 
                 for op_type in op_types.into_iter().rev() {
-                    ops.insert(i + offset, Op {
+                    ops.insert_or_push(i + offset, Op {
                         op_type,
                         span: span.clone(),
                     });
                 }
 
-                true
+                (true, 0)
             }
             Change::Ignore => {
-                false
+                (false, 0)
             }
         }
     }
@@ -395,5 +418,90 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
         CellValue::Value(0)
     } else {
         CellValue::Unknown
+    }
+}
+
+pub fn find_last_accessing_inc_dec(ops: &[Op], start_offset: isize, start_index: isize) -> Option<(isize, i16)> {
+    let mut ptr_offset = start_offset;
+
+    let mut i = start_index;
+
+    while i >= 0 {
+        let op = &ops[i as usize];
+
+        match &op.op_type {
+            OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+            OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
+            OpType::Inc(offset, v) => {
+                if *offset == ptr_offset {
+                    return Some((i, *v as i16));
+                }
+            }
+            OpType::Dec(offset, v) => {
+                if *offset == ptr_offset {
+                    return Some((i, -(*v as i16)));
+                }
+            }
+            OpType::Add(src_offset, dest_offset, _) |
+            OpType::CAdd(src_offset, dest_offset, _) |
+            OpType::Sub(src_offset, dest_offset, _) |
+            OpType::CSub(src_offset, dest_offset, _) |
+            OpType::Mul(src_offset, dest_offset, _) |
+            OpType::Move(src_offset, dest_offset)
+            => {
+                if *src_offset == ptr_offset || *dest_offset == ptr_offset {
+                    return None;
+                }
+            }
+            OpType::Set(offset, _) |
+            OpType::NzAdd(_, offset, _) |
+            OpType::NzCAdd(_, offset, _) |
+            OpType::NzSub(_, offset, _) |
+            OpType::NzCSub(_, offset, _) |
+            OpType::NzMul(_, offset, _) |
+            OpType::Copy(_, offset) |
+            OpType::GetChar(offset) |
+            OpType::PutChar(offset)
+            => {
+                if *offset == ptr_offset {
+                    return None;
+                }
+            }
+            OpType::Start |
+            OpType::SearchZero(_) |
+            OpType::DLoop(_) => {
+                return None;
+            }
+            OpType::LLoop(.., info) |
+            OpType::ILoop(.., info) |
+            OpType::CLoop(.., info) |
+            OpType::TNz(.., info)
+            => {
+                if info.get_access_value(ptr_offset).is_some() {
+                    return None;
+                }
+            }
+            OpType::PutString(_) => {
+                // Ignore
+            }
+        }
+
+        i -= 1;
+    }
+
+    None
+}
+
+pub trait OpCodes {
+    fn insert_or_push(&mut self, index: usize, op: Op);
+}
+
+impl OpCodes for Vec<Op> {
+    fn insert_or_push(&mut self, index: usize, op: Op) {
+        if index >= self.len() {
+            self.push(op);
+        } else {
+            self.insert(index, op);
+        }
     }
 }

@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::ir::ops::{Op, OpType, LoopDecrement};
 use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
-use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass, find_heap_value};
+use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass, find_heap_value, find_last_accessing_inc_dec, OpCodes};
 use crate::optimizations::utils;
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
@@ -194,7 +194,7 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
 
                 let access = get_loop_access(&children, 0);
 
-                ops.insert(i, Op::l_loop(span, children, BlockInfo::new_access(access)));
+                ops.insert_or_push(i, Op::l_loop(span, children, BlockInfo::new_access(access)));
 
                 progress = true;
             } else {
@@ -493,9 +493,10 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                 }
 
                 if step == 1 && children.is_empty() {
-                    ops.insert(i, Op::set(span, 0));
+                    ops.insert_or_push(i, Op::set(span, 0));
                 } else {
-                    ops.insert(i, Op::i_loop_with_decrement(span, children, step, loop_decrement, info));
+                    ops.insert_or_push(
+                        i, Op::i_loop_with_decrement(span, children, step, loop_decrement, info));
                 }
 
                 progress = true;
@@ -907,7 +908,7 @@ pub fn optimize_static_count_loops(ops: &mut Vec<Op>) -> bool {
                 let span = prev.span.start..loop_op.span.end;
 
                 if let OpType::ILoop(children, _, decrements, access) = loop_op.op_type {
-                    ops.insert(i, Op::c_loop_with_decrement(span, children, count, decrements, access));
+                    ops.insert_or_push(i, Op::c_loop_with_decrement(span, children, count, decrements, access));
                 } else {
                     unreachable!();
                 }
@@ -963,9 +964,9 @@ pub fn optimize_non_local_static_count_loops_pass(ops: &mut Vec<Op>, zeroing: bo
 
             if let OpType::ILoop(children, _, decrement, info) = loop_op.op_type {
                 if decrement == LoopDecrement::Auto && count == 1 {
-                    ops.insert(i, Op::t_nz(span, children, info));
+                    ops.insert_or_push(i, Op::t_nz(span, children, info));
                 } else if count > 1 {
-                    ops.insert(i, Op::c_loop_with_decrement(span, children, count, decrement, info));
+                    ops.insert_or_push(i, Op::c_loop_with_decrement(span, children, count, decrement, info));
                 }
             } else {
                 unreachable!();
@@ -1015,7 +1016,7 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
                 OpType::LLoop(children, info) |
                 OpType::ILoop(children, _, _, info) |
                 OpType::CLoop(children, _, _, info) => {
-                    ops.insert(i, Op::t_nz(span, children, info));
+                    ops.insert_or_push(i, Op::t_nz(span, children, info));
                 }
                 _ => unreachable!(),
             }
@@ -1143,10 +1144,10 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
 
                     #[allow(clippy::comparison_chain)]
                     if ptr_offset > 0 {
-                        ops.insert(pos, Op::inc_ptr(span.start..span.start + 1, ptr_offset as usize));
+                        ops.insert_or_push(pos, Op::inc_ptr(span.start..span.start + 1, ptr_offset as usize));
                         pos += 1;
                     } else if ptr_offset < 0 {
-                        ops.insert(pos, Op::dec_ptr(span.start..span.start + 1, -ptr_offset as usize));
+                        ops.insert_or_push(pos, Op::dec_ptr(span.start..span.start + 1, -ptr_offset as usize));
                         pos += 1;
                     }
 
@@ -1161,21 +1162,22 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
                             }
                         }
 
-                        ops.insert(pos, child);
+                        ops.insert_or_push(
+                            pos, child);
 
                         pos += 1;
                     }
 
                     #[allow(clippy::comparison_chain)]
                     if ptr_offset > 0 {
-                        ops.insert(pos, Op::dec_ptr(span.end - 1..span.end, ptr_offset as usize));
+                        ops.insert_or_push(pos, Op::dec_ptr(span.end - 1..span.end, ptr_offset as usize));
                     } else if ptr_offset < 0 {
-                        ops.insert(pos, Op::inc_ptr(span.end - 1..span.end, -ptr_offset as usize));
+                        ops.insert_or_push(pos, Op::inc_ptr(span.end - 1..span.end, -ptr_offset as usize));
                     }
 
                     pos += 1;
 
-                    ops.insert(pos, Op::set(span.end - 1..span.end, 0));
+                    ops.insert_or_push(pos, Op::set(span.end - 1..span.end, 0));
                 }
                 _ => unreachable!(),
             }
@@ -1305,9 +1307,11 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
             let offset = ptr_offset - start_offset;
 
             if offset > 0 {
-                ops.insert(i, Op::inc_ptr(span, offset as usize));
+                ops.insert_or_push(
+                    i, Op::inc_ptr(span, offset as usize));
             } else {
-                ops.insert(i, Op::dec_ptr(span, -offset as usize));
+                ops.insert_or_push(
+                    i, Op::dec_ptr(span, -offset as usize));
             }
         }
 
@@ -1478,6 +1482,15 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
             OpType::Inc(offset, value) => {
                 if let CellValue::Value(v) = utils::find_heap_value(ops, *offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![OpType::Set(*offset, v.wrapping_add(*value))])
+                } else if let Some((index, value2)) = find_last_accessing_inc_dec(ops, *offset, i as isize - 1) {
+                    let value = *value as i16 + value2;
+                    let remove_index = index - (i as isize);
+
+                    if value >= 0 {
+                        Change::RemoveAndReplace(remove_index, vec![OpType::Inc(*offset, value as u8)])
+                    } else {
+                        Change::RemoveAndReplace(remove_index, vec![OpType::Dec(*offset, (-value) as u8)])
+                    }
                 } else {
                     Change::Ignore
                 }
@@ -1485,6 +1498,15 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
             OpType::Dec(offset, value) => {
                 if let CellValue::Value(v) = utils::find_heap_value(ops, *offset, i as isize - 1, zeroed, inputs) {
                     Change::Replace(vec![OpType::Set(*offset, v.wrapping_sub(*value))])
+                } else if let Some((index, value2)) = find_last_accessing_inc_dec(ops, *offset, i as isize - 1) {
+                    let value = value2 - *value as i16;
+                    let remove_index = index - (i as isize);
+
+                    if value >= 0 {
+                        Change::RemoveAndReplace(remove_index, vec![OpType::Inc(*offset, value as u8)])
+                    } else {
+                        Change::RemoveAndReplace(remove_index, vec![OpType::Dec(*offset, (-value) as u8)])
+                    }
                 } else {
                     Change::Ignore
                 }
@@ -1747,9 +1769,9 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
             }
         };
 
-        if change.apply(&mut ops, i, 1) {
-            progress = true;
-        }
+        let (changed, removed) = change.apply(&mut ops, i, 1);
+        progress |= changed;
+        i -= removed;
 
         i += 1;
     }
@@ -1879,10 +1901,12 @@ pub fn unroll_constant_loops(ops: &mut Vec<Op>, limit: usize) -> bool {
             let len = changes.len();
 
             for (index, op) in changes.into_iter().enumerate() {
-                ops.insert(i + index, op);
+                ops.insert_or_push(
+                    i + index, op);
             }
 
-            ops.insert(i + len, Op::set(old.span, 0));
+            ops.insert_or_push(
+                i + len, Op::set(old.span, 0));
 
             // All possible loops within the current loop should already haven been unrolled
             i += len + 1;
@@ -2156,7 +2180,8 @@ fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isi
         if let Some(prepend) = prepend {
             let len = prepend.len();
             for (index, op) in prepend.into_iter().enumerate() {
-                ops.insert(i + index, op);
+                ops.insert_or_push(
+                    i + index, op);
             }
             i += len;
             progress = true;
@@ -2211,7 +2236,7 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize
                 for (index, op) in children.into_iter().enumerate() {
                     let index = i + index;
                     if index < ops.len() - 1 {
-                        ops.insert(index, op);
+                        ops.insert_or_push(index, op);
                     } else {
                         ops.push(op);
                     }
@@ -2221,7 +2246,7 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize
 
                 if ptr_offset != 0 {
                     if index < ops.len() - 1 {
-                        ops.insert(index, Op::ptr_offset(old.span.clone(), -ptr_offset));
+                        ops.insert_or_push(index, Op::ptr_offset(old.span.clone(), -ptr_offset));
                     } else {
                         ops.push(Op::ptr_offset(old.span.clone(), -ptr_offset));
                     }
@@ -2229,7 +2254,7 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize
                 }
 
                 if index < ops.len() - 1 {
-                    ops.insert(index, Op::set(old.span, 0));
+                    ops.insert_or_push(index, Op::set(old.span, 0));
                 } else {
                     ops.push(Op::set(old.span, 0));
                 }

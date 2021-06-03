@@ -24,7 +24,9 @@ pub fn run_peephole_pass<F, const WINDOW: usize>(mut ops: &mut Vec<Op>, func: F)
 
         let change = func(window);
 
-        if change.apply(&mut ops, i, WINDOW) {
+        let (changed, removed) = change.apply(&mut ops, i, WINDOW);
+        i -= removed;
+        if changed {
             progress = true;
         } else {
             i += 1;
