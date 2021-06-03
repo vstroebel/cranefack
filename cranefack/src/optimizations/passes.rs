@@ -346,109 +346,106 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
             let mut counter_decrements = vec![];
             let mut counter_reads = vec![];
 
-            let num_ops = children.len();
-            if num_ops >= 2 {
-                for (i, op) in children.iter().enumerate() {
-                    match &op.op_type {
-                        OpType::Start => {
-                            // ignore
-                        }
-                        OpType::IncPtr(value) => {
-                            ptr_offset += *value as isize;
-                        }
-                        OpType::DecPtr(value) => {
-                            ptr_offset -= *value as isize;
-                        }
-                        OpType::Add(src_offset, dest_offset, _) |
-                        OpType::CAdd(src_offset, dest_offset, _) |
-                        OpType::Sub(src_offset, dest_offset, _) |
-                        OpType::CSub(src_offset, dest_offset, _) |
-                        OpType::Mul(src_offset, dest_offset, _) |
-                        OpType::Move(src_offset, dest_offset)
-                        => {
-                            if ptr_offset + src_offset == 0 {
-                                ignore = true;
-                                break;
-                            }
-
-                            if ptr_offset + dest_offset == 0 {
-                                ignore = true;
-                                break;
-                            }
-                        }
-                        OpType::NzAdd(src_offset, dest_offset, _) |
-                        OpType::NzSub(src_offset, dest_offset, _) |
-                        OpType::NzMul(src_offset, dest_offset, _) |
-                        OpType::Copy(src_offset, dest_offset)
-                        => {
-                            if ptr_offset + dest_offset == 0 {
-                                ignore = true;
-                                break;
-                            }
-
-                            if ptr_offset + src_offset == 0 {
-                                counter_reads.push(i)
-                            }
-                        }
-                        OpType::NzCAdd(_, dest_offset, _) |
-                        OpType::NzCSub(_, dest_offset, _)
-                        => {
-                            if ptr_offset + dest_offset == 0 {
-                                ignore = true;
-                                break;
-                            }
-                        }
-
-                        OpType::PutChar(offset) => {
-                            if ptr_offset + offset == 0 {
-                                counter_reads.push(i);
-                            }
-                        }
-
-                        OpType::Inc(offset, _) |
-                        OpType::Set(offset, _) => {
-                            if ptr_offset + offset == 0 {
-                                ignore = true;
-                                break;
-                            }
-                        }
-                        OpType::GetChar(offset) => {
-                            if ptr_offset + offset == 0 {
-                                ignore = true;
-                                break;
-                            }
-                        }
-                        OpType::Dec(offset, v) => {
-                            if ptr_offset + offset == 0 {
-                                counter_decrements.push((i, *v));
-                            }
-                        }
-                        OpType::DLoop(..) |
-                        OpType::LLoop(..)
-                        => {
+            for (i, op) in children.iter().enumerate() {
+                match &op.op_type {
+                    OpType::Start => {
+                        // ignore
+                    }
+                    OpType::IncPtr(value) => {
+                        ptr_offset += *value as isize;
+                    }
+                    OpType::DecPtr(value) => {
+                        ptr_offset -= *value as isize;
+                    }
+                    OpType::Add(src_offset, dest_offset, _) |
+                    OpType::CAdd(src_offset, dest_offset, _) |
+                    OpType::Sub(src_offset, dest_offset, _) |
+                    OpType::CSub(src_offset, dest_offset, _) |
+                    OpType::Mul(src_offset, dest_offset, _) |
+                    OpType::Move(src_offset, dest_offset)
+                    => {
+                        if ptr_offset + src_offset == 0 {
                             ignore = true;
                             break;
                         }
-                        OpType::ILoop(children, ..) |
-                        OpType::CLoop(children, ..) |
-                        OpType::TNz(children, ..) => {
-                            if ptr_offset == 0 {
-                                ignore = true;
-                                break;
-                            }
 
-                            if !is_ops_block_unmodified_local(children, &[-ptr_offset]) {
-                                ignore = true;
-                                break;
-                            }
-                        }
-                        OpType::SearchZero(..) => {
+                        if ptr_offset + dest_offset == 0 {
                             ignore = true;
                             break;
                         }
-                        OpType::PutString(..) => {
-                            // ignore
+                    }
+                    OpType::NzAdd(src_offset, dest_offset, _) |
+                    OpType::NzSub(src_offset, dest_offset, _) |
+                    OpType::NzMul(src_offset, dest_offset, _) |
+                    OpType::Copy(src_offset, dest_offset)
+                    => {
+                        if ptr_offset + dest_offset == 0 {
+                            ignore = true;
+                            break;
                         }
+
+                        if ptr_offset + src_offset == 0 {
+                            counter_reads.push(i)
+                        }
+                    }
+                    OpType::NzCAdd(_, dest_offset, _) |
+                    OpType::NzCSub(_, dest_offset, _)
+                    => {
+                        if ptr_offset + dest_offset == 0 {
+                            ignore = true;
+                            break;
+                        }
+                    }
+
+                    OpType::PutChar(offset) => {
+                        if ptr_offset + offset == 0 {
+                            counter_reads.push(i);
+                        }
+                    }
+
+                    OpType::Inc(offset, _) |
+                    OpType::Set(offset, _) => {
+                        if ptr_offset + offset == 0 {
+                            ignore = true;
+                            break;
+                        }
+                    }
+                    OpType::GetChar(offset) => {
+                        if ptr_offset + offset == 0 {
+                            ignore = true;
+                            break;
+                        }
+                    }
+                    OpType::Dec(offset, v) => {
+                        if ptr_offset + offset == 0 {
+                            counter_decrements.push((i, *v));
+                        }
+                    }
+                    OpType::DLoop(..) |
+                    OpType::LLoop(..)
+                    => {
+                        ignore = true;
+                        break;
+                    }
+                    OpType::ILoop(children, ..) |
+                    OpType::CLoop(children, ..) |
+                    OpType::TNz(children, ..) => {
+                        if ptr_offset == 0 {
+                            ignore = true;
+                            break;
+                        }
+
+                        if !is_ops_block_unmodified_local(children, &[-ptr_offset]) {
+                            ignore = true;
+                            break;
+                        }
+                    }
+                    OpType::SearchZero(..) => {
+                        ignore = true;
+                        break;
+                    }
+                    OpType::PutString(..) => {
+                        // ignore
                     }
                 }
             }
@@ -495,7 +492,11 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                     children.remove(children.len() - 1);
                 }
 
-                ops.insert(i, Op::i_loop_with_decrement(span, children, step, loop_decrement, info));
+                if step == 1 && children.is_empty() {
+                    ops.insert(i, Op::set(span, 0));
+                } else {
+                    ops.insert(i, Op::i_loop_with_decrement(span, children, step, loop_decrement, info));
+                }
 
                 progress = true;
             } else {
@@ -3023,5 +3024,58 @@ mod tests {
             Op::inc_ptr(7..8, 8),
             Op::dec_ptr(8..9, 6),
         ])
+    }
+
+    #[test]
+    fn test_ptr_zero_ops() {
+        let mut ops = vec![
+            Op::dec(0..1, 1),
+            Op::inc_ptr(0..1, 1),
+            Op::inc_ptr(0..1, 1),
+            Op::inc_ptr(0..1, 1),
+            Op::inc_ptr(0..1, 1),
+            Op::inc_ptr(0..1, 1),
+            Op::dec_ptr(0..1, 1),
+            Op::dec_ptr(0..1, 1),
+            Op::dec_ptr(0..1, 1),
+            Op::dec_ptr(0..1, 1),
+            Op::dec_ptr(0..1, 1),
+        ];
+
+        run_peephole_pass(&mut ops, optimize_arithmetics);
+
+        assert_eq!(ops, vec![
+            Op::dec(0..1, 1),
+        ]);
+    }
+
+    #[test]
+    fn test_zero_l_loop() {
+        let mut ops = vec![
+            Op::l_loop(0..2, vec![
+                Op::dec(1..2, 1),
+            ], BlockInfo::new_empty()),
+        ];
+
+        optimize_count_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::set(0..2, 0)
+        ]);
+    }
+
+    #[test]
+    fn test_dec_l_loop() {
+        let mut ops = vec![
+            Op::l_loop(0..2, vec![
+                Op::dec(1..2, 2),
+            ], BlockInfo::new_empty()),
+        ];
+
+        optimize_count_loops(&mut ops);
+
+        assert_eq!(ops, vec![
+            Op::i_loop(0..2, vec![], 2, BlockInfo::new_empty())
+        ]);
     }
 }
