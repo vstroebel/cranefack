@@ -670,7 +670,7 @@ impl Drop for CompiledJitModule {
 mod tests {
     use std::io::{Cursor, Read, Write};
 
-    use crate::{optimize, OptimizeConfig, parse};
+    use crate::{OptimizeConfig, parse, optimize_with_config};
     use crate::ir::ops::{Op, LoopDecrement};
     use crate::parser::Program;
 
@@ -684,7 +684,8 @@ mod tests {
     #[test]
     fn test_simple() {
         let mut program = parse("++>>++++-<-").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -699,7 +700,8 @@ mod tests {
     #[test]
     fn test_output() {
         let mut program = parse(",+.").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"a";
         let mut output = Vec::new();
@@ -716,7 +718,8 @@ mod tests {
                 >++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++
                 .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++."
         ).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -730,7 +733,8 @@ mod tests {
     fn test_dloop() {
         let mut program = parse(">,<++[->+<]>."
         ).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"1";
         let mut output = Vec::new();
@@ -743,7 +747,8 @@ mod tests {
     #[test]
     fn test_hello_world_v2() {
         let mut program = parse(include_str!("../../../test_programs/hello_world.bf")).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -756,7 +761,8 @@ mod tests {
     #[test]
     fn test_count_loop() {
         let mut program = parse("++++[->++<]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -770,7 +776,8 @@ mod tests {
     #[test]
     fn test_count_loop_inv() {
         let mut program = parse("++++[->++<]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -784,7 +791,8 @@ mod tests {
     #[test]
     fn test_totally_empty() {
         let mut program = parse("").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -797,7 +805,8 @@ mod tests {
     #[test]
     fn test_optimized_empty() {
         let mut program = parse("[>+++++<-]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -810,7 +819,8 @@ mod tests {
     #[test]
     fn test_multiply() {
         let mut program = parse(">>++<<++[>+++++<-]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -824,7 +834,8 @@ mod tests {
     #[test]
     fn test_divide() {
         let mut program = parse(">>++<<++++++++++++[>+<---]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -838,7 +849,8 @@ mod tests {
     #[test]
     fn test_pow_5_3() {
         let mut program = parse("+++++[>+++++[>+++++<-]<-]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -853,7 +865,8 @@ mod tests {
     #[test]
     fn test_bad_count_loop() {
         let mut program = parse("++++++++[---->+<++]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -867,7 +880,8 @@ mod tests {
     #[test]
     fn test_conditional_set() {
         let mut program = parse("+>>++<<[->[-]++++++<]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -882,7 +896,8 @@ mod tests {
     #[test]
     fn test_overwrite_prev_set() {
         let mut program = parse("++++[-]++").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -895,7 +910,8 @@ mod tests {
     #[test]
     fn test_constant_loop() {
         let mut program = parse("+++++++++++++[>+>++>>+++<<<<-]->>>>>>+").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -914,7 +930,8 @@ mod tests {
     #[test]
     fn test_hello_fizz() {
         let mut program = parse(include_str!("../../../test_programs/fizz.bf")).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -927,7 +944,8 @@ mod tests {
     #[test]
     fn test_hello_fizzbuzz() {
         let mut program = parse(include_str!("../../../test_programs/fizzbuzz.bf")).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -940,7 +958,8 @@ mod tests {
     #[test]
     fn test_bottles() {
         let mut program = parse(include_str!("../../../test_programs/bottles.bf")).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
@@ -953,7 +972,8 @@ mod tests {
     #[test]
     fn test_factor() {
         let mut program = parse(include_str!("../../../test_programs/factor.bf")).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = include_bytes!("../../../test_programs/factor.bf.in");
         let mut output = Vec::new();
@@ -966,7 +986,8 @@ mod tests {
     #[test]
     fn test_life() {
         let mut program = parse(include_str!("../../../test_programs/life.bf")).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = include_bytes!("../../../test_programs/life.bf.in");
         let mut output = Vec::new();
@@ -1573,7 +1594,7 @@ mod tests {
     #[test]
     fn test_test_io() {
         let mut program = parse(",[.,]").unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
         let input = b"0123456789aZ";
         let mut output = Vec::new();
@@ -1587,7 +1608,8 @@ mod tests {
     #[test]
     fn test_cell_size() {
         let mut program = parse(include_str!("../../../test_programs/cell_size.bf")).unwrap();
-        optimize(&mut program);
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
 
         let input = b"";
         let mut output = Vec::new();
