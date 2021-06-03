@@ -395,7 +395,8 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
             OpType::Mul(_, offset, _) |
             OpType::NzMul(_, offset, _) |
             OpType::Move(_, offset) |
-            OpType::Copy(_, offset)
+            OpType::Copy(_, offset) |
+            OpType::GetChar(offset)
             => {
                 if *offset == cell_offset {
                     return CellValue::Unknown;
