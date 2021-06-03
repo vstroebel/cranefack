@@ -149,7 +149,19 @@ impl Program {
                     writeln!(output, "COPY src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
 
                 OpType::PutChar(offset) => writeln!(output, "PUT offset: {}", offset)?,
-                OpType::PutString(array) => writeln!(output, "PUT STRING {:?}", array)?,
+                OpType::PutString(array) => {
+                    write!(output, "PUT STRING \"")?;
+
+                    for &v in array {
+                        if v.is_ascii_graphic() {
+                            write!(output, "{}", v as char)?;
+                        } else {
+                            write!(output, "\\0x{:x}", v)?;
+                        }
+                    }
+
+                    writeln!(output, "\"")?
+                }
                 OpType::GetChar(offset) => writeln!(output, "GET offset: {}", offset)?,
 
                 OpType::DLoop(children) => {
