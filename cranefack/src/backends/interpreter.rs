@@ -698,6 +698,19 @@ mod tests {
     }
 
     #[test]
+    fn test_awib() {
+        let mut program = parse(include_str!("../../../test_programs/awib.bf")).unwrap();
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
+        let input = include_bytes!("../../../test_programs/mandelbrot.bf");
+        let mut output = Vec::new();
+
+        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+
+        assert_eq!(output, include_bytes!("../../../test_programs/mandelbrot.c"));
+    }
+
+    #[test]
     fn test_i_loop_pre() {
         let program = Program {
             ops: vec![

@@ -1618,4 +1618,25 @@ mod tests {
 
         assert_eq!(output, b"8 bit cells\n");
     }
+
+    /*
+     * Disabled because JIT compilation is too slow in debug mode
+    #[test]
+    fn test_awib() {
+        let mut program = parse(include_str!("../../../test_programs/awib.bf")).unwrap();
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
+
+        let input = include_bytes!("../../../test_programs/mandelbrot.bf");
+        let mut output = Vec::new();
+
+        let _heap = run(&program, Cursor::new(input), &mut output);
+
+        let o = String::from_utf8_lossy(&output);
+
+        // Change needed because result starts wth 0 byte which is translated to \0x0 as of now
+        let o2 = format!("\\0x0{}", &include_str!("../../../test_programs/mandelbrot.c")[1..]);
+
+        assert_eq!(o, o2);
+    }
+     */
 }
