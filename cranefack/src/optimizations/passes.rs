@@ -1125,8 +1125,8 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
     while !ops.is_empty() && i < ops.len() {
         let op = &mut ops[i];
 
-        let replace = if let OpType::CLoop(children, ..) = &op.op_type {
-            contains_only_simple_arithmetics(children)
+        let replace = if let OpType::CLoop(children, _, decrement, ..) = &op.op_type {
+            *decrement == LoopDecrement::Auto && contains_only_simple_arithmetics(children)
         } else {
             false
         };
@@ -1172,6 +1172,10 @@ pub fn optimize_constant_arithmetic_loop(ops: &mut Vec<Op>) -> bool {
                     } else if ptr_offset < 0 {
                         ops.insert(pos, Op::inc_ptr(span.end - 1..span.end, -ptr_offset as usize));
                     }
+
+                    pos += 1;
+
+                    ops.insert(pos, Op::set(span.end - 1..span.end, 0));
                 }
                 _ => unreachable!(),
             }
