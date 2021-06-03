@@ -1835,6 +1835,10 @@ pub fn unroll_constant_loops(ops: &mut Vec<Op>, limit: usize) -> bool {
                     }
                 }
 
+                if *decrement == LoopDecrement::Post {
+                    changes.push(Op::set(ops[i].span.clone(), *iterations));
+                }
+
                 for counter in (0..*iterations).rev() {
                     if *decrement == LoopDecrement::Pre {
                         changes.push(Op::set(ops[i].span.clone(), counter));
