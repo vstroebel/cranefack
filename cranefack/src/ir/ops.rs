@@ -99,9 +99,9 @@ impl Op {
         }
     }
 
-    pub fn d_loop(span: Range<usize>, ops: Vec<Op>) -> Op {
+    pub fn d_loop(span: Range<usize>, ops: Vec<Op>, info: BlockInfo) -> Op {
         Op {
-            op_type: OpType::DLoop(ops),
+            op_type: OpType::DLoop(ops, info),
             span,
         }
     }
@@ -343,7 +343,7 @@ pub enum OpType {
     GetChar(isize),
 
     /// Dynamic loop as defined in raw brainfuck source
-    DLoop(Vec<Op>),
+    DLoop(Vec<Op>, BlockInfo),
 
     /// Loop using the same iterator cell for each iteration
     LLoop(Vec<Op>, BlockInfo),
@@ -478,7 +478,7 @@ impl OpType {
 
     pub fn get_children(&self) -> Option<&Vec<Op>> {
         match self {
-            OpType::DLoop(children) |
+            OpType::DLoop(children, ..) |
             OpType::LLoop(children, ..) |
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
@@ -489,7 +489,7 @@ impl OpType {
 
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
         match self {
-            OpType::DLoop(children) |
+            OpType::DLoop(children, ..) |
             OpType::LLoop(children, ..) |
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
@@ -500,6 +500,7 @@ impl OpType {
 
     pub fn get_block_info(&mut self) -> Option<&BlockInfo> {
         match self {
+            OpType::DLoop(_, info) |
             OpType::LLoop(_, info) |
             OpType::ILoop(_, _, _, info) |
             OpType::CLoop(_, _, _, info) |

@@ -194,4 +194,19 @@ impl CellAccess {
             value,
         });
     }
+
+    pub fn add_backward(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
+        for exiting_cell in cells.iter_mut() {
+            if exiting_cell.offset == offset {
+                if !matches!(exiting_cell.value, Cell::Read) {
+                    return;
+                }
+            }
+        }
+
+        cells.push(CellAccess {
+            offset,
+            value,
+        });
+    }
 }

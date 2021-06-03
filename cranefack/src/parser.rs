@@ -3,6 +3,7 @@ use std::io::Write;
 
 use crate::errors::ParserError;
 use crate::ir::ops::{Op, OpType};
+use crate::ir::opt_info::BlockInfo;
 
 /// An executable program
 #[derive(Clone)]
@@ -26,7 +27,7 @@ impl Program {
         for op in ops {
             op_count += 1;
             match &op.op_type {
-                OpType::DLoop(children) => {
+                OpType::DLoop(children, ..) => {
                     let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
                     op_count += ops;
                     dloop_count += 1;
@@ -180,8 +181,8 @@ impl Program {
                 }
                 OpType::GetChar(offset) => writeln!(output, "GET offset: {}", offset)?,
 
-                OpType::DLoop(children) => {
-                    writeln!(output, "DLOOP")?;
+                OpType::DLoop(children, info) => {
+                    writeln!(output, "DLOOP info: {}", info.asm(debug))?;
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::LLoop(children, info) => {
@@ -247,7 +248,7 @@ impl Parser {
 
         if tos > 0 {
             let ops = self.stack.remove(tos);
-            self.push_op(Op::d_loop(ops.0..position + 1, ops.1));
+            self.push_op(Op::d_loop(ops.0..position + 1, ops.1, BlockInfo::new_empty()));
             Ok(())
         } else {
             Err(ParserError::BadlyClosedLoop {

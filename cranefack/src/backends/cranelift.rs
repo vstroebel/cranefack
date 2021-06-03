@@ -47,7 +47,7 @@ impl<'a> Builder<'a> {
                 OpType::NzMul(src_offset, dest_offset, multi) => self.nz_mul(*src_offset, *dest_offset, *multi),
                 OpType::Move(src_offset, dest_offset) => self._move(*src_offset, *dest_offset),
                 OpType::Copy(src_offset, dest_offset) => self.copy(*src_offset, *dest_offset),
-                OpType::DLoop(ops) => self.d_loop(ops),
+                OpType::DLoop(ops, _) => self.d_loop(ops),
                 OpType::LLoop(ops, _) => self.l_loop(ops),
                 OpType::ILoop(ops, step, decrement, _) => self.i_loop(ops, *step, *decrement),
                 OpType::CLoop(ops, iterations, decrement, _) => self.c_loop(ops, *iterations, *decrement),
@@ -1334,7 +1334,7 @@ mod tests {
                     Op::inc(1..2, 1),
                     Op::inc(1..2, 1),
                     Op::dec_ptr(1..2, 1),
-                ]),
+                ], BlockInfo::new_empty()),
             ]
         };
 

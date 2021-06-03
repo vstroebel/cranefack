@@ -123,7 +123,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             OpType::GetChar(offset) => self.get_char(&op.span, *offset)?,
             OpType::PutChar(offset) => self.put_char(&op.span, *offset)?,
             OpType::PutString(array) => self.put_string(&op.span, array)?,
-            OpType::DLoop(ops) => {
+            OpType::DLoop(ops, _) => {
                 while *self.heap_value(&op.span)? > 0 {
                     self.execute_ops(ops)?;
                 }
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn test_out_1() {
         let mut program = parse(">+.").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -387,7 +387,7 @@ mod tests {
     #[test]
     fn test_loop() {
         let mut program = parse("+++[>+<-]>.").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -405,7 +405,7 @@ mod tests {
                 >++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++
                 .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++."
         ).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn test_hello_world_v2() {
         let mut program = parse(include_str!("../../../test_programs/hello_world.bf")).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -433,7 +433,7 @@ mod tests {
     #[test]
     fn test_count_loop() {
         let mut program = parse("++++[->++<]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn test_count_loop_inv() {
         let mut program = parse("++++[->++<]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn test_totally_empty() {
         let mut program = parse("").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -483,7 +483,7 @@ mod tests {
     #[test]
     fn test_optimized_empty() {
         let mut program = parse("[>+++++<-]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -499,7 +499,7 @@ mod tests {
     #[test]
     fn test_multiply() {
         let mut program = parse(">>++<<++[>+++++<-]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -516,7 +516,7 @@ mod tests {
     #[test]
     fn test_divide() {
         let mut program = parse(">>++<<++++++++++++[>+<---]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn test_pow_5_3() {
         let mut program = parse("+++++[>+++++[>+++++<-]<-]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -551,7 +551,7 @@ mod tests {
     #[test]
     fn test_bad_count_loop() {
         let mut program = parse("++++++++[---->+<++]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn test_conditional_set() {
         let mut program = parse("+>>++<<[->[-]++++++<]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -586,7 +586,7 @@ mod tests {
     #[test]
     fn test_overwrite_prev_set() {
         let mut program = parse("++++[-]++").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -602,7 +602,7 @@ mod tests {
     #[test]
     fn test_hello_fizz() {
         let mut program = parse(include_str!("../../../test_programs/fizz.bf")).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -616,7 +616,7 @@ mod tests {
     #[test]
     fn test_hello_fizzbuzz() {
         let mut program = parse(include_str!("../../../test_programs/fizzbuzz.bf")).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -630,7 +630,7 @@ mod tests {
     #[test]
     fn test_bottles() {
         let mut program = parse(include_str!("../../../test_programs/bottles.bf")).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";
@@ -644,7 +644,7 @@ mod tests {
     #[test]
     fn test_factor() {
         let mut program = parse(include_str!("../../../test_programs/factor.bf")).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = include_bytes!("../../../test_programs/factor.bf.in");
@@ -658,7 +658,7 @@ mod tests {
     #[test]
     fn test_life() {
         let mut program = parse(include_str!("../../../test_programs/life.bf")).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = include_bytes!("../../../test_programs/life.bf.in");
@@ -672,7 +672,7 @@ mod tests {
     #[test]
     fn test_test_io() {
         let mut program = parse(",[.,]").unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"0123456789aZ";
@@ -686,7 +686,7 @@ mod tests {
     #[test]
     fn test_cell_size() {
         let mut program = parse(include_str!("../../../test_programs/cell_size.bf")).unwrap();
-                optimize_with_config(&mut program, &OptimizeConfig::o3());
+        optimize_with_config(&mut program, &OptimizeConfig::o3());
 
 
         let input = b"";

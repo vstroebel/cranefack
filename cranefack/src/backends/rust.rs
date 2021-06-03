@@ -39,7 +39,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
             OpType::GetChar(offset) => writeln!(out, "rt.get_char({});", offset)?,
             OpType::PutString(array) => writeln!(out, "rt.put_string({:?});", array)?,
             OpType::PutChar(offset) => writeln!(out, "rt.put_char({});", offset)?,
-            OpType::DLoop(children) => {
+            OpType::DLoop(children, _) => {
                 writeln!(out, "{{")?;
 
                 writeln!(out, " while *rt.heap_value() > 0 {{")?;
