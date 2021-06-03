@@ -77,6 +77,16 @@ fn create_clap_app() -> App<'static, 'static> {
                 .default_value("4")
                 .help("Number of runs per optimization in each round")
             )
+            .arg(Arg::with_name("OPTIMIZED_ONLY")
+                .short("-o")
+                .long("optimized-only")
+                .help("Don't benchmark O0")
+            )
+            .arg(Arg::with_name("JIT_ONLY")
+                .short("-j")
+                .long("-jit")
+                .help("Only benchmark jit")
+            )
         )
 }
 
@@ -156,5 +166,8 @@ fn benchmark(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let runs = matches.value_of("RUNS")
         .unwrap_or("4").parse().unwrap_or(4).max(1);
 
-    benchmark_file(path, iterations, runs)
+    let optimized_only = matches.is_present("OPTIMIZED_ONLY");
+    let jit_only = matches.is_present("JIT_ONLY");
+
+    benchmark_file(path, iterations, runs, optimized_only, jit_only)
 }

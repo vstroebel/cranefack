@@ -6,7 +6,7 @@ use std::io::Cursor;
 use std::time::SystemTime;
 use cranefack::CompiledJitModule;
 
-pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize) -> Result<(), Box<dyn Error>> {
+pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize, optimized_only: bool, jit_only: bool) -> Result<(), Box<dyn Error>> {
     let source = read_input(path)?;
 
 
@@ -32,15 +32,23 @@ pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize) -> Result<()
     let mut o2_fast = OptimizeConfig::o2();
     o2_fast.jit_level = Some("speed".to_owned());
 
+    let mut o3 = OptimizeConfig::o2();
+    o3.jit_level = Some("none".to_owned());
+    let mut o3_fast = OptimizeConfig::o2();
+    o3_fast.jit_level = Some("speed".to_owned());
+
     let program_o0 = program.clone();
 
     let mut program_o1 = program.clone();
     optimize_with_config(&mut program_o1, &o1);
 
-    let mut program_o2 = program;
+    let mut program_o2 = program.clone();
     optimize_with_config(&mut program_o2, &o2);
 
-    let mut results = [0u128; 9];
+    let mut program_o3 = program;
+    optimize_with_config(&mut program_o3, &o3);
+
+    let mut results = [0u128; 12];
 
 
     let total = iterations * runs;
@@ -50,44 +58,66 @@ pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize) -> Result<()
     for iteration in 0..iterations {
         println!("Iteration {} ", iteration + 1);
 
-        println!("Run interpreter with O0");
-        results[0] += run_interpreter(&program_o0, runs)?;
+        if !jit_only {
+            if !optimized_only {
+                println!("Run interpreter with O0");
+                results[0] += run_interpreter(&program_o0, runs)?;
+            }
 
-        println!("Run interpreter with O1");
-        results[1] += run_interpreter(&program_o1, runs)?;
+            println!("Run interpreter with O1");
+            results[1] += run_interpreter(&program_o1, runs)?;
 
-        println!("Run interpreter with O2");
-        results[2] += run_interpreter(&program_o2, runs)?;
+            println!("Run interpreter with O2");
+            results[2] += run_interpreter(&program_o2, runs)?;
 
-        println!("Run jit with O0");
-        results[3] += run_jit(&program_o0, runs, &o0)?;
+            println!("Run interpreter with O3");
+            results[3] += run_interpreter(&program_o3, runs)?;
+        }
 
-        println!("Run jit with O0 fast");
-        results[4] += run_jit(&program_o0, runs, &o0_fast)?;
+        if !optimized_only {
+            println!("Run jit with O0");
+            results[4] += run_jit(&program_o0, runs, &o0)?;
 
-        println!("Run interpreter with O1");
-        results[5] += run_jit(&program_o1, runs, &o1)?;
+            println!("Run jit with O0 fast");
+            results[5] += run_jit(&program_o0, runs, &o0_fast)?;
+        }
 
-        println!("Run interpreter with O1 fast");
-        results[6] += run_jit(&program_o1, runs, &o1_fast)?;
+        println!("Run jit with O1");
+        results[6] += run_jit(&program_o1, runs, &o1)?;
 
-        println!("Run interpreter with O2");
-        results[7] += run_jit(&program_o2, runs, &o2)?;
+        println!("Run jit with O1 fast");
+        results[7] += run_jit(&program_o1, runs, &o1_fast)?;
 
-        println!("Run interpreter with O2 fast");
-        results[8] += run_jit(&program_o2, runs, &o2_fast)?;
+        println!("Run jit with O2");
+        results[8] += run_jit(&program_o2, runs, &o2)?;
+
+        println!("Run jit with O2 fast");
+        results[9] += run_jit(&program_o2, runs, &o2_fast)?;
+
+        println!("Run jit with O3");
+        results[10] += run_jit(&program_o3, runs, &o3)?;
+
+        println!("Run jit with O3 fast");
+        results[11] += run_jit(&program_o3, runs, &o3_fast)?;
     }
 
     println!("Results:");
-    println!("Int O0       {} ms/run", get_millis(results[0], total));
+    if !optimized_only {
+        println!("Int O0       {} ms/run", get_millis(results[0], total));
+    }
     println!("Int O1       {} ms/run", get_millis(results[1], total));
     println!("Int O2       {} ms/run", get_millis(results[2], total));
-    println!("Jit O0       {} ms/run", get_millis(results[3], total));
-    println!("Jit O0 speed {} ms/run", get_millis(results[4], total));
-    println!("Jit O1       {} ms/run", get_millis(results[5], total));
-    println!("Jit O1 speed {} ms/run", get_millis(results[6], total));
-    println!("Jit O2       {} ms/run", get_millis(results[7], total));
-    println!("Jit O2 speed {} ms/run", get_millis(results[8], total));
+    println!("Int O3       {} ms/run", get_millis(results[3], total));
+    if !optimized_only {
+        println!("Jit O0       {} ms/run", get_millis(results[4], total));
+        println!("Jit O0 speed {} ms/run", get_millis(results[5], total));
+    }
+    println!("Jit O1       {} ms/run", get_millis(results[6], total));
+    println!("Jit O1 speed {} ms/run", get_millis(results[7], total));
+    println!("Jit O2       {} ms/run", get_millis(results[8], total));
+    println!("Jit O2 speed {} ms/run", get_millis(results[9], total));
+    println!("Jit O3       {} ms/run", get_millis(results[10], total));
+    println!("Jit O3 speed {} ms/run", get_millis(results[11], total));
 
     Ok(())
 }
