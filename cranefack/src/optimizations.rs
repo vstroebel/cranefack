@@ -130,6 +130,8 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
         progress = false;
         count += 1;
 
+        print_debug_iteration(config, count);
+
         progress |= remove_dead_loops(&mut program.ops);
         print_debug(program, config, "Remove dead loops");
 
@@ -264,6 +266,16 @@ fn print_debug(program: &Program, config: &OptimizeConfig, pass: &str) {
                  cloop_count,
                  if_count,
         ).unwrap();
+        writer.reset().unwrap();
+    }
+}
+
+fn print_debug_iteration(config: &OptimizeConfig, iteration: usize) {
+    if config.debug {
+        let mut writer = StandardStream::stderr(ColorChoice::Auto);
+        writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow))).unwrap();
+
+        writeln!(writer, "Iteration {}", iteration).unwrap();
         writer.reset().unwrap();
     }
 }
