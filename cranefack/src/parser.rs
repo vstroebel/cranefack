@@ -101,14 +101,24 @@ impl Program {
             write!(output, "{}", pos)?;
 
             if debug {
-                write!(output, "{}  ", ptr_offset)?;
+                let mut offset = format!("{}", ptr_offset);
+
+                while offset.len() < 3 {
+                    offset.push(' ');
+                }
+
+                write!(output, "{}  ", offset)?;
                 if let Some(offset) = op.op_type.get_ptr_offset() {
                     ptr_offset += offset;
                 }
             }
 
             for _ in 0..indent {
-                write!(output, "  ")?;
+                if debug {
+                    write!(output, "| ")?;
+                } else {
+                    write!(output, "  ")?;
+                }
             }
 
 
@@ -153,8 +163,14 @@ impl Program {
                     write!(output, "PUT STRING \"")?;
 
                     for &v in array {
-                        if v.is_ascii_graphic() {
+                        if v.is_ascii_graphic() || v == b' ' {
                             write!(output, "{}", v as char)?;
+                        } else if v == b'\n' {
+                            write!(output, "\\n")?;
+                        } else if v == b'\r' {
+                            write!(output, "\\r")?;
+                        } else if v == b'\t' {
+                            write!(output, "\\t")?;
                         } else {
                             write!(output, "\\0x{:x}", v)?;
                         }
