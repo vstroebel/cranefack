@@ -5,6 +5,7 @@ use crate::ir::opt_info::{BlockInfo, Cell, CellAccess};
 use crate::optimizations::peephole::run_peephole_pass;
 use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass, find_heap_value, find_last_accessing_inc_dec, OpCodes, find_last_put_string};
 use crate::optimizations::utils;
+use crate::ir::opt_info::Cell::Value;
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
     run_peephole_pass(ops, remove_dead_loops_check)
@@ -1066,10 +1067,17 @@ pub fn optimize_conditional_loops(ops: &mut Vec<Op>) -> bool {
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) =>
                 contains_only_constant_sets(children),
-            OpType::LLoop(children, _) => {
-                !children.is_empty()
+            OpType::LLoop(children, info) => {
+                #[allow(clippy::needless_bool, clippy::if_same_then_else)]
+                if !children.is_empty()
                     && is_zero_end_offset(children, 0)
-                    && children[children.len() - 1].op_type.is_zeroing(0)
+                    && children[children.len() - 1].op_type.is_zeroing(0) {
+                    true
+                } else if matches!(info.get_access_value(0),  Some(Value(0))) {
+                    true
+                } else {
+                    false
+                }
             }
             _ => false,
         };
