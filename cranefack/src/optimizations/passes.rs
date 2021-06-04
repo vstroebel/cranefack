@@ -2669,7 +2669,7 @@ mod tests {
                 Op::dec(1..2, 1),
                 Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], BlockInfo::new_access(vec![CellAccess::new_write(1)]))
+            ], BlockInfo::new_access(vec![CellAccess::new_write(0), CellAccess::new_write(1)]))
         ])
     }
 
@@ -2693,7 +2693,7 @@ mod tests {
             Op::i_loop(0..1, vec![
                 Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], 1, BlockInfo::new_access(vec![CellAccess::new_write(1)]))
+            ], 1, BlockInfo::new_access(vec![CellAccess::new_write(0), CellAccess::new_write(1)]))
         ])
     }
 
@@ -2717,7 +2717,7 @@ mod tests {
             Op::i_loop(0..1, vec![
                 Op::dec_ptr(1..2, 1),
                 Op::dec(2..3, 3),
-            ], 2, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
+            ], 2, BlockInfo::new_access(vec![CellAccess::new_write(-1), CellAccess::new_write(0)]))
         ])
     }
 
@@ -2741,7 +2741,7 @@ mod tests {
         assert_eq!(ops, vec![
             Op::c_loop(0..1, vec![
                 Op::dec_with_offset(2..3, -1, 3),
-            ], 3, BlockInfo::new_access(vec![CellAccess::new_write(-1)]))
+            ], 3, BlockInfo::new_access(vec![CellAccess::new_write(-1), CellAccess::new_write(0)]))
         ])
     }
 

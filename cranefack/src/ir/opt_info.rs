@@ -1,18 +1,7 @@
-use std::fmt::{Debug, Formatter};
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BlockInfo {
     cell_access: Option<Vec<CellAccess>>,
-}
-
-impl Debug for BlockInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(cell_access) = self.cell_access() {
-            write!(f, "access: {}", cell_access.len())
-        } else {
-            write!(f, "access: None")
-        }
-    }
 }
 
 impl BlockInfo {
@@ -144,11 +133,6 @@ impl CellAccess {
     }
 
     pub fn add(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
-        // Ignore loop counters
-        if offset == 0 {
-            return;
-        }
-
         for exiting_cell in cells.iter_mut() {
             if exiting_cell.offset == offset {
                 if !value.is_read() {
@@ -165,11 +149,6 @@ impl CellAccess {
     }
 
     pub fn add_conditional(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
-        // Ignore loop counters
-        if offset == 0 {
-            return;
-        }
-
         for exiting_cell in cells.iter_mut() {
             if exiting_cell.offset == offset {
                 match (&exiting_cell.value, value) {
