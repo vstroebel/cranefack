@@ -29,7 +29,7 @@ impl BlockInfo {
     }
 
     pub fn has_cell_access(&self) -> bool {
-        return self.cell_access.is_some();
+        self.cell_access.is_some()
     }
 
     pub fn cell_access(&self) -> Option<&Vec<CellAccess>> {
@@ -83,7 +83,7 @@ impl BlockInfo {
                 format!("access: {}", cell_access.len())
             }
         } else {
-            format!("access: None")
+            "access: None".to_owned()
         }
     }
 }
@@ -197,10 +197,8 @@ impl CellAccess {
 
     pub fn add_backward(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
         for exiting_cell in cells.iter_mut() {
-            if exiting_cell.offset == offset {
-                if !matches!(exiting_cell.value, Cell::Read) {
-                    return;
-                }
+            if exiting_cell.offset == offset && !matches!(exiting_cell.value, Cell::Read) {
+                return;
             }
         }
 

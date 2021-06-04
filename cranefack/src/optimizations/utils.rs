@@ -243,17 +243,12 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                     if let Some(cell_access) = info.cell_access() {
                         for cell in cell_access.clone() {
                             if cell.offset != 0 {
-                                match (cell.value, find_heap_value(
+                                if let (Cell::Value(v1), CellValue::Value(v2)) = (cell.value, find_heap_value(
                                     ops,
                                     cell.offset,
                                     i as isize - 1, access.zeroed(), &inputs)) {
-                                    (Cell::Value(v1), CellValue::Value(v2)) => {
-                                        if v1 == v2 {
-                                            loop_inputs.push((cell.offset, CellValue::Value(v1)));
-                                        }
-                                    }
-                                    _ => {
-                                        // Ignore
+                                    if v1 == v2 {
+                                        loop_inputs.push((cell.offset, CellValue::Value(v1)));
                                     }
                                 }
                             }
