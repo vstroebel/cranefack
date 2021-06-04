@@ -229,7 +229,7 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                 print_debug(program, config, "Unroll constant loops");
             }
 
-            if config.partially_unroll_loops_limit > 0 && (!progress || count > 2) {
+            if config.partially_unroll_loops_limit > 0 && !progress {
                 progress |= partially_unroll_d_loops(&mut program.ops, config.partially_unroll_loops_limit);
                 print_debug(program, config, "Partially unroll dynamic loops");
             }
