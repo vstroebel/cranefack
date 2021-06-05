@@ -105,6 +105,9 @@ pub enum Cell {
     /// Cell is known to not cotain zero
     NonZero,
 
+    /// Cell is known to be either 0 or 1
+    Bool,
+
     /// Cell value is known
     Value(u8),
 }

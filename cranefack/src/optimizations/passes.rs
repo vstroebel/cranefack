@@ -389,6 +389,7 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool, inputs: &[(isize, CellVal
             match value {
                 CellValue::NonZero => CellAccess::add_backward(&mut access, start_offset, Cell::NonZero),
                 CellValue::Value(v) => CellAccess::add_backward(&mut access, start_offset, Cell::Value(*v)),
+                CellValue::Bool => CellAccess::add_backward(&mut access, start_offset, Cell::Bool),
                 CellValue::Unknown => {
                     // Ignore
                 }
@@ -1101,6 +1102,48 @@ pub fn optimize_non_local_static_count_loops_pass(ops: &mut Vec<Op>, zeroing: bo
                 } else if count > 1 {
                     ops.insert_or_push(i, Op::c_loop_with_decrement(span, children, count, decrement, info));
                 }
+            } else {
+                unreachable!();
+            }
+
+            progress = true;
+        }
+        i += 1;
+    }
+
+    progress
+}
+
+pub fn optimize_non_local_conditional_loops(ops: &mut Vec<Op>, wrapping_is_ub: bool) -> bool {
+    run_non_local_pass(ops, optimize_non_local_conditional_loops_pass, true, &[], wrapping_is_ub)
+}
+
+fn optimize_non_local_conditional_loops_pass(ops: &mut Vec<Op>, zeroing: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> bool {
+    let mut progress = false;
+
+    let mut i = 1;
+
+    while !ops.is_empty() && i < ops.len() {
+        let op = &ops[i];
+
+        let replace = match &op.op_type {
+            OpType::ILoop(_, step, ..) => {
+                if *step == 1 {
+                    let v = utils::find_heap_value(&ops, 0, i as isize - 1, zeroing, inputs, wrapping_is_ub, true);
+                    matches!(v, CellValue::Bool)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+
+        if replace {
+            let loop_op = ops.remove(i);
+            let span = loop_op.span;
+
+            if let OpType::ILoop(children, _, _, info) = loop_op.op_type {
+                ops.insert_or_push(i, Op::t_nz(span, children, info));
             } else {
                 unreachable!();
             }
@@ -1893,7 +1936,7 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
 
                 for test in 0..100 {
                     let offset = test * step;
-                    let value = utils::find_heap_value_debug(ops, offset, i as isize - 1, zeroed, inputs, wrapping_is_ub, true);
+                    let value = utils::find_heap_value(ops, offset, i as isize - 1, zeroed, inputs, wrapping_is_ub, true);
 
                     match value {
                         CellValue::Value(v) => {
@@ -1905,7 +1948,8 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                         CellValue::NonZero => {
                             // Ignore
                         }
-                        CellValue::Unknown => {
+                        CellValue::Unknown |
+                        CellValue::Bool => {
                             break;
                         }
                     }

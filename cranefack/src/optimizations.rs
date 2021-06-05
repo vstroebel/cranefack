@@ -198,6 +198,12 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
             }
             print_debug(program, config, "Optimize non local arithmetics");
 
+            if optimize_non_local_conditional_loops(&mut program.ops, config.wrapping_is_ub) {
+                update_loop_access(&mut program.ops, config.wrapping_is_ub);
+                progress = true;
+            }
+            print_debug(program, config, "Optimize non local constant loops");
+
             if optimize_non_local_static_count_loops(&mut program.ops, config.wrapping_is_ub) {
                 update_loop_access(&mut program.ops, config.wrapping_is_ub);
                 progress = true;
@@ -236,7 +242,7 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                 print_debug(program, config, "Unroll constant loops");
             }
 
-            if config.partially_unroll_loops_limit > 0 && !progress {
+            if config.partially_unroll_loops_limit > 0 && (!progress || count > 10) {
                 progress |= partially_unroll_d_loops(&mut program.ops, config.partially_unroll_loops_limit, config.wrapping_is_ub);
                 print_debug(program, config, "Partially unroll dynamic loops");
             }
