@@ -347,9 +347,11 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool, inputs: &[(isize, CellVal
             OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
-                if let Some(cell_access) = info.cell_access() {
-                    for cell in cell_access {
-                        CellAccess::add_backward(&mut access, start_offset + cell.offset, cell.value);
+                if info.always_used() {
+                    if let Some(cell_access) = info.cell_access() {
+                        for cell in cell_access {
+                            CellAccess::add_backward(&mut access, start_offset + cell.offset, cell.value);
+                        }
                     }
                 }
                 CellAccess::add_backward(&mut access, start_offset, Cell::Value(0));
@@ -361,8 +363,21 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool, inputs: &[(isize, CellVal
                 CellAccess::add_backward(&mut access, start_offset + offset, Cell::Read);
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
-            OpType::DLoop(..) |
-            OpType::SearchZero(_) => break,
+            OpType::DLoop(.., info) => {
+                if info.always_used() {
+                    if let Some(cell_access) = info.cell_access() {
+                        for cell in cell_access {
+                            CellAccess::add_backward(&mut access, start_offset + cell.offset, cell.value);
+                        }
+                    }
+                }
+                CellAccess::add_backward(&mut access, start_offset, Cell::Value(0));
+                return access;
+            }
+            OpType::SearchZero(_) => {
+                CellAccess::add_backward(&mut access, start_offset, Cell::Value(0));
+                return access;
+            }
             OpType::PutString(..) => {
                 // ignore
             }
@@ -372,8 +387,8 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool, inputs: &[(isize, CellVal
     for (offset, value) in inputs {
         if *offset == 0 {
             match value {
-                CellValue::NonZero => CellAccess::add_backward(&mut access, start_offset + offset, Cell::NonZero),
-                CellValue::Value(v) => CellAccess::add_backward(&mut access, start_offset + offset, Cell::Value(*v)),
+                CellValue::NonZero => CellAccess::add_backward(&mut access, start_offset, Cell::NonZero),
+                CellValue::Value(v) => CellAccess::add_backward(&mut access, start_offset, Cell::Value(*v)),
                 CellValue::Unknown => {
                     // Ignore
                 }
