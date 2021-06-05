@@ -257,7 +257,11 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                                 if let (Cell::Value(v1), CellValue::Value(v2)) = (cell.value, find_heap_value(
                                     ops,
                                     cell.offset,
-                                    i as isize - 1, access.zeroed(), &inputs, wrapping_is_ub)) {
+                                    i as isize - 1,
+                                    access.zeroed(),
+                                    &inputs,
+                                    wrapping_is_ub,
+                                    true)) {
                                     if v1 == v2 {
                                         loop_inputs.push((cell.offset, CellValue::Value(v1)));
                                     }
@@ -279,7 +283,13 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                     if *offset == access.offset {
                         (0, CellValue::NonZero)
                     } else {
-                        (offset - access.offset, find_heap_value(ops, offset - access.offset, i as isize - 1, access.zeroed(), &inputs, wrapping_is_ub))
+                        (offset - access.offset, find_heap_value(ops,
+                                                                 offset - access.offset,
+                                                                 i as isize - 1,
+                                                                 access.zeroed(),
+                                                                 &inputs,
+                                                                 wrapping_is_ub,
+                                                                 true))
                     }
                 }).collect::<Vec<_>>();
 
@@ -403,7 +413,13 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
     progress
 }
 
-pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize, zeroed: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> CellValue {
+pub fn find_heap_value(ops: &[Op],
+                       start_cell_offset: isize,
+                       start_index: isize,
+                       zeroed: bool,
+                       inputs: &[(isize, CellValue)],
+                       wrapping_is_ub: bool,
+                       follow: bool) -> CellValue {
     let mut cell_offset = start_cell_offset;
     let mut i = start_index;
 
@@ -434,6 +450,17 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                     };
                 }
             }
+            OpType::Move(src_offset, dest_offset) |
+            OpType::Copy(src_offset, dest_offset)
+            => {
+                if *dest_offset == cell_offset {
+                    return if follow {
+                        find_heap_value(ops, *src_offset, i - 1, zeroed, inputs, wrapping_is_ub, true)
+                    } else {
+                        CellValue::Unknown
+                    };
+                }
+            }
             OpType::Dec(offset, _) |
             OpType::Add(_, offset, _) |
             OpType::NzAdd(_, offset, _) |
@@ -443,8 +470,6 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
             OpType::NzCSub(_, offset, _) |
             OpType::Mul(_, offset, _) |
             OpType::NzMul(_, offset, _) |
-            OpType::Move(_, offset) |
-            OpType::Copy(_, offset) |
             OpType::GetChar(offset)
             => {
                 if *offset == cell_offset {
@@ -464,7 +489,7 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                         return CellValue::Value(loop_value);
                     }
 
-                    if let CellValue::Value(input_value) = find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub) {
+                    if let CellValue::Value(input_value) = find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow) {
                         if loop_value == input_value {
                             return CellValue::Value(loop_value);
                         }
@@ -502,7 +527,7 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                                     (offset + cell_offset - start_cell_offset, *cell)
                                 }).collect::<Vec<_>>();
 
-                                match find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub) {
+                                match find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow) {
                                     CellValue::Value(v2) => {
                                         if v == v2 {
                                             return CellValue::Value(v);
@@ -527,7 +552,7 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                                 (offset + cell_offset - start_cell_offset, *cell)
                             }).collect::<Vec<_>>();
 
-                            if matches!(find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub), CellValue::NonZero) {
+                            if matches!(find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow), CellValue::NonZero) {
                                 return CellValue::NonZero;
                             }
                         }
