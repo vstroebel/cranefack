@@ -1893,15 +1893,21 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
 
                 for test in 0..100 {
                     let offset = test * step;
-                    let value = utils::find_heap_value(ops, offset, i as isize - 1, zeroed, inputs, wrapping_is_ub, true);
+                    let value = utils::find_heap_value_debug(ops, offset, i as isize - 1, zeroed, inputs, wrapping_is_ub, true);
 
-                    if let CellValue::Value(v) = value {
-                        if v == 0 {
-                            ptr_offset = Some(offset);
+                    match value {
+                        CellValue::Value(v) => {
+                            if v == 0 {
+                                ptr_offset = Some(offset);
+                                break;
+                            }
+                        }
+                        CellValue::NonZero => {
+                            // Ignore
+                        }
+                        CellValue::Unknown => {
                             break;
                         }
-                    } else {
-                        break;
                     }
                 }
 
@@ -2369,6 +2375,7 @@ fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isi
                     if i > 0 {
                         i -= 1;
                     }
+                    progress = true;
                     None
                 } else if count_ops_recursive(children) < limit {
                     Some(children.clone())
