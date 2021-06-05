@@ -102,6 +102,9 @@ pub enum Cell {
     /// Cell got modified but value is unknown
     Write,
 
+    /// Cell is known to not cotain zero
+    NonZero,
+
     /// Cell value is known
     Value(u8),
 }
@@ -173,8 +176,27 @@ impl CellAccess {
                             exiting_cell.value = Cell::Write
                         }
                     }
+                    (Cell::NonZero, Cell::Value(v)) => {
+                        if v == 0 {
+                            exiting_cell.value = Cell::NonZero
+                        } else {
+                            exiting_cell.value = Cell::Write
+                        }
+                    }
+                    (Cell::Value(v), Cell::NonZero)
+                    => {
+                        if *v == 0 {
+                            exiting_cell.value = Cell::NonZero
+                        } else {
+                            exiting_cell.value = Cell::Write
+                        }
+                    }
+                    (Cell::NonZero, Cell::NonZero) |
                     (_, Cell::Read) => {
                         // Ignore
+                    }
+                    (Cell::Read, new) => {
+                        exiting_cell.value = new
                     }
                     _ => {
                         exiting_cell.value = Cell::Write
