@@ -161,12 +161,12 @@ impl AccessIndices {
     }
 }
 
-pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &[(isize, CellValue)]) -> bool
-    where F: Fn(&mut Vec<Op>, bool, &[(isize, CellValue)]) -> bool + Copy
+pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> bool
+    where F: Fn(&mut Vec<Op>, bool, &[(isize, CellValue)], bool) -> bool + Copy
 {
     let mut progress = false;
 
-    progress |= func(ops, zeroed, inputs);
+    progress |= func(ops, zeroed, inputs, wrapping_is_ub);
 
     let mut access = AccessIndices::new(zeroed);
 
@@ -226,7 +226,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                 if info.has_cell_access() {
                     true
                 } else {
-                    progress |= run_non_local_pass(children, func, false, &[]);
+                    progress |= run_non_local_pass(children, func, false, &[], wrapping_is_ub);
                     false
                 }
             }
@@ -257,7 +257,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                                 if let (Cell::Value(v1), CellValue::Value(v2)) = (cell.value, find_heap_value(
                                     ops,
                                     cell.offset,
-                                    i as isize - 1, access.zeroed(), &inputs)) {
+                                    i as isize - 1, access.zeroed(), &inputs, wrapping_is_ub)) {
                                     if v1 == v2 {
                                         loop_inputs.push((cell.offset, CellValue::Value(v1)));
                                     }
@@ -279,7 +279,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                     if *offset == access.offset {
                         (0, CellValue::NonZero)
                     } else {
-                        (offset - access.offset, find_heap_value(ops, offset - access.offset, i as isize - 1, access.zeroed(), &inputs))
+                        (offset - access.offset, find_heap_value(ops, offset - access.offset, i as isize - 1, access.zeroed(), &inputs, wrapping_is_ub))
                     }
                 }).collect::<Vec<_>>();
 
@@ -352,7 +352,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
             }
 
             if let Some(children) = ops[i].op_type.get_children_mut() {
-                progress |= run_non_local_pass(children, func, access.zeroed(), &loop_inputs);
+                progress |= run_non_local_pass(children, func, access.zeroed(), &loop_inputs, wrapping_is_ub);
             } else {
                 unreachable!("Local loops must have children");
             }
@@ -374,7 +374,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
     progress
 }
 
-pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize, zeroed: bool, inputs: &[(isize, CellValue)]) -> CellValue {
+pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize, zeroed: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> CellValue {
     let mut cell_offset = start_cell_offset;
     let mut i = start_index;
 
@@ -393,12 +393,21 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                     return CellValue::Value(*v);
                 }
             }
-            OpType::Inc(offset, _) |
+            OpType::Inc(offset, v) |
+            OpType::CAdd(_, offset, v) |
+            OpType::NzCAdd(_, offset, v)
+            => {
+                if *offset == cell_offset {
+                    return if wrapping_is_ub && *v > 0 {
+                        CellValue::NonZero
+                    } else {
+                        CellValue::Unknown
+                    };
+                }
+            }
             OpType::Dec(offset, _) |
             OpType::Add(_, offset, _) |
             OpType::NzAdd(_, offset, _) |
-            OpType::CAdd(_, offset, _) |
-            OpType::NzCAdd(_, offset, _) |
             OpType::Sub(_, offset, _) |
             OpType::NzSub(_, offset, _) |
             OpType::CSub(_, offset, _) |
@@ -426,7 +435,7 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                         return CellValue::Value(loop_value);
                     }
 
-                    if let CellValue::Value(input_value) = find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs) {
+                    if let CellValue::Value(input_value) = find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub) {
                         if loop_value == input_value {
                             return CellValue::Value(loop_value);
                         }
@@ -463,7 +472,7 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                                     (offset + cell_offset - start_cell_offset, *cell)
                                 }).collect::<Vec<_>>();
 
-                                if let CellValue::Value(v2) = find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs) {
+                                if let CellValue::Value(v2) = find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub) {
                                     if v == v2 {
                                         return CellValue::Value(v);
                                     }

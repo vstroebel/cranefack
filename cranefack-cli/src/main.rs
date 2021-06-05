@@ -43,6 +43,7 @@ fn create_clap_app() -> App<'static, 'static> {
                 .help("Use JIT compiler"))
             .arg(get_opt_mode_arg())
             .arg(get_jit_level())
+            .arg(get_wrapping_is_ub_arg())
             .arg(get_debug_opt_arg())
             .arg(get_verbose_arg())
         )
@@ -59,6 +60,7 @@ fn create_clap_app() -> App<'static, 'static> {
             )
             .arg(get_opt_mode_arg())
             .arg(get_jit_level())
+            .arg(get_wrapping_is_ub_arg())
             .arg(get_debug_opt_arg())
             .arg(get_verbose_arg())
         )
@@ -117,6 +119,12 @@ fn get_opt_mode_arg<'a, 'b>() -> Arg<'a, 'b> {
         .value_names(&["mode"])
         .default_value("2")
         .help("Optimization mode")
+}
+
+fn get_wrapping_is_ub_arg<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("WRAPPING_IS_UB")
+        .long("wrapping-is-ub")
+        .help("Wrapping overflows are undefined behavior during optimization")
 }
 
 fn get_debug_opt_arg<'a, 'b>() -> Arg<'a, 'b> {

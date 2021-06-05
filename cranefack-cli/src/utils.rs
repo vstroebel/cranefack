@@ -40,6 +40,10 @@ pub fn get_optimize_config_from_args(matches: &ArgMatches) -> OptimizeConfig {
         cfg.jit_level = Some(jit_level.to_string());
     }
 
+    if matches.is_present("WRAPPING_IS_UB") {
+        cfg.wrapping_is_ub = true;
+    }
+
     if matches.is_present("DEBUG_OPT") {
         cfg.debug = true;
     }
