@@ -2172,6 +2172,8 @@ pub fn optimize_non_local_redundant_copies(ops: &mut Vec<Op>) -> bool {
                                 result = Some((test_index, *src_offset));
                             }
                             break;
+                        } else if dest_offset == dest_offset2 {
+                            break;
                         }
                     }
                     _ => {
@@ -2194,20 +2196,34 @@ pub fn optimize_non_local_redundant_copies(ops: &mut Vec<Op>) -> bool {
         } else {
             let remove = if let OpType::Copy(src_offset, dest_offset) = &op.op_type {
                 let mut result = false;
+                let mut src_offset = *src_offset;
+                let mut dest_offset = *dest_offset;
 
                 for op2 in ops[0..i].iter().rev() {
                     match &op2.op_type {
+                        OpType::IncPtr(offset) => {
+                            src_offset -= *offset as isize;
+                            dest_offset -= *offset as isize;
+                        }
+                        OpType::DecPtr(offset) => {
+                            src_offset += *offset as isize;
+                            dest_offset += *offset as isize;
+                        }
                         OpType::Copy(src_offset2, dest_offset2)
                         => {
-                            if src_offset == dest_offset2 {
-                                if dest_offset == src_offset2 {
+                            if src_offset == *dest_offset2 {
+                                if dest_offset == *src_offset2 {
                                     result = true;
                                 }
                                 break;
+                            } else if dest_offset == *dest_offset2 {
+                                break;
                             }
                         }
-                        _ => {
-                            break;
+                        op => {
+                            if op.is_possible_write(src_offset) || op.is_possible_write(dest_offset) {
+                                break;
+                            }
                         }
                     }
                 }

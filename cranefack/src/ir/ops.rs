@@ -508,4 +508,46 @@ impl OpType {
             _ => None,
         }
     }
+
+    pub fn is_possible_write(&self, test_offset: isize) -> bool {
+        match self {
+            OpType::Inc(offset, _) |
+            OpType::Dec(offset, _) |
+            OpType::Set(offset, _) |
+            OpType::GetChar(offset) |
+            OpType::NzAdd(_, offset, _) |
+            OpType::NzCAdd(_, offset, _) |
+            OpType::NzSub(_, offset, _) |
+            OpType::NzCSub(_, offset, _) |
+            OpType::NzMul(_, offset, _) |
+            OpType::Copy(_, offset)
+            => {
+                *offset == test_offset
+            }
+            OpType::Add(src_offset, dest_offset, _) |
+            OpType::CAdd(src_offset, dest_offset, _) |
+            OpType::Sub(src_offset, dest_offset, _) |
+            OpType::CSub(src_offset, dest_offset, _) |
+            OpType::Mul(src_offset, dest_offset, _) |
+            OpType::Move(src_offset, dest_offset)
+            => {
+                *src_offset == test_offset || *dest_offset == test_offset
+            }
+            OpType::PutString(_) |
+            OpType::PutChar(_) |
+            OpType::IncPtr(_) |
+            OpType::DecPtr(_)
+            => false,
+            OpType::Start |
+            OpType::SearchZero(_) |
+            OpType::DLoop(..) => true,
+            OpType::LLoop(.., info) |
+            OpType::ILoop(.., info) |
+            OpType::CLoop(.., info) |
+            OpType::TNz(.., info)
+            => {
+                test_offset == 0 || info.was_cell_written(test_offset)
+            }
+        }
+    }
 }
