@@ -16,6 +16,6 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-cranefack = { path = "../cranefack", version = "0.1" }
+cranefack = { path = "../cranefack", version = "0.2" }
 clap = "2.33"
 codespan-reporting = "0.11"

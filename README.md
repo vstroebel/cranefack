@@ -26,13 +26,14 @@ USAGE:
 FLAGS:
         --debug-optimizations    Print statistics for optimization passes
     -j, --jit                    Use JIT compiler
-    -v, --verbose    
+    -v, --verbose                
+        --wrapping-is-ub         Wrapping overflows are undefined behavior during optimization
     -h, --help                   Prints help information
     -V, --version                Prints version information
 
 OPTIONS:
         --jit-level <level>    Optimization level for JIT [possible values: none, speed, speed_and_size]
-    -O <mode>                  Optimization mode [default: 2]  [possible values: 0, 1, 2, 3, s]
+    -O <mode>                  Optimization mode [default: 2]  [possible values: 0, 1, 2, 3, s, wtf]
 
 ARGS:
     <FILE>    Brainfuck source file. Use - to read from stdin
@@ -57,14 +58,15 @@ USAGE:
 
 FLAGS:
         --debug-optimizations    Print statistics for optimization passes
-    -v, --verbose    
+    -v, --verbose                
+        --wrapping-is-ub         Wrapping overflows are undefined behavior during optimization
     -h, --help                   Prints help information
     -V, --version                Prints version information
 
 OPTIONS:
     -f, --format <format>      Format of compiled code [default: dump]  [possible values: dump, clir, rust]
         --jit-level <level>    Optimization level for JIT [possible values: none, speed, speed_and_size]
-    -O <mode>                  Optimization mode [default: 2]  [possible values: 0, 1, 2, 3, s]
+    -O <mode>                  Optimization mode [default: 2]  [possible values: 0, 1, 2, 3, s, wtf]
 
 ARGS:
     <FILE>    Brainfuck source file. Use - to read from stdin
@@ -76,11 +78,13 @@ Runs a program with different optimization settings and returns a table this the
 
 ```text
 USAGE:
-    cranefack benchmark [OPTIONS] <FILE>
+    cranefack benchmark [FLAGS] [OPTIONS] <FILE>
 
 FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    -j, --jit               Only benchmark jit
+    -o, --optimized-only    Don't benchmark O0
+    -h, --help              Prints help information
+    -V, --version           Prints version information
 
 OPTIONS:
     -i, --iterations <ITERATIONS>    Number of benchmarking iterations [default: 2]
@@ -95,7 +99,7 @@ ARGS:
 To use cranefack as a library add the following to your Cargo.toml dependencies:
 
 ```toml
-cranefack = "0.1"
+cranefack = "0.2"
 ```
 
 To run a program with jit compilation:
