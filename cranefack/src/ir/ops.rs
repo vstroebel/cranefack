@@ -509,6 +509,17 @@ impl OpType {
         }
     }
 
+    pub fn get_block_info_mut(&mut self) -> Option<&mut BlockInfo> {
+        match self {
+            OpType::DLoop(_, info) |
+            OpType::LLoop(_, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::CLoop(_, _, _, info) |
+            OpType::TNz(_, info) => Some(info),
+            _ => None,
+        }
+    }
+
     pub fn is_possible_write(&self, test_offset: isize) -> bool {
         match self {
             OpType::Inc(offset, _) |

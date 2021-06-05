@@ -2105,14 +2105,12 @@ fn find_last_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) 
     None
 }
 
-pub fn update_loop_access(ops: &mut Vec<Op>) {
-    for op in ops.iter_mut() {
-        if let Some(children) = op.op_type.get_children_mut() {
-            update_loop_access(children);
-        }
-    }
+pub fn update_loop_access(ops: &mut Vec<Op>) -> bool {
+    run_non_local_pass(ops, update_loop_access_pass, true, &[])
+}
 
-    for op in ops {
+fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)]) -> bool {
+    for op in ops.iter_mut() {
         match &mut op.op_type {
             OpType::DLoop(children, info) => {
                 info.set_cell_access(get_d_loop_access(children));
@@ -2129,6 +2127,40 @@ pub fn update_loop_access(ops: &mut Vec<Op>) {
             }
         }
     }
+
+    let mut always_used = vec![];
+
+    for (i, op) in ops.iter().enumerate() {
+        match &op.op_type {
+            OpType::DLoop(.., info) => {
+                if !info.always_used() {
+                    if find_heap_value(ops, 0, i as isize - 1, zeroed, inputs).is_not_zero() {
+                        always_used.push(i);
+                    }
+                }
+            }
+            OpType::LLoop(.., info) |
+            OpType::ILoop(.., info) |
+            OpType::CLoop(.., info) |
+            OpType::TNz(.., info)
+            => {
+                if !info.always_used() {
+                    if find_heap_value(ops, 0, i as isize - 1, zeroed, inputs).is_not_zero() {
+                        always_used.push(i);
+                    }
+                }
+            }
+            _ => {
+                // Ignore
+            }
+        }
+    }
+
+    for i in always_used {
+        ops[i].op_type.get_block_info_mut().unwrap().set_always_used(true);
+    }
+
+    true
 }
 
 /// Try to find redundant copy/move ops
@@ -2313,11 +2345,7 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize
 
         let unroll = match &op.op_type {
             OpType::TNz(_, _) => {
-                if let CellValue::Value(v) = find_heap_value(ops, 0, i as isize - 1, zeroed, inputs) {
-                    v != 0
-                } else {
-                    false
-                }
+                find_heap_value(ops, 0, i as isize - 1, zeroed, inputs).is_not_zero()
             }
             _ => {
                 false

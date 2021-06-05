@@ -90,7 +90,18 @@ impl Change {
 #[derive(Copy, Clone, Debug)]
 pub enum CellValue {
     Unknown,
+    NonZero,
     Value(u8),
+}
+
+impl CellValue {
+    pub fn is_not_zero(&self) -> bool {
+        match self {
+            CellValue::NonZero => true,
+            CellValue::Value(v) => *v != 0,
+            CellValue::Unknown => false,
+        }
+    }
 }
 
 pub fn count_ops_recursive(ops: &[Op]) -> usize {
@@ -266,7 +277,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
 
                 let mut loop_inputs = access.indices.iter().map(|offset| {
                     if *offset == access.offset {
-                        (0, CellValue::Unknown)
+                        (0, CellValue::NonZero)
                     } else {
                         (offset - access.offset, find_heap_value(ops, offset - access.offset, i as isize - 1, access.zeroed(), &inputs))
                     }
@@ -304,6 +315,11 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                                                 }
                                                 CellValue::Value(v2) => {
                                                     if *v != *v2 {
+                                                        *value = CellValue::Unknown;
+                                                    }
+                                                }
+                                                CellValue::NonZero => {
+                                                    if *v == 0 {
                                                         *value = CellValue::Unknown;
                                                     }
                                                 }
@@ -406,6 +422,10 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                         (offset + cell_offset - start_cell_offset, *cell)
                     }).collect::<Vec<_>>();
 
+                    if info.always_used() {
+                        return CellValue::Value(loop_value);
+                    }
+
                     if let CellValue::Value(input_value) = find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs) {
                         if loop_value == input_value {
                             return CellValue::Value(loop_value);
@@ -421,6 +441,19 @@ pub fn find_heap_value(ops: &[Op], start_cell_offset: isize, start_index: isize,
                 if !info.has_cell_access() {
                     return CellValue::Unknown;
                 }
+
+                if info.always_used() {
+                    if let Some(value) = info.get_access_value(cell_offset) {
+                        match value {
+                            Cell::Write => return CellValue::Unknown,
+                            Cell::Value(v) => return CellValue::Value(v),
+                            Cell::Read => {
+                                // ignore
+                            }
+                        }
+                    }
+                }
+
                 if let Some(value) = info.get_access_value(cell_offset) {
                     match value {
                         Cell::Write => return CellValue::Unknown,

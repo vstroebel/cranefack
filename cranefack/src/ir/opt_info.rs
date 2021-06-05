@@ -1,19 +1,21 @@
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BlockInfo {
     cell_access: Option<Vec<CellAccess>>,
+    allways_used: bool,
 }
 
 impl BlockInfo {
     pub fn new_empty() -> BlockInfo {
         BlockInfo {
             cell_access: None,
+            allways_used: false,
         }
     }
 
     pub fn new_access(cell_access: Vec<CellAccess>) -> BlockInfo {
         BlockInfo {
             cell_access: Some(cell_access),
+            allways_used: false,
         }
     }
 
@@ -27,6 +29,14 @@ impl BlockInfo {
 
     pub fn set_cell_access(&mut self, cell_access: Vec<CellAccess>) {
         self.cell_access = Some(cell_access);
+    }
+
+    pub fn always_used(&self) -> bool {
+        self.allways_used
+    }
+
+    pub fn set_always_used(&mut self, always_used: bool) {
+        self.allways_used = always_used;
     }
 
     pub fn get_access_value(&self, offset: isize) -> Option<Cell> {
@@ -65,7 +75,7 @@ impl BlockInfo {
     }
 
     pub fn asm(&self, debug: bool) -> String {
-        if let Some(cell_access) = self.cell_access() {
+        let cell_access = if let Some(cell_access) = self.cell_access() {
             if debug {
                 format!("access: {:?}", cell_access)
             } else {
@@ -73,6 +83,12 @@ impl BlockInfo {
             }
         } else {
             "access: None".to_owned()
+        };
+
+        if self.allways_used {
+            format!("always {}", cell_access)
+        } else {
+            cell_access
         }
     }
 }
