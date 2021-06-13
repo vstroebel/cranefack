@@ -252,4 +252,15 @@ impl CellAccess {
     pub fn get(cells: &[CellAccess], offset: isize) -> Option<Cell> {
         cells.iter().find(|c| c.offset == offset).map(|a| a.value)
     }
+
+    pub fn was_written(cells: &[CellAccess], offset: isize) -> bool {
+        for cell in cells {
+            if cell.offset == offset {
+                return cell.value.is_write();
+            }
+        }
+
+
+        false
+    }
 }

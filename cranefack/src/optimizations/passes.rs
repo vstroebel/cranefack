@@ -325,93 +325,133 @@ fn get_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
     access
 }
 
-fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool, inputs: &[(isize, CellValue)]) -> Vec<CellAccess> {
+fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
     let mut access = vec![];
 
     let mut start_offset = 0;
+    let mut was_cleared = false;
 
-    for op in ops.iter().rev() {
+    for op in ops {
         match &op.op_type {
-            OpType::IncPtr(offset) => start_offset -= *offset as isize,
-            OpType::DecPtr(offset) => start_offset += *offset as isize,
+            OpType::IncPtr(offset) => start_offset += *offset as isize,
+            OpType::DecPtr(offset) => start_offset -= *offset as isize,
             OpType::Set(offset, value) => {
-                CellAccess::add_backward(&mut access, start_offset + offset, Cell::Value(*value));
+                CellAccess::add(&mut access, start_offset + offset, Cell::Value(*value));
             }
-            OpType::Inc(offset, _) => {
+            OpType::Inc(offset, v) => {
                 if wrapping_is_ub {
-                    CellAccess::add_backward(&mut access, start_offset + offset, Cell::NonZero);
+                    CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                } else if matches!(CellAccess::get(&access, start_offset + offset), Some(Cell::Bool)) {
+                    if *v > 0 && *v < 254 {
+                        CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                    } else {
+                        CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                    }
                 } else {
-                    CellAccess::add_backward(&mut access, start_offset + offset, Cell::Write);
+                    CellAccess::add(&mut access, start_offset + offset, Cell::Write);
                 }
             }
-            OpType::NzCAdd(_, offset, _) => {
+            OpType::NzCAdd(_, offset, v) => {
                 if wrapping_is_ub {
-                    CellAccess::add_backward(&mut access, start_offset + offset, Cell::NonZero);
+                    CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                } else if matches!(CellAccess::get(&access, start_offset + offset), Some(Cell::Bool)) {
+                    if *v > 0 && *v < 254 {
+                        CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                    } else {
+                        CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                    }
                 } else {
-                    CellAccess::add_backward(&mut access, start_offset + offset, Cell::Write);
+                    CellAccess::add(&mut access, start_offset + offset, Cell::Write);
                 }
             }
-            OpType::Dec(offset, _) |
             OpType::NzAdd(_, offset, _) |
+            OpType::Dec(offset, _) |
             OpType::NzSub(_, offset, _) |
             OpType::NzCSub(_, offset, _) |
-            OpType::NzMul(_, offset, _) |
-            OpType::Copy(_, offset)
+            OpType::NzMul(_, offset, _)
             => {
-                CellAccess::add_backward(&mut access, start_offset + offset, Cell::Write);
+                CellAccess::add(&mut access, start_offset + offset, Cell::Write);
             }
-            OpType::CAdd(src_offset, dest_offset, _) => {
-                CellAccess::add_backward(&mut access, start_offset + src_offset, Cell::Value(0));
-                if wrapping_is_ub {
-                    CellAccess::add_backward(&mut access, start_offset + dest_offset, Cell::NonZero);
+            OpType::Move(src_offset, dest_offset)
+            => {
+                if let Some(value) = CellAccess::get(&access, start_offset + src_offset) {
+                    CellAccess::add(&mut access, start_offset + dest_offset, value);
                 } else {
-                    CellAccess::add_backward(&mut access, start_offset + dest_offset, Cell::Write);
+                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                }
+                CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
+            }
+            OpType::Copy(src_offset, dest_offset)
+            => {
+                if let Some(value) = CellAccess::get(&access, start_offset + src_offset) {
+                    CellAccess::add(&mut access, start_offset + dest_offset, value);
+                } else {
+                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                }
+            }
+            OpType::CAdd(src_offset, dest_offset, v) => {
+                CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
+                if wrapping_is_ub {
+                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::NonZero);
+                } else if matches!(CellAccess::get(&access, start_offset + dest_offset), Some(Cell::Bool)) {
+                    if *v > 0 && *v < 254 {
+                        CellAccess::add(&mut access, start_offset + dest_offset, Cell::NonZero);
+                    } else {
+                        CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                    }
+                } else {
+                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
                 }
             }
             OpType::Add(src_offset, dest_offset, _) |
             OpType::Sub(src_offset, dest_offset, _) |
             OpType::CSub(src_offset, dest_offset, _) |
-            OpType::Mul(src_offset, dest_offset, _) |
-            OpType::Move(src_offset, dest_offset)
+            OpType::Mul(src_offset, dest_offset, _)
             => {
-                CellAccess::add_backward(&mut access, start_offset + src_offset, Cell::Value(0));
-                CellAccess::add_backward(&mut access, start_offset + dest_offset, Cell::Write);
+                CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
+                CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
             }
             OpType::LLoop(_, info) |
             OpType::ILoop(_, _, _, info) |
             OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
-                if info.always_used() {
-                    if let Some(cell_access) = info.cell_access() {
-                        for cell in cell_access {
-                            CellAccess::add_backward(&mut access, start_offset + cell.offset, cell.value);
+                if let Some(cell_access) = info.cell_access() {
+                    for cell in cell_access {
+                        if info.always_used() {
+                            CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                        } else {
+                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
                         }
                     }
                 }
-                CellAccess::add_backward(&mut access, start_offset, Cell::Value(0));
+                CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
             OpType::GetChar(offset) => {
-                CellAccess::add_backward(&mut access, start_offset + offset, Cell::Write);
+                CellAccess::add(&mut access, start_offset + offset, Cell::Write);
             }
             OpType::PutChar(offset) => {
-                CellAccess::add_backward(&mut access, start_offset + offset, Cell::Read);
+                CellAccess::add(&mut access, start_offset + offset, Cell::Read);
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
-            OpType::DLoop(.., info) => {
+            OpType::DLoop(_, info) => {
+                start_offset = 0;
+                access.clear();
+                was_cleared = true;
                 if info.always_used() {
                     if let Some(cell_access) = info.cell_access() {
                         for cell in cell_access {
-                            CellAccess::add_backward(&mut access, start_offset + cell.offset, cell.value);
+                            CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
                         }
                     }
                 }
-                CellAccess::add_backward(&mut access, start_offset, Cell::Value(0));
-                return access;
+                CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
             OpType::SearchZero(_) => {
-                CellAccess::add_backward(&mut access, start_offset, Cell::Value(0));
-                return access;
+                start_offset = 0;
+                access.clear();
+                was_cleared = true;
+                CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
             OpType::PutString(..) => {
                 // ignore
@@ -419,17 +459,13 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool, inputs: &[(isize, CellVal
         }
     }
 
-    for (offset, value) in inputs {
-        if *offset == 0 {
-            match value {
-                CellValue::NonZero => CellAccess::add_backward(&mut access, start_offset, Cell::NonZero),
-                CellValue::Value(v) => CellAccess::add_backward(&mut access, start_offset, Cell::Value(*v)),
-                CellValue::Bool => CellAccess::add_backward(&mut access, start_offset, Cell::Bool),
-                CellValue::Unknown => {
-                    // Ignore
-                }
-            }
-        }
+
+    for cell in &mut access {
+        cell.offset -= start_offset;
+    }
+
+    if start_offset != 0 && !was_cleared && !CellAccess::was_written(&access, -start_offset) {
+        CellAccess::add(&mut access, -start_offset, Cell::NonZero);
     }
 
     access
@@ -2263,7 +2299,7 @@ fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, Ce
     for op in ops.iter_mut() {
         match &mut op.op_type {
             OpType::DLoop(children, info) => {
-                info.set_cell_access(get_d_loop_access(children, wrapping_is_ub, inputs));
+                info.set_cell_access(get_d_loop_access(children, wrapping_is_ub));
             }
             OpType::LLoop(children, info) |
             OpType::ILoop(children, _, _, info) |
