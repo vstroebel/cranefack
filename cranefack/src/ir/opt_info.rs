@@ -176,11 +176,17 @@ impl CellAccess {
                 match (&exiting_cell.value, value) {
                     (Cell::Value(v1), Cell::Value(v2)) => {
                         if *v1 != v2 {
-                            exiting_cell.value = Cell::Write
+                            if *v1 != 0 && v2 != 0 {
+                                exiting_cell.value = Cell::NonZero
+                            } else if (*v1 == 0 || *v1 == 1) && (v2 == 0 || v2 == 1) {
+                                exiting_cell.value = Cell::Bool
+                            } else {
+                                exiting_cell.value = Cell::Write
+                            }
                         }
                     }
                     (Cell::NonZero, Cell::Value(v)) => {
-                        if v == 0 {
+                        if v != 0 {
                             exiting_cell.value = Cell::NonZero
                         } else {
                             exiting_cell.value = Cell::Write
@@ -188,8 +194,23 @@ impl CellAccess {
                     }
                     (Cell::Value(v), Cell::NonZero)
                     => {
-                        if *v == 0 {
+                        if *v != 0 {
                             exiting_cell.value = Cell::NonZero
+                        } else {
+                            exiting_cell.value = Cell::Write
+                        }
+                    }
+                    (Cell::Bool, Cell::Value(v)) => {
+                        if v == 0 || v == 1 {
+                            exiting_cell.value = Cell::Bool
+                        } else {
+                            exiting_cell.value = Cell::Write
+                        }
+                    }
+                    (Cell::Value(v), Cell::Bool)
+                    => {
+                        if *v == 0 || *v == 1 {
+                            exiting_cell.value = Cell::Bool
                         } else {
                             exiting_cell.value = Cell::Write
                         }
@@ -226,5 +247,9 @@ impl CellAccess {
             offset,
             value,
         });
+    }
+
+    pub fn get(cells: &[CellAccess], offset: isize) -> Option<Cell> {
+        cells.iter().find(|c| c.offset == offset).map(|a| a.value)
     }
 }
