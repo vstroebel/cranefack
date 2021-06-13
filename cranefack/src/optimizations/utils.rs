@@ -333,128 +333,130 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                 if let Some(info) = ops[i].op_type.get_block_info() {
                     if let Some(cell_access) = info.cell_access() {
                         for cell in cell_access {
-                            match &cell.value {
-                                Cell::Read => {
-                                    //ignore
-                                }
-                                Cell::Write => {
-                                    let mut found = false;
+                            if cell.offset != 0 {
+                                match &cell.value {
+                                    Cell::Read => {
+                                        //ignore
+                                    }
+                                    Cell::Write => {
+                                        let mut found = false;
 
-                                    for (offset, value) in loop_inputs.iter_mut() {
-                                        if *offset == cell.offset {
-                                            *value = CellValue::Unknown;
-                                            found = true;
+                                        for (offset, value) in loop_inputs.iter_mut() {
+                                            if *offset == cell.offset {
+                                                *value = CellValue::Unknown;
+                                                found = true;
+                                            }
+                                        }
+
+                                        if !found {
+                                            loop_inputs.push((cell.offset, CellValue::Unknown))
                                         }
                                     }
+                                    Cell::Value(v) => {
+                                        let mut found = false;
 
-                                    if !found {
-                                        loop_inputs.push((cell.offset, CellValue::Unknown))
-                                    }
-                                }
-                                Cell::Value(v) => {
-                                    let mut found = false;
-
-                                    for (offset, value) in loop_inputs.iter_mut() {
-                                        if *offset == cell.offset {
-                                            match value {
-                                                CellValue::Unknown => {
-                                                    // Keep as is
+                                        for (offset, value) in loop_inputs.iter_mut() {
+                                            if *offset == cell.offset {
+                                                match value {
+                                                    CellValue::Unknown => {
+                                                        // Keep as is
+                                                    }
+                                                    CellValue::Value(v2) => {
+                                                        if *v != *v2 {
+                                                            if *v != 0 && *v2 != 0 {
+                                                                *value = CellValue::NonZero;
+                                                            } else if (*v == 0 || *v == 1) && (*v2 == 0 || *v2 == 1) {
+                                                                *value = CellValue::Bool;
+                                                            } else {
+                                                                *value = CellValue::Unknown;
+                                                            }
+                                                        }
+                                                    }
+                                                    CellValue::Bool => {
+                                                        if *v != 0 && *v != 1 {
+                                                            *value = CellValue::Unknown;
+                                                        }
+                                                    }
+                                                    CellValue::NonZero => {
+                                                        if *v == 0 {
+                                                            *value = CellValue::Unknown;
+                                                        }
+                                                    }
                                                 }
-                                                CellValue::Value(v2) => {
-                                                    if *v != *v2 {
-                                                        if *v != 0 && *v2 != 0 {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if !found {
+                                            if *v == 0 && access.zeroed() {
+                                                loop_inputs.push((cell.offset, CellValue::Value(*v)))
+                                            } else {
+                                                loop_inputs.push((cell.offset, CellValue::Unknown))
+                                            }
+                                        }
+                                    }
+                                    Cell::NonZero => {
+                                        let mut found = false;
+
+                                        for (offset, value) in loop_inputs.iter_mut() {
+                                            if *offset == cell.offset {
+                                                match value {
+                                                    CellValue::Unknown => {
+                                                        // Keep as is
+                                                    }
+                                                    CellValue::Value(v2) => {
+                                                        if *v2 != 0 {
                                                             *value = CellValue::NonZero;
-                                                        } else if (*v == 0 || *v == 1) && (*v2 == 0 || *v2 == 1) {
+                                                        } else {
+                                                            *value = CellValue::Unknown;
+                                                        }
+                                                    }
+                                                    CellValue::NonZero => {
+                                                        *value = CellValue::NonZero;
+                                                    }
+                                                    CellValue::Bool => {
+                                                        *value = CellValue::Unknown;
+                                                    }
+                                                }
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if !found {
+                                            loop_inputs.push((cell.offset, CellValue::Unknown))
+                                        }
+                                    }
+                                    Cell::Bool => {
+                                        let mut found = false;
+
+                                        for (offset, value) in loop_inputs.iter_mut() {
+                                            if *offset == cell.offset {
+                                                match value {
+                                                    CellValue::Unknown |
+                                                    CellValue::Bool => {
+                                                        // Keep as is
+                                                    }
+                                                    CellValue::Value(v2) => {
+                                                        if *v2 == 0 || *v2 == 1 {
                                                             *value = CellValue::Bool;
                                                         } else {
                                                             *value = CellValue::Unknown;
                                                         }
                                                     }
-                                                }
-                                                CellValue::Bool => {
-                                                    if *v != 0 && *v != 1 {
+                                                    CellValue::NonZero => {
                                                         *value = CellValue::Unknown;
                                                     }
                                                 }
-                                                CellValue::NonZero => {
-                                                    if *v == 0 {
-                                                        *value = CellValue::Unknown;
-                                                    }
-                                                }
+                                                found = true;
+                                                break;
                                             }
-                                            found = true;
-                                            break;
                                         }
-                                    }
 
-                                    if !found {
-                                        if *v == 0 && access.zeroed() {
-                                            loop_inputs.push((cell.offset, CellValue::Value(*v)))
-                                        } else {
+                                        if !found {
                                             loop_inputs.push((cell.offset, CellValue::Unknown))
                                         }
-                                    }
-                                }
-                                Cell::NonZero => {
-                                    let mut found = false;
-
-                                    for (offset, value) in loop_inputs.iter_mut() {
-                                        if *offset == cell.offset {
-                                            match value {
-                                                CellValue::Unknown => {
-                                                    // Keep as is
-                                                }
-                                                CellValue::Value(v2) => {
-                                                    if *v2 != 0 {
-                                                        *value = CellValue::NonZero;
-                                                    } else {
-                                                        *value = CellValue::Unknown;
-                                                    }
-                                                }
-                                                CellValue::NonZero => {
-                                                    *value = CellValue::NonZero;
-                                                }
-                                                CellValue::Bool => {
-                                                    *value = CellValue::Unknown;
-                                                }
-                                            }
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-
-                                    if !found {
-                                        loop_inputs.push((cell.offset, CellValue::Unknown))
-                                    }
-                                }
-                                Cell::Bool => {
-                                    let mut found = false;
-
-                                    for (offset, value) in loop_inputs.iter_mut() {
-                                        if *offset == cell.offset {
-                                            match value {
-                                                CellValue::Unknown |
-                                                CellValue::Bool => {
-                                                    // Keep as is
-                                                }
-                                                CellValue::Value(v2) => {
-                                                    if *v2 == 0 || *v2 == 1 {
-                                                        *value = CellValue::Bool;
-                                                    } else {
-                                                        *value = CellValue::Unknown;
-                                                    }
-                                                }
-                                                CellValue::NonZero => {
-                                                    *value = CellValue::Unknown;
-                                                }
-                                            }
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-
-                                    if !found {
-                                        loop_inputs.push((cell.offset, CellValue::Unknown))
                                     }
                                 }
                             }

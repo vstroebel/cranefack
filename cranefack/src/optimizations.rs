@@ -105,7 +105,7 @@ impl OptimizeConfig {
         OptimizeConfig {
             complex_loops: true,
             non_local: true,
-            max_loops: 100000, //usize::MAX,
+            max_loops: usize::MAX,
             jit_level: None,
             unroll_loop_limit: usize::MAX,
             partially_unroll_loops_limit: usize::MAX,

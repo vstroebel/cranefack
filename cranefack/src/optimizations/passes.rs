@@ -1840,14 +1840,14 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                             OpType::Set(*src_offset, 0),
                         ])
                     }
-                    (CellValue::Value(src), CellValue::Unknown) => {
+                    (CellValue::Value(src), _) => {
                         let value = src.wrapping_mul(*multi);
 
                         Change::Replace(vec![
                             OpType::CAdd(*src_offset, *dest_offset, value),
                         ])
                     }
-                    (CellValue::Unknown, CellValue::Value(0)) => {
+                    (_, CellValue::Value(0)) => {
                         if *multi == 1 {
                             Change::Replace(vec![OpType::Move(*src_offset, *dest_offset)])
                         } else {
@@ -1874,14 +1874,14 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                             OpType::Set(*dest_offset, value),
                         ])
                     }
-                    (CellValue::Value(src), CellValue::Unknown) => {
+                    (CellValue::Value(src), _) => {
                         let value = src.wrapping_mul(*multi);
 
                         Change::Replace(vec![
                             OpType::NzCAdd(*src_offset, *dest_offset, value),
                         ])
                     }
-                    (CellValue::Unknown, CellValue::Value(0)) => {
+                    (_, CellValue::Value(0)) => {
                         if *multi == 1 {
                             Change::Replace(vec![OpType::Copy(*src_offset, *dest_offset)])
                         } else {
@@ -1928,7 +1928,7 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                             OpType::Set(*src_offset, 0),
                         ])
                     }
-                    (CellValue::Value(src), CellValue::Unknown) => {
+                    (CellValue::Value(src), _) => {
                         let value = src.wrapping_mul(*multi);
 
                         Change::Replace(vec![
@@ -1955,7 +1955,7 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                             OpType::Set(*dest_offset, value),
                         ])
                     }
-                    (CellValue::Value(src), CellValue::Unknown) => {
+                    (CellValue::Value(src), _) => {
                         let value = src.wrapping_mul(*multi);
 
                         Change::Replace(vec![
@@ -2348,11 +2348,7 @@ fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, Ce
 
     for (i, op) in ops.iter().enumerate() {
         match &op.op_type {
-            OpType::DLoop(.., info) => {
-                if !info.always_used() && find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true).is_not_zero() {
-                    always_used.push(i);
-                }
-            }
+            OpType::DLoop(.., info) |
             OpType::LLoop(.., info) |
             OpType::ILoop(.., info) |
             OpType::CLoop(.., info) |
