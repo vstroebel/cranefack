@@ -265,18 +265,43 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                     let mut loop_inputs = vec![];
                     if let Some(cell_access) = info.cell_access() {
                         for cell in cell_access.clone() {
-                            if cell.offset != 0 {
-                                if let (Cell::Value(v1), CellValue::Value(v2)) = (cell.value, find_heap_value(
-                                    ops,
-                                    cell.offset,
-                                    i as isize - 1,
-                                    access.zeroed,
-                                    &inputs,
-                                    wrapping_is_ub,
-                                    true)) {
+                            match (cell.value, find_heap_value(
+                                ops,
+                                cell.offset,
+                                i as isize - 1,
+                                access.zeroed,
+                                &inputs,
+                                wrapping_is_ub,
+                                true)) {
+                                (Cell::Value(v1), CellValue::Value(v2)) => {
                                     if v1 == v2 {
                                         loop_inputs.push((cell.offset, CellValue::Value(v1)));
+                                    } else if v1 != 0 && v2 != 0 {
+                                        loop_inputs.push((cell.offset, CellValue::NonZero));
+                                    } else if (v1 == 0 || v1 == 1) && (v2 == 0 || v2 == 0) {
+                                        loop_inputs.push((cell.offset, CellValue::Bool));
                                     }
+                                }
+                                (Cell::NonZero, CellValue::NonZero) => {
+                                    loop_inputs.push((cell.offset, CellValue::NonZero));
+                                }
+                                (Cell::NonZero, CellValue::Value(v)) |
+                                (Cell::Value(v), CellValue::NonZero) => {
+                                    if v > 0 {
+                                        loop_inputs.push((cell.offset, CellValue::NonZero));
+                                    }
+                                }
+                                (Cell::Bool, CellValue::Bool) => {
+                                    loop_inputs.push((cell.offset, CellValue::Bool));
+                                }
+                                (Cell::Bool, CellValue::Value(v)) |
+                                (Cell::Value(v), CellValue::Bool) => {
+                                    if v == 0 || v == 1 {
+                                        loop_inputs.push((cell.offset, CellValue::Bool));
+                                    }
+                                }
+                                _ => {
+                                    // Ignore
                                 }
                             }
                         }

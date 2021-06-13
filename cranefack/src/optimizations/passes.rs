@@ -436,14 +436,27 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
             OpType::Start => unreachable!("Must not be called with start in children"),
             OpType::DLoop(_, info) => {
                 start_offset = 0;
-                access.clear();
                 was_cleared = true;
                 if info.always_used() {
+                    access.clear();
+
                     if let Some(cell_access) = info.cell_access() {
                         for cell in cell_access {
                             CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
                         }
                     }
+                } else if let Some(cell_access) = info.cell_access() {
+                    let old_access = access;
+                    access = vec![];
+
+                    for cell in cell_access {
+                        if let Some(value) = CellAccess::get(&old_access, start_offset + cell.offset) {
+                            CellAccess::add(&mut access, start_offset + cell.offset, value);
+                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
+                        }
+                    }
+                } else {
+                    access.clear();
                 }
                 CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
