@@ -243,9 +243,12 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
             }
 
             if config.partially_unroll_loops_limit > 0 && (!progress || count > 10) {
-                progress |= partially_unroll_d_loops(&mut program.ops, config.partially_unroll_loops_limit, config.wrapping_is_ub);
+                progress |= partially_unroll_loops(&mut program.ops, config.partially_unroll_loops_limit, config.wrapping_is_ub);
                 print_debug(program, config, "Partially unroll dynamic loops");
             }
+
+            progress |= non_local_remove_dead_loops(&mut program.ops, config.wrapping_is_ub);
+            print_debug(program, config, "Remove non local dead loops");
         } else if config.complex_loops {
             progress |= remove_useless_loops(&mut program.ops);
             print_debug(program, config, "Remove useless loops");

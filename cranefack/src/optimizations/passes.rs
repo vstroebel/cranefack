@@ -2482,17 +2482,17 @@ pub fn optimize_non_local_redundant_copies(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
-pub fn partially_unroll_d_loops(ops: &mut Vec<Op>, limit: usize, wrapping_is_ub: bool) -> bool {
+pub fn partially_unroll_loops(ops: &mut Vec<Op>, limit: usize, wrapping_is_ub: bool) -> bool {
     run_non_local_pass(
         ops,
-        |ops, zeroing, inputs, wrapping_is_ub| partially_unroll_d_loops_pass(ops, zeroing, inputs, wrapping_is_ub, limit),
+        |ops, zeroing, inputs, wrapping_is_ub| partially_unroll_loops_pass(ops, zeroing, inputs, wrapping_is_ub, limit),
         true,
         &[],
         wrapping_is_ub,
     )
 }
 
-fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool, limit: usize) -> bool {
+fn partially_unroll_loops_pass(ops: &mut Vec<Op>, _zeroed: bool, _inputs: &[(isize, CellValue)], _wrapping_is_ub: bool, limit: usize) -> bool {
     let mut progress = false;
 
     let mut i = 0;
@@ -2500,28 +2500,67 @@ fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isi
     while i < ops.len() {
         let op = &ops[i];
 
-        let prepend = if let OpType::DLoop(children, _) = &op.op_type {
-            if let CellValue::Value(v) = find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true) {
-                if v == 0 {
-                    ops.remove(i);
-                    if i > 0 {
-                        i -= 1;
+        let prepend = match &op.op_type {
+            OpType::DLoop(children, info) => {
+                if info.always_used() {
+                    if count_ops_recursive(children) < limit {
+                        Some(children.clone())
+                    } else {
+                        None
                     }
-                    progress = true;
-                    None
-                } else if count_ops_recursive(children) < limit {
-                    Some(children.clone())
                 } else {
                     None
                 }
-            } else {
-                None
             }
-        } else {
-            None
+            OpType::LLoop(children, info)
+            => {
+                if info.always_used() {
+                    if count_ops_recursive(children) < limit {
+                        let child_offset = get_l_loop_ptr_end_offset(children);
+
+                        let mut children = children.clone();
+
+                        children.push(Op::ptr_offset(op.span.clone(), -child_offset));
+
+                        Some(children)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            OpType::ILoop(children, step, decrement, info)
+            => {
+                if info.always_used() {
+                    if count_ops_recursive(children) < limit {
+                        let child_offset = get_l_loop_ptr_end_offset(children);
+
+                        let mut children = children.clone();
+
+                        if *decrement == LoopDecrement::Pre {
+                            children.insert_or_push(0, Op::dec(op.span.clone(), *step));
+                        }
+
+                        children.push(Op::ptr_offset(op.span.clone(), -child_offset));
+
+                        if *decrement != LoopDecrement::Pre {
+                            children.push(Op::dec(op.span.clone(), *step));
+                        }
+
+                        Some(children)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None
         };
 
         if let Some(prepend) = prepend {
+            ops[i].op_type.get_block_info_mut().unwrap().set_always_used(false);
             let len = prepend.len();
             for (index, op) in prepend.into_iter().enumerate() {
                 ops.insert_or_push(
@@ -2532,6 +2571,55 @@ fn partially_unroll_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isi
         }
 
         i += 1;
+    }
+
+    progress
+}
+
+fn get_l_loop_ptr_end_offset(ops: &[Op]) -> isize {
+    let mut ptr_offset = 0;
+
+    for op in ops {
+        ptr_offset += op.op_type.get_ptr_offset().unwrap_or(0);
+    }
+
+    ptr_offset
+}
+
+pub fn non_local_remove_dead_loops(ops: &mut Vec<Op>, wrapping_is_ub: bool) -> bool {
+    run_non_local_pass(
+        ops,
+        non_local_remove_dead_loops_pass,
+        true,
+        &[],
+        wrapping_is_ub,
+    )
+}
+
+fn non_local_remove_dead_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> bool {
+    let mut progress = false;
+
+    let mut i = 0;
+
+    while i < ops.len() {
+        let op = &ops[i];
+
+
+        let remove = match &op.op_type {
+            OpType::DLoop(..) |
+            OpType::LLoop(..) |
+            OpType::ILoop(..) |
+            OpType::TNz(..)
+            => find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true).is_zero(),
+            _ => false,
+        };
+
+        if remove {
+            ops.remove(i);
+            progress = true;
+        } else {
+            i += 1
+        }
     }
 
     progress
@@ -2609,7 +2697,6 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, _zeroed: bool, _inputs: &[(isi
 
     progress
 }
-
 
 #[cfg(test)]
 mod tests {

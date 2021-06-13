@@ -104,6 +104,9 @@ impl CellValue {
             CellValue::Unknown => false,
         }
     }
+    pub fn is_zero(&self) -> bool {
+        matches!(self, CellValue::Value(0))
+    }
 }
 
 pub fn count_ops_recursive(ops: &[Op]) -> usize {
