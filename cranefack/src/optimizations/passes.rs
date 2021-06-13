@@ -2712,6 +2712,171 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, _zeroed: bool, _inputs: &[(isi
     progress
 }
 
+pub fn unroll_scanning_d_loops(ops: &mut Vec<Op>, limit: usize, wrapping_is_ub: bool) -> bool {
+    run_non_local_pass(
+        ops,
+        |ops, zeroing, inputs, wrapping_is_ub| unroll_scanning_d_loops_pass(ops, zeroing, inputs, wrapping_is_ub, limit),
+        true,
+        &[],
+        wrapping_is_ub,
+    )
+}
+
+fn unroll_scanning_d_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool, limit: usize) -> bool {
+    let mut progress = false;
+
+    let mut i = 0;
+
+    while i < ops.len() {
+        let op = &ops[i];
+
+        let replace: Option<Vec<Op>> = match &op.op_type {
+            OpType::DLoop(children, info) => {
+                if info.always_used() {
+                    if let Some(step) = get_scan_loop_step(children) {
+                        let mut count = None;
+
+                        for test in 1..100 {
+                            let offset = test as isize * step;
+                            let value = utils::find_heap_value(ops, offset, i as isize - 1, zeroed, inputs, wrapping_is_ub, true);
+
+                            match value {
+                                CellValue::Value(v) => {
+                                    if v == 0 {
+                                        count = Some(test);
+                                        break;
+                                    }
+                                }
+                                CellValue::NonZero => {
+                                    // Ignore
+                                }
+                                CellValue::Unknown |
+                                CellValue::Bool => {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if let Some(count) = count {
+                            if count * (children.len() - 1) < limit {
+                                let mut replacement = vec![];
+
+                                for _ in 0..count {
+                                    replacement.extend_from_slice(children);
+                                }
+
+                                Some(replacement)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None
+        };
+
+        if let Some(replace) = replace {
+            ops.remove(i);
+            for (index, op) in replace.into_iter().enumerate() {
+                ops.insert_or_push(i + index, op);
+            }
+            progress = true;
+        } else {
+            i += 1;
+        }
+    }
+
+    progress
+}
+
+fn get_scan_loop_step(ops: &[Op]) -> Option<isize> {
+    let mut ptr_offset = 0;
+
+    for op in ops {
+        match &op.op_type {
+            OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+            OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
+            OpType::DLoop(..) |
+            OpType::SearchZero(..)
+            => return None,
+            _ => {
+                // Ignore
+            }
+        }
+    }
+
+    let step = ptr_offset;
+
+    ptr_offset = 0;
+
+    for op in ops {
+        match &op.op_type {
+            OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+            OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
+
+            OpType::Inc(offset, _) |
+            OpType::Dec(offset, _) |
+            OpType::Set(offset, _) |
+            OpType::GetChar(offset) |
+            OpType::NzAdd(_, offset, _) |
+            OpType::NzCAdd(_, offset, _) |
+            OpType::NzSub(_, offset, _) |
+            OpType::NzCSub(_, offset, _) |
+            OpType::NzMul(_, offset, _) |
+            OpType::Copy(_, offset)
+            => {
+                if ptr_offset + offset == step {
+                    return None;
+                }
+            }
+            OpType::Add(src_offset, dest_offset, _) |
+            OpType::CAdd(src_offset, dest_offset, _) |
+            OpType::Sub(src_offset, dest_offset, _) |
+            OpType::CSub(src_offset, dest_offset, _) |
+            OpType::Mul(src_offset, dest_offset, _) |
+            OpType::Move(src_offset, dest_offset)
+            => {
+                if ptr_offset + src_offset == step {
+                    return None;
+                }
+                if dest_offset + src_offset == step {
+                    return None;
+                }
+            }
+            OpType::LLoop(.., info) |
+            OpType::ILoop(.., info) |
+            OpType::CLoop(.., info) |
+            OpType::TNz(.., info)
+            => {
+                if ptr_offset == step || info.was_cell_written(ptr_offset + step) {
+                    return None;
+                } else {
+                    return None;
+                }
+            }
+            OpType::DLoop(..) |
+            OpType::SearchZero(..)
+            => return None,
+            OpType::PutChar(_) |
+            OpType::PutString(_) |
+            OpType::Start
+            => {
+                // Ignore
+            }
+        }
+    }
+
+
+    Some(ptr_offset)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ir::ops::Op;

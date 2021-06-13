@@ -105,7 +105,7 @@ impl OptimizeConfig {
         OptimizeConfig {
             complex_loops: true,
             non_local: true,
-            max_loops: 10000, //usize::MAX,
+            max_loops: 100000, //usize::MAX,
             jit_level: None,
             unroll_loop_limit: usize::MAX,
             partially_unroll_loops_limit: usize::MAX,
@@ -240,10 +240,17 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                     progress = true;
                 }
                 print_debug(program, config, "Unroll constant loops");
+
+                progress |= unroll_scanning_d_loops(&mut program.ops, config.unroll_loop_limit, config.wrapping_is_ub);
+                print_debug(program, config, "Unroll scanning dynamic loops");
             }
 
             if config.partially_unroll_loops_limit > 0 && (!progress || count > 10) {
-                progress |= partially_unroll_loops(&mut program.ops, config.partially_unroll_loops_limit, config.wrapping_is_ub);
+                if partially_unroll_loops(&mut program.ops, config.partially_unroll_loops_limit, config.wrapping_is_ub) {
+                    non_local_remove_dead_loops(&mut program.ops, config.wrapping_is_ub);
+                    update_loop_access(&mut program.ops, config.wrapping_is_ub);
+                    progress = true;
+                }
                 print_debug(program, config, "Partially unroll dynamic loops");
             }
 
