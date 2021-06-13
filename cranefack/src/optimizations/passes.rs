@@ -1524,6 +1524,8 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
                 OpType::NzSub(src_offset, dest_offset, _) |
                 OpType::CSub(src_offset, dest_offset, _) |
                 OpType::NzCSub(src_offset, dest_offset, _) |
+                OpType::Mul(src_offset, dest_offset, _) |
+                OpType::NzMul(src_offset, dest_offset, _) |
                 OpType::Move(src_offset, dest_offset) |
                 OpType::Copy(src_offset, dest_offset)
                 => {
@@ -1546,7 +1548,19 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
                     num_ptr_changes += 1;
                     true
                 }
-                _ => break
+                OpType::PutString(..) |
+                OpType::Start => {
+                    false
+                }
+                OpType::DLoop(..) |
+                OpType::LLoop(..) |
+                OpType::ILoop(..) |
+                OpType::CLoop(..) |
+                OpType::TNz(..) |
+                OpType::SearchZero(..)
+                => {
+                    break;
+                }
             };
 
             end = op.span.end;
