@@ -219,9 +219,15 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                 access.add(*offset);
                 false
             }
-            OpType::SearchZero(_)
+            OpType::SearchZero(step, always)
             => {
                 access.clear();
+                access.add(0);
+
+                if *always {
+                    access.add(-*step);
+                }
+
                 false
             }
             OpType::DLoop(children, info) => {
@@ -748,7 +754,14 @@ pub fn find_heap_value(ops: &[Op],
             OpType::PutString(_) => {
                 // Ignore
             }
-            _ => return CellValue::Unknown
+            OpType::SearchZero(step, always) => {
+                if *always && -*step == cell_offset {
+                    return CellValue::NonZero;
+                } else {
+                    return CellValue::Unknown;
+                }
+            }
+            OpType::Start => return CellValue::Value(0),
         }
 
         i -= 1;
@@ -814,7 +827,7 @@ pub fn find_last_accessing_inc_dec(ops: &[Op], start_offset: isize, start_index:
                 }
             }
             OpType::Start |
-            OpType::SearchZero(_) |
+            OpType::SearchZero(_, _) |
             OpType::DLoop(_, _) => {
                 return None;
             }
@@ -850,7 +863,7 @@ pub fn find_last_put_string(ops: &[Op], start_index: isize) -> Option<(isize, Ve
             }
             OpType::PutChar(_) |
             OpType::GetChar(_) |
-            OpType::SearchZero(_) |
+            OpType::SearchZero(_, _) |
             OpType::DLoop(..) |
             OpType::LLoop(..) |
             OpType::ILoop(..) |

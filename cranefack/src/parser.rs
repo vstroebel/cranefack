@@ -201,7 +201,13 @@ impl Program {
                     writeln!(output, "TNZ info: {}", info.asm(debug))?;
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
-                OpType::SearchZero(step) => writeln!(output, "S_ZERO {} ", step)?,
+                OpType::SearchZero(step, always) => {
+                    if *always {
+                        writeln!(output, "S_ZERO {} always", step)?
+                    } else {
+                        writeln!(output, "S_ZERO {} ", step)?
+                    }
+                }
             }
         }
 

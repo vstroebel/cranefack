@@ -315,7 +315,7 @@ fn get_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
             OpType::DLoop(..) => unreachable!("Must not be called with dloops in children"),
-            OpType::SearchZero(_) => unreachable!("Must not be called with zero search in children"),
+            OpType::SearchZero(_, _) => unreachable!("Must not be called with zero search in children"),
             OpType::PutString(..) => {
                 // ignore
             }
@@ -447,11 +447,14 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 }
                 CellAccess::add(&mut access, start_offset, Cell::Value(0));
             }
-            OpType::SearchZero(_) => {
+            OpType::SearchZero(step, always) => {
                 start_offset = 0;
                 access.clear();
                 was_cleared = true;
                 CellAccess::add(&mut access, start_offset, Cell::Value(0));
+                if *always {
+                    CellAccess::add(&mut access, -*step, Cell::NonZero);
+                }
             }
             OpType::PutString(..) => {
                 // ignore
@@ -2002,7 +2005,7 @@ fn optimize_non_local_arithmetics_pass(mut ops: &mut Vec<Op>, zeroed: bool, inpu
                     Change::Ignore
                 }
             }
-            OpType::SearchZero(step) => {
+            OpType::SearchZero(step, _) => {
                 let mut ptr_offset = None;
 
                 for test in 0..100 {
@@ -2319,10 +2322,8 @@ fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, Ce
     for (i, op) in ops.iter().enumerate() {
         match &op.op_type {
             OpType::DLoop(.., info) => {
-                if !info.always_used() {
-                    if find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true).is_not_zero() {
-                        always_used.push(i);
-                    }
+                if !info.always_used() && find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true).is_not_zero() {
+                    always_used.push(i);
                 }
             }
             OpType::LLoop(.., info) |
@@ -2330,10 +2331,13 @@ fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, Ce
             OpType::CLoop(.., info) |
             OpType::TNz(.., info)
             => {
-                if !info.always_used() {
-                    if find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true).is_not_zero() {
-                        always_used.push(i);
-                    }
+                if !info.always_used() && find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true).is_not_zero() {
+                    always_used.push(i);
+                }
+            }
+            OpType::SearchZero(_, always) => {
+                if !*always && find_heap_value(ops, 0, i as isize - 1, zeroed, inputs, wrapping_is_ub, true).is_not_zero() {
+                    always_used.push(i);
                 }
             }
             _ => {
@@ -2343,7 +2347,20 @@ fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, Ce
     }
 
     for i in always_used {
-        ops[i].op_type.get_block_info_mut().unwrap().set_always_used(true);
+        match &mut ops[i].op_type {
+            OpType::DLoop(.., info) |
+            OpType::LLoop(.., info) |
+            OpType::ILoop(.., info) |
+            OpType::CLoop(.., info) |
+            OpType::TNz(.., info)
+            => {
+                info.set_always_used(true);
+            }
+            OpType::SearchZero(_, always) => {
+                *always = true;
+            }
+            _ => unreachable!()
+        }
     }
 
     true

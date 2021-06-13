@@ -144,7 +144,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
-            OpType::SearchZero(step) => writeln!(out, "rt.search_zero({});", step)?,
+            OpType::SearchZero(step, _) => writeln!(out, "rt.search_zero({});", step)?,
         }
     }
 

@@ -228,7 +228,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     *self.heap_value(&op.span)? = 0;
                 }
             }
-            OpType::SearchZero(step) => {
+            OpType::SearchZero(step, _) => {
                 let mut pointer = self.pointer as isize;
 
                 loop {

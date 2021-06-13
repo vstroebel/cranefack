@@ -255,7 +255,7 @@ impl Op {
 
     pub fn search_zero(span: Range<usize>, step: isize) -> Op {
         Op {
-            op_type: OpType::SearchZero(step),
+            op_type: OpType::SearchZero(step, false),
             span,
         }
     }
@@ -360,7 +360,7 @@ pub enum OpType {
     TNz(Vec<Op>, BlockInfo),
 
     /// Move heap pointer to first cell containing zero based on step
-    SearchZero(isize),
+    SearchZero(isize, bool),
 }
 
 impl OpType {
@@ -550,7 +550,7 @@ impl OpType {
             OpType::DecPtr(_)
             => false,
             OpType::Start |
-            OpType::SearchZero(_) |
+            OpType::SearchZero(_, _) |
             OpType::DLoop(..) => true,
             OpType::LLoop(.., info) |
             OpType::ILoop(.., info) |
