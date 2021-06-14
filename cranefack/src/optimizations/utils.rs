@@ -264,7 +264,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
         };
 
         if is_loop {
-            let is_d_loop = matches!(ops[i].op_type, OpType::DLoop(..) | OpType::DTNz(..));
+            let is_d_loop = matches!(ops[i].op_type, OpType::DLoop(..));
 
             let loop_inputs = if is_d_loop {
                 if let Some(info) = ops[i].op_type.get_block_info() {
@@ -324,7 +324,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
 
                 let mut loop_inputs = access.indices.iter().map(|offset| {
                     if *offset == access.offset {
-                        if matches!(ops[i].op_type, OpType::TNz(..)) {
+                        if matches!(ops[i].op_type, OpType::TNz(..) | OpType::DTNz(..)) {
                             if find_heap_value(ops,
                                                offset - access.offset,
                                                i as isize - 1,
