@@ -14,6 +14,7 @@ pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
 fn remove_dead_loops_check(ops: [&Op; 2]) -> Change {
     if ops[0].op_type.is_zeroing(0) && matches!(ops[1].op_type,
         OpType::DLoop(..) |
+        OpType::DTNz(..) |
         OpType::LLoop(..) |
         OpType::ILoop(..) |
         OpType::TNz(..) |
@@ -135,7 +136,9 @@ pub fn optimize_local_loops(ops: &mut Vec<Op>) -> bool {
                         OpType::DecPtr(value) => {
                             ptr_offset -= *value as isize;
                         }
-                        OpType::DLoop(..) => {
+                        OpType::DLoop(..) |
+                        OpType::DTNz(..)
+                        => {
                             ignore = true;
                             break;
                         }
@@ -315,6 +318,7 @@ fn get_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
             OpType::DLoop(..) => unreachable!("Must not be called with dloops in children"),
+            OpType::DTNz(..) => unreachable!("Must not be called with dtnz in children"),
             OpType::SearchZero(_, _) => unreachable!("Must not be called with zero search in children"),
             OpType::PutString(..) => {
                 // ignore
@@ -434,7 +438,9 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 CellAccess::add(&mut access, start_offset + offset, Cell::Read);
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
-            OpType::DLoop(_, info) => {
+            OpType::DLoop(_, info) |
+            OpType::DTNz(_, _, info)
+            => {
                 start_offset = 0;
                 was_cleared = true;
                 if info.always_used() {
@@ -514,6 +520,7 @@ fn is_ops_block_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                 }
             }
             OpType::DLoop(..) |
+            OpType::DTNz(..) |
             OpType::SearchZero(..) => {
                 return false;
             }
@@ -643,6 +650,7 @@ pub fn optimize_count_loops(ops: &mut Vec<Op>) -> bool {
                         }
                     }
                     OpType::DLoop(..) |
+                    OpType::DTNz(..) |
                     OpType::LLoop(..)
                     => {
                         ignore = true;
@@ -803,6 +811,7 @@ fn is_ops_block_unmodified_local(ops: &[Op], parent_offsets: &[isize]) -> bool {
                 }
             }
             OpType::DLoop(..) |
+            OpType::DTNz(..) |
             OpType::LLoop(..) |
             OpType::SearchZero(..) => {
                 return false;
@@ -1222,6 +1231,9 @@ fn optimize_non_local_conditional_loops_pass(ops: &mut Vec<Op>, zeroing: bool, i
                     false
                 }
             }
+            OpType::DLoop(children, _) => {
+                is_zeroing_d_loop(children)
+            }
             _ => false,
         };
 
@@ -1229,18 +1241,69 @@ fn optimize_non_local_conditional_loops_pass(ops: &mut Vec<Op>, zeroing: bool, i
             let loop_op = ops.remove(i);
             let span = loop_op.span;
 
-            if let OpType::ILoop(children, _, _, info) = loop_op.op_type {
-                ops.insert_or_push(i, Op::t_nz(span, children, info));
-            } else {
-                unreachable!();
+            match loop_op.op_type {
+                OpType::ILoop(children, _, _, info) => {
+                    ops.insert_or_push(i, Op::t_nz(span, children, info));
+                }
+                OpType::DLoop(children, info) => {
+                    ops.insert_or_push(i, Op::d_t_nz(span, children, None, info));
+                }
+                _ => unreachable!(),
             }
-
             progress = true;
         }
         i += 1;
     }
 
     progress
+}
+
+pub fn is_zeroing_d_loop(ops: &[Op]) -> bool {
+    let mut ptr_offset = 0;
+
+    for op in ops.iter().rev() {
+        if op.op_type.is_zeroing(ptr_offset) {
+            return true;
+        }
+
+        match &op.op_type {
+            OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
+            OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+            OpType::Set(offset, v) => {
+                if ptr_offset + offset == 0 {
+                    return *v == 0;
+                }
+            }
+            OpType::Dec(offset, _) |
+            OpType::Inc(offset, _) |
+            OpType::GetChar(offset) |
+            OpType::Add(_, offset, _) |
+            OpType::CAdd(_, offset, _) |
+            OpType::NzAdd(_, offset, _) |
+            OpType::NzCAdd(_, offset, _) |
+            OpType::Sub(_, offset, _) |
+            OpType::CSub(_, offset, _) |
+            OpType::NzSub(_, offset, _) |
+            OpType::NzCSub(_, offset, _) |
+            OpType::Mul(_, offset, _) |
+            OpType::NzMul(_, offset, _) |
+            OpType::Copy(_, offset) |
+            OpType::Move(_, offset)
+            => {
+                if ptr_offset + offset == 0 {
+                    return false;
+                }
+            }
+            OpType::PutString(_) |
+            OpType::PutChar(_) => {
+                // TODO: Check why this might result in misscompilation
+                return false;
+            }
+            _ => return false,
+        }
+    }
+
+    false
 }
 
 // Replace loops only containing constant sets with TNz
@@ -1566,6 +1629,7 @@ pub fn optimize_offsets(ops: &mut Vec<Op>, start_offset: isize) -> bool {
                     false
                 }
                 OpType::DLoop(..) |
+                OpType::DTNz(..) |
                 OpType::LLoop(..) |
                 OpType::ILoop(..) |
                 OpType::CLoop(..) |
@@ -1695,7 +1759,8 @@ pub fn remove_trailing_pointer_ops(ops: &mut Vec<Op>, in_framed_block: bool) -> 
             OpType::TNz(children, ..) => {
                 progress |= remove_trailing_pointer_ops(children, true);
             }
-            OpType::DLoop(children, _) => {
+            OpType::DLoop(children, _) |
+            OpType::DTNz(children, _, _) => {
                 progress |= remove_trailing_pointer_ops(children, false);
             }
             _ => {
@@ -2328,7 +2393,8 @@ pub fn update_loop_access(ops: &mut Vec<Op>, wrapping_is_ub: bool) -> bool {
 fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> bool {
     for op in ops.iter_mut() {
         match &mut op.op_type {
-            OpType::DLoop(children, info) => {
+            OpType::DLoop(children, info) |
+            OpType::DTNz(children, _, info) => {
                 info.set_cell_access(get_d_loop_access(children, wrapping_is_ub));
             }
             OpType::LLoop(children, info) |
@@ -2349,6 +2415,7 @@ fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, Ce
     for (i, op) in ops.iter().enumerate() {
         match &op.op_type {
             OpType::DLoop(.., info) |
+            OpType::DTNz(.., info) |
             OpType::LLoop(.., info) |
             OpType::ILoop(.., info) |
             OpType::CLoop(.., info) |
@@ -2372,6 +2439,7 @@ fn update_loop_access_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(isize, Ce
     for i in always_used {
         match &mut ops[i].op_type {
             OpType::DLoop(.., info) |
+            OpType::DTNz(.., info) |
             OpType::LLoop(.., info) |
             OpType::ILoop(.., info) |
             OpType::CLoop(.., info) |
@@ -2630,6 +2698,7 @@ fn non_local_remove_dead_loops_pass(ops: &mut Vec<Op>, zeroed: bool, inputs: &[(
 
         let remove = match &op.op_type {
             OpType::DLoop(..) |
+            OpType::DTNz(..) |
             OpType::LLoop(..) |
             OpType::ILoop(..) |
             OpType::TNz(..)
@@ -2661,7 +2730,9 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, _zeroed: bool, _inputs: &[(isi
         let op = &ops[i];
 
         let unroll = match &op.op_type {
-            OpType::TNz(_, info) => {
+            OpType::TNz(_, info) |
+            OpType::DTNz(_, _, info)
+            => {
                 info.always_used()
             }
             _ => {
@@ -2672,46 +2743,53 @@ fn remove_true_conditions_pass(ops: &mut Vec<Op>, _zeroed: bool, _inputs: &[(isi
         if unroll {
             let old = ops.remove(i);
 
-            if let OpType::TNz(children, _) = old.op_type {
-                let len = children.len();
+            match old.op_type {
+                OpType::TNz(children, _) => {
+                    let len = children.len();
 
-                let mut ptr_offset = 0;
+                    let mut ptr_offset = 0;
 
-                for child in &children {
-                    if let Some(offset) = child.op_type.get_ptr_offset() {
-                        ptr_offset += offset;
+                    for child in &children {
+                        if let Some(offset) = child.op_type.get_ptr_offset() {
+                            ptr_offset += offset;
+                        }
                     }
-                }
 
-                for (index, op) in children.into_iter().enumerate() {
-                    let index = i + index;
+                    for (index, op) in children.into_iter().enumerate() {
+                        let index = i + index;
+                        if index < ops.len() - 1 {
+                            ops.insert_or_push(index, op);
+                        } else {
+                            ops.push(op);
+                        }
+                    }
+
+                    let mut index = i + len;
+
+                    if ptr_offset != 0 {
+                        if index < ops.len() - 1 {
+                            ops.insert_or_push(index, Op::ptr_offset(old.span.clone(), -ptr_offset));
+                        } else {
+                            ops.push(Op::ptr_offset(old.span.clone(), -ptr_offset));
+                        }
+                        index += 1;
+                    }
+
                     if index < ops.len() - 1 {
-                        ops.insert_or_push(index, op);
+                        ops.insert_or_push(index, Op::set(old.span, 0));
                     } else {
-                        ops.push(op);
+                        ops.push(Op::set(old.span, 0));
                     }
+
+                    progress = true;
                 }
-
-                let mut index = i + len;
-
-                if ptr_offset != 0 {
-                    if index < ops.len() - 1 {
-                        ops.insert_or_push(index, Op::ptr_offset(old.span.clone(), -ptr_offset));
-                    } else {
-                        ops.push(Op::ptr_offset(old.span.clone(), -ptr_offset));
+                OpType::DTNz(children, _, _) => {
+                    for (index, op) in children.into_iter().enumerate() {
+                        ops.insert_or_push(i + index, op);
                     }
-                    index += 1;
+                    progress = true;
                 }
-
-                if index < ops.len() - 1 {
-                    ops.insert_or_push(index, Op::set(old.span, 0));
-                } else {
-                    ops.push(Op::set(old.span, 0));
-                }
-
-                progress = true;
-            } else {
-                unreachable!()
+                _ => unreachable!()
             }
         }
 
@@ -2813,6 +2891,7 @@ fn get_scan_loop_step(ops: &[Op]) -> Option<isize> {
             OpType::IncPtr(offset) => ptr_offset += *offset as isize,
             OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
             OpType::DLoop(..) |
+            OpType::DTNz(..) |
             OpType::SearchZero(..)
             => return None,
             _ => {
@@ -2871,6 +2950,7 @@ fn get_scan_loop_step(ops: &[Op]) -> Option<isize> {
                 }
             }
             OpType::DLoop(..) |
+            OpType::DTNz(..) |
             OpType::SearchZero(..)
             => return None,
             OpType::PutChar(_) |

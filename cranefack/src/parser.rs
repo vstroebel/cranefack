@@ -77,6 +77,16 @@ impl Program {
                     cloop_count += cloops;
                     if_count += ifs;
                 }
+                OpType::DTNz(children, ..) => {
+                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    op_count += ops;
+                    if_count += 1;
+                    dloop_count += dloops;
+                    lloop_count += lloop;
+                    iloop_count += iloops;
+                    cloop_count += cloops;
+                    if_count += ifs;
+                }
                 _ => {}
             }
         }
@@ -199,6 +209,14 @@ impl Program {
                 }
                 OpType::TNz(children, info) => {
                     writeln!(output, "TNZ info: {}", info.asm(debug))?;
+                    self.dump_ops(output, children, indent + 1, debug)?;
+                }
+                OpType::DTNz(children, end_offset, info) => {
+                    if let Some(end_offset) = end_offset {
+                        writeln!(output, "D_TNZ info: {} end offset:{}", info.asm(debug), end_offset)?;
+                    } else {
+                        writeln!(output, "D_TNZ info: {}", info.asm(debug), )?;
+                    }
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::SearchZero(step, always) => {

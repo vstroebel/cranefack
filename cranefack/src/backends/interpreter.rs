@@ -228,6 +228,11 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     *self.heap_value(&op.span)? = 0;
                 }
             }
+            OpType::DTNz(ops, _, _) => {
+                if *self.heap_value(&op.span)? > 0 {
+                    self.execute_ops(ops)?;
+                }
+            }
             OpType::SearchZero(step, _) => {
                 let mut pointer = self.pointer as isize;
 

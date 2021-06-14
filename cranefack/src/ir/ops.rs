@@ -253,6 +253,13 @@ impl Op {
         }
     }
 
+    pub fn d_t_nz(span: Range<usize>, ops: Vec<Op>, end_offset: Option<isize>, info: BlockInfo) -> Op {
+        Op {
+            op_type: OpType::DTNz(ops, end_offset, info),
+            span,
+        }
+    }
+
     pub fn search_zero(span: Range<usize>, step: isize) -> Op {
         Op {
             op_type: OpType::SearchZero(step, false),
@@ -359,6 +366,12 @@ pub enum OpType {
     /// Executes block if current value is not zero. Similar to `if true { ops }`
     TNz(Vec<Op>, BlockInfo),
 
+    /// Test if not zero dynamic.
+    ///
+    /// Executes block if current value is not zero. Similar to `if true { ops }`
+    /// In contrast to TNz the end position of the heap pointer differs from the entry point
+    DTNz(Vec<Op>, Option<isize>, BlockInfo),
+
     /// Move heap pointer to first cell containing zero based on step
     SearchZero(isize, bool),
 }
@@ -422,6 +435,7 @@ impl OpType {
             OpType::ILoop(..) |
             OpType::CLoop(..) |
             OpType::TNz(..) |
+            OpType::DTNz(..) |
             OpType::SearchZero(..) => {
                 test_offset == 0
             }
@@ -482,7 +496,9 @@ impl OpType {
             OpType::LLoop(children, ..) |
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
-            OpType::TNz(children, ..) => Some(children),
+            OpType::TNz(children, ..) |
+            OpType::DTNz(children, ..)
+            => Some(children),
             _ => None,
         }
     }
@@ -493,7 +509,9 @@ impl OpType {
             OpType::LLoop(children, ..) |
             OpType::ILoop(children, ..) |
             OpType::CLoop(children, ..) |
-            OpType::TNz(children, ..) => Some(children),
+            OpType::TNz(children, ..) |
+            OpType::DTNz(children, ..)
+            => Some(children),
             _ => None,
         }
     }
@@ -504,7 +522,9 @@ impl OpType {
             OpType::LLoop(_, info) |
             OpType::ILoop(_, _, _, info) |
             OpType::CLoop(_, _, _, info) |
-            OpType::TNz(_, info) => Some(info),
+            OpType::TNz(_, info) |
+            OpType::DTNz(_, _, info)
+            => Some(info),
             _ => None,
         }
     }
@@ -515,7 +535,9 @@ impl OpType {
             OpType::LLoop(_, info) |
             OpType::ILoop(_, _, _, info) |
             OpType::CLoop(_, _, _, info) |
-            OpType::TNz(_, info) => Some(info),
+            OpType::TNz(_, info) |
+            OpType::DTNz(_, _, info)
+            => Some(info),
             _ => None,
         }
     }
@@ -551,7 +573,9 @@ impl OpType {
             => false,
             OpType::Start |
             OpType::SearchZero(_, _) |
-            OpType::DLoop(..) => true,
+            OpType::DLoop(..) |
+            OpType::DTNz(..)
+            => true,
             OpType::LLoop(.., info) |
             OpType::ILoop(.., info) |
             OpType::CLoop(.., info) |

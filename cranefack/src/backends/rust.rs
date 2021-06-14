@@ -144,6 +144,15 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
 
                 writeln!(out, "}}")?;
             }
+            OpType::DTNz(children, _, _) => {
+                writeln!(out, "{{")?;
+
+                writeln!(out, " if *rt.heap_value() > 0 {{")?;
+                print_ops(out, children)?;
+                writeln!(out, "}}")?;
+
+                writeln!(out, "}}")?;
+            }
             OpType::SearchZero(step, _) => writeln!(out, "rt.search_zero({});", step)?,
         }
     }

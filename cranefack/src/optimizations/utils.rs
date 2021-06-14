@@ -237,7 +237,8 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
 
                 false
             }
-            OpType::DLoop(children, info) => {
+            OpType::DLoop(children, info)
+            => {
                 if info.has_cell_access() {
                     true
                 } else {
@@ -249,7 +250,8 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
             OpType::LLoop(..) |
             OpType::ILoop(..) |
             OpType::CLoop(..) |
-            OpType::TNz(..)
+            OpType::TNz(..) |
+            OpType::DTNz(..)
             => {
                 true
             }
@@ -262,7 +264,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
         };
 
         if is_loop {
-            let is_d_loop = matches!(ops[i].op_type, OpType::DLoop(..));
+            let is_d_loop = matches!(ops[i].op_type, OpType::DLoop(..) | OpType::DTNz(..));
 
             let loop_inputs = if is_d_loop {
                 if let Some(info) = ops[i].op_type.get_block_info() {
@@ -348,7 +350,7 @@ pub fn run_non_local_pass<F>(ops: &mut Vec<Op>, func: F, zeroed: bool, inputs: &
                     }
                 }).collect::<Vec<_>>();
 
-                if !matches!(ops[i].op_type, OpType::TNz(..)) {
+                if !matches!(ops[i].op_type, OpType::TNz(..) | OpType::DTNz(..)) {
                     if let Some(info) = ops[i].op_type.get_block_info() {
                         if let Some(cell_access) = info.cell_access() {
                             for cell in cell_access {
@@ -587,7 +589,8 @@ pub fn find_heap_value(ops: &[Op],
             OpType::PutChar(..) => {
                 // Ignore
             }
-            OpType::DLoop(_, info) => {
+            OpType::DLoop(_, info) |
+            OpType::DTNz(_, _, info) => {
                 if info.always_used() {
                     if let Some(value) = info.get_access_value(cell_offset) {
                         match value {
@@ -878,7 +881,8 @@ pub fn find_last_accessing_inc_dec(ops: &[Op], start_offset: isize, start_index:
             }
             OpType::Start |
             OpType::SearchZero(_, _) |
-            OpType::DLoop(_, _) => {
+            OpType::DLoop(_, _) |
+            OpType::DTNz(_, _, _) => {
                 return None;
             }
             OpType::LLoop(.., info) |
@@ -915,6 +919,7 @@ pub fn find_last_put_string(ops: &[Op], start_index: isize) -> Option<(isize, Ve
             OpType::GetChar(_) |
             OpType::SearchZero(_, _) |
             OpType::DLoop(..) |
+            OpType::DTNz(..) |
             OpType::LLoop(..) |
             OpType::ILoop(..) |
             OpType::CLoop(..) |

@@ -52,6 +52,7 @@ impl<'a> Builder<'a> {
                 OpType::ILoop(ops, step, decrement, _) => self.i_loop(ops, *step, *decrement),
                 OpType::CLoop(ops, iterations, decrement, _) => self.c_loop(ops, *iterations, *decrement),
                 OpType::TNz(ops, _) => self.tnz(ops),
+                OpType::DTNz(ops, _, _) => self.d_loop(ops),
                 OpType::SearchZero(step, _) => self.search_zero(*step),
                 OpType::PutChar(offset) => self.put_char(*offset),
                 OpType::PutString(array) => self.put_string(array),
