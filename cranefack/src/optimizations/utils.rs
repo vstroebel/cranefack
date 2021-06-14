@@ -589,8 +589,103 @@ pub fn find_heap_value(ops: &[Op],
             OpType::PutChar(..) => {
                 // Ignore
             }
+            OpType::DTNz(_, Some(offset), info) => {
+                if info.always_used() {
+                    if let Some(value) = info.get_access_value(cell_offset) {
+                        match value {
+                            Cell::Write => return CellValue::Unknown,
+                            Cell::Value(v) => return CellValue::Value(v),
+                            Cell::NonZero => return CellValue::NonZero,
+                            Cell::Bool => return CellValue::Bool,
+                            Cell::Read => {
+                                // ignore
+                            }
+                        }
+                    }
+                    return CellValue::Unknown;
+                }
+
+                match info.get_access_value(cell_offset) {
+                    Some(Cell::Value(loop_value)) => {
+                        let loop_inputs = inputs.iter().map(|(offset, cell)| {
+                            (offset + cell_offset - start_cell_offset, *cell)
+                        }).collect::<Vec<_>>();
+
+                        match find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow) {
+                            CellValue::Value(input_value) => {
+                                if loop_value == input_value {
+                                    return CellValue::Value(loop_value);
+                                } else {
+                                    return CellValue::Unknown;
+                                }
+                            }
+                            CellValue::NonZero => {
+                                if loop_value != 0 {
+                                    return CellValue::NonZero;
+                                } else {
+                                    return CellValue::Unknown;
+                                }
+                            }
+                            CellValue::Bool => {
+                                if loop_value == 0 || loop_value == 1 {
+                                    return CellValue::Bool;
+                                } else {
+                                    return CellValue::Unknown;
+                                }
+                            }
+                            _ => return CellValue::Unknown
+                        }
+                    }
+                    Some(Cell::NonZero) => {
+                        let loop_inputs = inputs.iter().map(|(offset, cell)| {
+                            (offset + cell_offset - start_cell_offset, *cell)
+                        }).collect::<Vec<_>>();
+
+                        match find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow) {
+                            CellValue::Value(input_value) => {
+                                if input_value != 0 {
+                                    return CellValue::NonZero;
+                                } else {
+                                    return CellValue::Unknown;
+                                }
+                            }
+                            CellValue::NonZero => {
+                                return CellValue::NonZero;
+                            }
+                            _ => return CellValue::Unknown
+                        }
+                    }
+                    Some(Cell::Bool) => {
+                        let loop_inputs = inputs.iter().map(|(offset, cell)| {
+                            (offset + cell_offset - start_cell_offset, *cell)
+                        }).collect::<Vec<_>>();
+
+                        match find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow) {
+                            CellValue::Value(input_value) => {
+                                if input_value == 0 || input_value == 1 {
+                                    return CellValue::Bool;
+                                } else {
+                                    return CellValue::Unknown;
+                                }
+                            }
+                            CellValue::NonZero => {
+                                return CellValue::Unknown;
+                            }
+                            CellValue::Bool => {
+                                return CellValue::Bool;
+                            }
+                            _ => return CellValue::Unknown
+                        }
+                    }
+                    None => {
+                        cell_offset -= offset;
+                    }
+                    _ => return CellValue::Unknown,
+                }
+            }
             OpType::DLoop(_, info) |
-            OpType::DTNz(_, _, info) => {
+            OpType::DTNz(_, _, info)
+            => {
                 if info.always_used() {
                     if let Some(value) = info.get_access_value(cell_offset) {
                         match value {
