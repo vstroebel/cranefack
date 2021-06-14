@@ -1246,7 +1246,8 @@ fn optimize_non_local_conditional_loops_pass(ops: &mut Vec<Op>, zeroing: bool, i
                     ops.insert_or_push(i, Op::t_nz(span, children, info));
                 }
                 OpType::DLoop(children, info) => {
-                    ops.insert_or_push(i, Op::d_t_nz(span, children, None, info));
+                    let offset = get_d_loop_ptr_end_offset(&children);
+                    ops.insert_or_push(i, Op::d_t_nz(span, children, offset, info));
                 }
                 _ => unreachable!(),
             }
@@ -2675,6 +2676,35 @@ fn get_l_loop_ptr_end_offset(ops: &[Op]) -> isize {
     }
 
     ptr_offset
+}
+
+
+fn get_d_loop_ptr_end_offset(ops: &[Op]) -> Option<isize> {
+    let mut ptr_offset = 0;
+
+    for op in ops {
+        match &op.op_type {
+            OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+            OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
+            OpType::DTNz(_, offset, _) => {
+                if let Some(offset) = offset {
+                    ptr_offset += offset;
+                } else {
+                    return None;
+                }
+            }
+            OpType::DLoop(..) |
+            OpType::SearchZero(..)
+            => {
+                return None;
+            }
+            _ => {
+                // Ignore
+            }
+        }
+    }
+
+    Some(ptr_offset)
 }
 
 pub fn non_local_remove_dead_loops(ops: &mut Vec<Op>, wrapping_is_ub: bool) -> bool {
