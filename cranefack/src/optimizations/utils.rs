@@ -571,15 +571,40 @@ pub fn find_heap_value(ops: &[Op],
                     };
                 }
             }
+            OpType::Sub(src_offset, dest_offset, _) |
+            OpType::NzSub(src_offset, dest_offset, _) => {
+                if *dest_offset == cell_offset {
+                    let src_value = find_heap_value(ops, *src_offset, i - 1, zeroed, inputs, wrapping_is_ub, true);
+                    let dest_value = find_heap_value(ops, *dest_offset, i - 1, zeroed, inputs, wrapping_is_ub, true);
+
+                    return match (src_value, dest_value) {
+                        (CellValue::Bool, CellValue::Value(1)) => {
+                            CellValue::Bool
+                        }
+                        _ => CellValue::Unknown
+                    };
+                }
+            }
+            OpType::Mul(src_offset, dest_offset, _) |
+            OpType::NzMul(src_offset, dest_offset, _)
+            => {
+                if *dest_offset == cell_offset {
+                    let src_value = find_heap_value(ops, *src_offset, i - 1, zeroed, inputs, wrapping_is_ub, true);
+                    let dest_value = find_heap_value(ops, *dest_offset, i - 1, zeroed, inputs, wrapping_is_ub, true);
+
+                    return match (src_value, dest_value) {
+                        (CellValue::Bool, CellValue::Bool) => {
+                            CellValue::Bool
+                        }
+                        _ => CellValue::Unknown
+                    };
+                }
+            }
             OpType::Dec(offset, _) |
             OpType::Add(_, offset, _) |
             OpType::NzAdd(_, offset, _) |
-            OpType::Sub(_, offset, _) |
-            OpType::NzSub(_, offset, _) |
             OpType::CSub(_, offset, _) |
             OpType::NzCSub(_, offset, _) |
-            OpType::Mul(_, offset, _) |
-            OpType::NzMul(_, offset, _) |
             OpType::GetChar(offset)
             => {
                 if *offset == cell_offset {
@@ -615,6 +640,10 @@ pub fn find_heap_value(ops: &[Op],
                             CellValue::Value(input_value) => {
                                 if loop_value == input_value {
                                     return CellValue::Value(loop_value);
+                                } else if (loop_value == 0 || loop_value == 1) && (input_value == 0 || input_value == 1) {
+                                    return CellValue::Bool;
+                                } else if loop_value != 0 && input_value != 0 {
+                                    return CellValue::NonZero;
                                 } else {
                                     return CellValue::Unknown;
                                 }
@@ -711,6 +740,10 @@ pub fn find_heap_value(ops: &[Op],
                             CellValue::Value(input_value) => {
                                 if loop_value == input_value {
                                     return CellValue::Value(loop_value);
+                                } else if (loop_value == 0 || loop_value == 1) && (input_value == 0 || input_value == 1) {
+                                    return CellValue::Bool;
+                                } else if loop_value != 0 && input_value != 0 {
+                                    return CellValue::NonZero;
                                 } else {
                                     return CellValue::Unknown;
                                 }
