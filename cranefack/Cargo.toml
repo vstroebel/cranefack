@@ -12,8 +12,8 @@ repository = "https://github.com/vstroebel/cranefack"
 
 [dependencies]
 codespan-reporting = "0.11"
-cranelift = "0.74.0"
-cranelift-module = "0.74.0"
-cranelift-codegen = "0.74.0"
-cranelift-jit = "0.74.0"
-cranelift-native = "0.74.0"
+cranelift = "0.75.0"
+cranelift-module = "0.75.0"
+cranelift-codegen = "0.75.0"
+cranelift-jit = "0.75.0"
+cranelift-native = "0.75.0"
