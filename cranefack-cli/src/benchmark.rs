@@ -102,12 +102,16 @@ pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize, optimized_on
     }
 
     println!("Results:");
-    if !optimized_only {
-        println!("Int O0       {} ms/run", get_millis(results[0], total));
+
+    if !jit_only {
+        if !optimized_only {
+            println!("Int O0       {} ms/run", get_millis(results[0], total));
+        }
+        println!("Int O1       {} ms/run", get_millis(results[1], total));
+        println!("Int O2       {} ms/run", get_millis(results[2], total));
+        println!("Int O3       {} ms/run", get_millis(results[3], total));
     }
-    println!("Int O1       {} ms/run", get_millis(results[1], total));
-    println!("Int O2       {} ms/run", get_millis(results[2], total));
-    println!("Int O3       {} ms/run", get_millis(results[3], total));
+
     if !optimized_only {
         println!("Jit O0       {} ms/run", get_millis(results[4], total));
         println!("Jit O0 speed {} ms/run", get_millis(results[5], total));
