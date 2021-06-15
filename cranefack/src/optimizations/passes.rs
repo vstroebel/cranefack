@@ -1801,7 +1801,8 @@ pub fn remove_useless_loops(ops: &mut Vec<Op>) -> bool {
 pub fn remove_useless_loops_pass(ops: [&Op; 1]) -> Change {
     match &ops[0].op_type {
         OpType::CLoop(children, _, _, _) |
-        OpType::TNz(children, _)
+        OpType::TNz(children, _) |
+        OpType::DTNz(children, _, _)
         => {
             if children.is_empty() {
                 Change::Replace(vec![OpType::Set(0, 0)])
