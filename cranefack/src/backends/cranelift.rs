@@ -52,7 +52,7 @@ impl<'a> Builder<'a> {
                 OpType::ILoop(ops, step, decrement, _) => self.i_loop(ops, *step, *decrement),
                 OpType::CLoop(ops, iterations, decrement, _) => self.c_loop(ops, *iterations, *decrement),
                 OpType::TNz(ops, _) => self.tnz(ops),
-                OpType::DTNz(ops, _, _) => self.d_loop(ops),
+                OpType::DTNz(ops, _, _) => self.d_tnz(ops),
                 OpType::SearchZero(step, _) => self.search_zero(*step),
                 OpType::PutChar(offset) => self.put_char(*offset),
                 OpType::PutString(array) => self.put_string(array),
@@ -230,6 +230,38 @@ impl<'a> Builder<'a> {
         self.bcx.switch_to_block(body);
         self.append_ops(ops);
         self.bcx.ins().jump(head, &[self.heap_ptr]);
+
+        // Start next block after loop
+        self.bcx.switch_to_block(next);
+        self.heap_ptr = self.bcx.block_params(next)[0];
+        // This is not be needed but it seems to fix a possible bug in cranelift
+        self.set(0, 0);
+    }
+
+    fn d_tnz(&mut self, ops: &[Op]) {
+        let head = self.bcx.create_block();
+        self.bcx.append_block_param(head, self.pointer_type);
+
+        let body = self.bcx.create_block();
+        self.bcx.append_block_param(body, self.pointer_type);
+
+        let next = self.bcx.create_block();
+        self.bcx.append_block_param(next, self.pointer_type);
+
+        self.bcx.ins().fallthrough(head, &[self.heap_ptr]);
+
+        // Head with condition
+        self.bcx.switch_to_block(head);
+        self.heap_ptr = self.bcx.block_params(head)[0];
+
+        let value = self.load(0);
+        self.bcx.ins().brz(value, next, &[self.heap_ptr]);
+        self.bcx.ins().fallthrough(body, &[self.heap_ptr]);
+
+        // Loop Body
+        self.bcx.switch_to_block(body);
+        self.append_ops(ops);
+        self.bcx.ins().fallthrough(next, &[self.heap_ptr]);
 
         // Start next block after loop
         self.bcx.switch_to_block(next);
