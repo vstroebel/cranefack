@@ -1304,10 +1304,8 @@ pub fn is_zeroing_d_loop(ops: &[Op], parent_ops: &[Op], parent_index: isize, zer
                     if let Some(cell) = info.get_access_value(-ptr_offset) {
                         return cell == Cell::Value(0);
                     }
-                } else {
-                    if info.get_access_value(-ptr_offset).is_some() {
-                        return false;
-                    }
+                } else if info.get_access_value(-ptr_offset).is_some() {
+                    return false;
                 }
             }
             OpType::Start |
@@ -3002,8 +3000,6 @@ fn get_scan_loop_step(ops: &[Op]) -> Option<isize> {
             OpType::TNz(.., info)
             => {
                 if ptr_offset == step || info.was_cell_written(ptr_offset + step) {
-                    return None;
-                } else {
                     return None;
                 }
             }

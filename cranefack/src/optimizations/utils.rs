@@ -310,7 +310,7 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                                 loop_inputs.push((cell.offset, CellValue::Value(v1)));
                             } else if v1 != 0 && v2 != 0 {
                                 loop_inputs.push((cell.offset, CellValue::NonZero));
-                            } else if (v1 == 0 || v1 == 1) && (v2 == 0 || v2 == 0) {
+                            } else if (v1 == 0 || v1 == 1) && (v2 == 0 || v2 == 1) {
                                 loop_inputs.push((cell.offset, CellValue::Bool));
                             }
                         }
