@@ -202,7 +202,7 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                 update_loop_access(&mut program.ops, config.wrapping_is_ub);
                 progress = true;
             }
-            print_debug(program, config, "Optimize non local constant loops");
+            print_debug(program, config, "Optimize non local conditional loops");
 
             if optimize_non_local_static_count_loops(&mut program.ops, config.wrapping_is_ub) {
                 update_loop_access(&mut program.ops, config.wrapping_is_ub);

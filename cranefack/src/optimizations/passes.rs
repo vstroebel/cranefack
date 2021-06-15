@@ -1232,7 +1232,7 @@ fn optimize_non_local_conditional_loops_pass(ops: &mut Vec<Op>, zeroing: bool, i
                 }
             }
             OpType::DLoop(children, _) => {
-                is_zeroing_d_loop(children)
+                is_zeroing_d_loop(children, ops, i as isize, zeroing, inputs, wrapping_is_ub)
             }
             _ => false,
         };
@@ -1259,17 +1259,17 @@ fn optimize_non_local_conditional_loops_pass(ops: &mut Vec<Op>, zeroing: bool, i
     progress
 }
 
-pub fn is_zeroing_d_loop(ops: &[Op]) -> bool {
+pub fn is_zeroing_d_loop(ops: &[Op], parent_ops: &[Op], parent_index: isize, zeroing: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> bool {
     let mut ptr_offset = 0;
 
     for op in ops.iter().rev() {
-        if op.op_type.is_zeroing(ptr_offset) {
+        if op.op_type.is_zeroing(-ptr_offset) {
             return true;
         }
 
         match &op.op_type {
-            OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
-            OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+            OpType::IncPtr(offset) => ptr_offset -= *offset as isize,
+            OpType::DecPtr(offset) => ptr_offset += *offset as isize,
             OpType::Set(offset, v) => {
                 if ptr_offset + offset == 0 {
                     return *v == 0;
@@ -1295,16 +1295,43 @@ pub fn is_zeroing_d_loop(ops: &[Op]) -> bool {
                     return false;
                 }
             }
+            OpType::LLoop(.., info) |
+            OpType::ILoop(.., info) |
+            OpType::CLoop(.., info) |
+            OpType::TNz(.., info)
+            => {
+                if info.always_used() {
+                    if let Some(cell) = info.get_access_value(-ptr_offset) {
+                        return cell == Cell::Value(0);
+                    }
+                } else {
+                    if info.get_access_value(-ptr_offset).is_some() {
+                        return false;
+                    }
+                }
+            }
+            OpType::Start |
             OpType::PutString(_) |
             OpType::PutChar(_) => {
-                // TODO: Check why this might result in misscompilation
+                // Ignore
+            }
+            OpType::SearchZero(..) => {
                 return false;
             }
-            _ => return false,
+            OpType::DLoop(.., info) => {
+                if info.always_used() {
+                    return info.get_access_value(-ptr_offset) == Some(Cell::Value(0));
+                } else {
+                    return false;
+                }
+            }
+            OpType::DTNz(..) => {
+                return false;
+            }
         }
     }
 
-    false
+    find_heap_value(&parent_ops, -ptr_offset, parent_index - 1, zeroing, inputs, wrapping_is_ub, true).is_zero()
 }
 
 // Replace loops only containing constant sets with TNz
