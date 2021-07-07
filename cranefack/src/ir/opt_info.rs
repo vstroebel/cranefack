@@ -120,21 +120,29 @@ impl Cell {
     pub fn is_write(&self) -> bool {
         !self.is_read()
     }
+
+    pub fn is_constant_write(&self) -> bool {
+        matches!(self, Cell::Value(_))
+    }
 }
 
 /// Hold information about a known modified cell
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CellAccess {
+    /// Cell is only written
+    pub write_only: bool,
+
     /// Offset of the cell relative to the surrounding scope (typically the counter ptr of a local loop)
     pub offset: isize,
 
-    /// The value of th cell
+    /// The value of th3 cell
     pub value: Cell,
 }
 
 impl CellAccess {
     pub fn new_read(offset: isize) -> CellAccess {
         CellAccess {
+            write_only: false,
             offset,
             value: Cell::Read,
         }
@@ -142,6 +150,7 @@ impl CellAccess {
 
     pub fn new_write(offset: isize) -> CellAccess {
         CellAccess {
+            write_only: false,
             offset,
             value: Cell::Write,
         }
@@ -149,6 +158,7 @@ impl CellAccess {
 
     pub fn new_value(offset: isize, value: u8) -> CellAccess {
         CellAccess {
+            write_only: true,
             offset,
             value: Cell::Value(value),
         }
@@ -159,12 +169,15 @@ impl CellAccess {
             if exiting_cell.offset == offset {
                 if !value.is_read() {
                     exiting_cell.value = value;
+                } else {
+                    exiting_cell.write_only = false;
                 }
                 return;
             }
         }
 
         cells.push(CellAccess {
+            write_only: value.is_constant_write(),
             offset,
             value,
         });
@@ -226,11 +239,16 @@ impl CellAccess {
                         exiting_cell.value = Cell::Write
                     }
                 }
+
+                if !value.is_constant_write() {
+                    exiting_cell.write_only = false;
+                }
                 return;
             }
         }
 
         cells.push(CellAccess {
+            write_only: value.is_constant_write(),
             offset,
             value,
         });
@@ -244,6 +262,7 @@ impl CellAccess {
         }
 
         cells.push(CellAccess {
+            write_only: value.is_constant_write(),
             offset,
             value,
         });
