@@ -1425,7 +1425,7 @@ fn optimize_non_local_conditional_loops_pass(ops: &mut Vec<Op>, zeroing: bool, i
 pub fn is_zeroing_d_loop(ops: &[Op], parent_ops: &[Op], parent_index: isize, zeroing: bool, inputs: &[(isize, CellValue)], wrapping_is_ub: bool) -> bool {
     let mut ptr_offset = 0;
 
-    for op in ops.iter().rev() {
+    for (i, op) in ops.iter().enumerate().rev() {
         if op.op_type.is_zeroing(-ptr_offset) {
             return true;
         }
@@ -1463,12 +1463,12 @@ pub fn is_zeroing_d_loop(ops: &[Op], parent_ops: &[Op], parent_index: isize, zer
             OpType::CLoop(.., info) |
             OpType::TNz(.., info)
             => {
-                if info.always_used() {
-                    if let Some(cell) = info.get_access_value(-ptr_offset) {
+                if let Some(cell) = info.get_access_value(-ptr_offset) {
+                    if info.always_used() {
                         return cell == Cell::Value(0);
+                    } else if cell != Cell::Value(0) {
+                        return false;
                     }
-                } else if info.get_access_value(-ptr_offset).is_some() {
-                    return false;
                 }
             }
             OpType::Start |
@@ -1485,6 +1485,14 @@ pub fn is_zeroing_d_loop(ops: &[Op], parent_ops: &[Op], parent_index: isize, zer
                 } else {
                     return false;
                 }
+            }
+            OpType::DTNz(_, Some(offset), info) => {
+                if info.get_access_value(-ptr_offset) == Some(Cell::Value(0)) {
+                    if find_heap_value(ops, -*offset, i as isize - 1, zeroing, inputs, wrapping_is_ub, true) == CellValue::Value(0) {
+                        return true;
+                    }
+                }
+                return false;
             }
             OpType::DTNz(..) => {
                 return false;
