@@ -6,6 +6,7 @@ use crate::optimizations::peephole::run_peephole_pass;
 use crate::optimizations::utils::{CellValue, Change, count_ops_recursive, run_non_local_pass, find_heap_value, find_last_accessing_inc_dec, OpCodes, find_last_put_string};
 use crate::optimizations::utils;
 use crate::ir::opt_info::Cell::Value;
+use std::collections::HashSet;
 
 pub fn remove_dead_loops(ops: &mut Vec<Op>) -> bool {
     run_peephole_pass(ops, remove_dead_loops_check)
@@ -56,27 +57,60 @@ pub fn optimize_zero_loops(ops: &mut Vec<Op>) -> bool {
 }
 
 pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
-    if let OpType::ILoop(children, 1, _, _) | OpType::TNz(children, _) = &ops[0].op_type {
+    if let OpType::ILoop(children, 1, _, info) | OpType::TNz(children, info) = &ops[0].op_type {
         let mut replacement_indices = vec![];
-        let mut replacements = vec![];
+
+        let mut bad_replacement_indices = HashSet::new();
+
+        let mut ptr_offset = 0;
 
         for child in children {
             match &child.op_type {
-                OpType::Inc(offset, multi) => {
-                    if replacement_indices.contains(offset) {
-                        return Change::Ignore;
-                    } else {
-                        replacement_indices.push(*offset);
-                        replacements.push(OpType::NzAdd(0, *offset as isize, *multi));
+                OpType::IncPtr(offset) => ptr_offset += *offset as isize,
+                OpType::DecPtr(offset) => ptr_offset -= *offset as isize,
+                OpType::Inc(offset, _)
+                | OpType::Dec(offset, _) => {
+                    let offset = ptr_offset + *offset;
+                    if offset != 0 {
+                        if replacement_indices.contains(&offset) {
+                            bad_replacement_indices.insert(offset);
+                        } else {
+                            replacement_indices.push(offset);
+                        }
                     }
                 }
-                OpType::Dec(offset, multi) => {
-                    if replacement_indices.contains(offset) {
-                        return Change::Ignore;
-                    } else {
-                        replacement_indices.push(*offset);
-                        replacements.push(OpType::NzSub(0, *offset as isize, *multi));
+                OpType::Set(offset, _) => {
+                    let offset = ptr_offset + *offset;
+                    if offset == 0 {
+                        if matches!(&ops[0].op_type, OpType::TNz(..)) {
+                            return Change::Ignore;
+                        }
+                    } else if info.always_used() {
+                        if replacement_indices.contains(&offset) {
+                            bad_replacement_indices.insert(offset);
+                        } else {
+                            replacement_indices.push(offset);
+                        }
                     }
+                }
+                OpType::Add(src_offset, dest_offset, _)
+                | OpType::NzAdd(src_offset, dest_offset, _)
+                | OpType::CAdd(src_offset, dest_offset, _)
+                | OpType::Sub(src_offset, dest_offset, _)
+                | OpType::NzSub(src_offset, dest_offset, _)
+                | OpType::CSub(src_offset, dest_offset, _)
+                | OpType::Mul(src_offset, dest_offset, _)
+                | OpType::NzMul(src_offset, dest_offset, _)
+                | OpType::Move(src_offset, dest_offset)
+                | OpType::Copy(src_offset, dest_offset)
+                => {
+                    bad_replacement_indices.insert(*src_offset);
+                    bad_replacement_indices.insert(*dest_offset);
+                }
+                OpType::NzCAdd(_, dest_offset, _)
+                | OpType::NzCSub(_, dest_offset, _)
+                => {
+                    bad_replacement_indices.insert(*dest_offset);
                 }
                 _ => {
                     return Change::Ignore;
@@ -84,20 +118,81 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
             }
         }
 
+        replacement_indices.retain(|i| !bad_replacement_indices.contains(i));
+
+        if replacement_indices.is_empty() {
+            return Change::Ignore;
+        }
+
+        let mut replacements = vec![];
+        let mut new_children = vec![];
+
+        for child in children {
+            let replaced = match &child.op_type {
+                OpType::Inc(offset, multi) => {
+                    if replacement_indices.contains(offset) {
+                        replacements.push(OpType::NzAdd(0, *offset as isize, *multi));
+                        true
+                    } else {
+                        false
+                    }
+                }
+                OpType::Dec(offset, multi) => {
+                    if replacement_indices.contains(offset) {
+                        replacements.push(OpType::NzSub(0, *offset as isize, *multi));
+                        true
+                    } else {
+                        false
+                    }
+                }
+                OpType::Set(offset, v) => {
+                    if replacement_indices.contains(offset) {
+                        replacements.insert(0, OpType::Set(*offset as isize, *v));
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => {
+                    return Change::Ignore;
+                }
+            };
+
+            if !replaced {
+                new_children.push(child.clone());
+            }
+        }
+
         return if replacements.is_empty() {
             Change::Ignore
         } else {
-            let last = replacements.remove(replacements.len() - 1);
+            if new_children.is_empty() {
+                let last = replacements.remove(replacements.len() - 1);
 
-            match last {
-                OpType::NzAdd(src, dest, value) => {
-                    replacements.push(OpType::Add(src, dest, value));
+                match last {
+                    OpType::NzAdd(src, dest, value) => {
+                        replacements.push(OpType::Add(src, dest, value));
+                    }
+                    OpType::NzSub(src, dest, value) => {
+                        replacements.push(OpType::Sub(src, dest, value));
+                    }
+                    OpType::Set(..) => {
+                        replacements.push(last);
+                    }
+                    op_type => unreachable!("Unexpected op type {:?}", op_type)
                 }
-                OpType::NzSub(src, dest, value) => {
-                    replacements.push(OpType::Sub(src, dest, value));
+            } else {
+                match &ops[0].op_type {
+                    OpType::ILoop(_, _, decrement, info) => {
+                        replacements.push(OpType::ILoop(new_children, 1, *decrement, info.clone()))
+                    }
+                    OpType::TNz(_, info) => {
+                        replacements.push(OpType::TNz(new_children, info.clone()))
+                    }
+                    op_type => unreachable!("Unexpected op type {:?}", op_type)
                 }
-                op_type => unreachable!("Unexpected op type {:?}", op_type)
             }
+
             Change::Replace(replacements)
         };
     }
