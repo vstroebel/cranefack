@@ -339,6 +339,30 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                 }
             }
 
+            let mut has_loop_offset = false;
+
+            for (offset, value) in &mut loop_inputs {
+                if *offset == 0 {
+                    match value {
+                        CellValue::Unknown => {
+                            *value = CellValue::NonZero
+                        },
+                        CellValue::Bool => {
+                            *value = CellValue::Value(1)
+                        },
+                        _ => {
+                            // Ignore
+                        }
+                    }
+                    has_loop_offset = true;
+                    break;
+                }
+            }
+
+            if !has_loop_offset {
+                loop_inputs.push((0, CellValue::NonZero));
+            }
+
             access.clear();
 
             loop_inputs
@@ -516,6 +540,30 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
 
         if matches!(ops[i].op_type, OpType::DTNz(..)) {
             access.clear();
+        }
+
+        let mut has_loop_offset = false;
+
+        for (offset, value) in &mut loop_inputs {
+            if *offset == 0 {
+                match value {
+                    CellValue::Unknown => {
+                        *value = CellValue::NonZero
+                    },
+                    CellValue::Bool => {
+                        *value = CellValue::Value(1)
+                    },
+                    _ => {
+                        // Ignore
+                    }
+                }
+                has_loop_offset = true;
+                break;
+            }
+        }
+
+        if !has_loop_offset {
+            loop_inputs.push((0, CellValue::NonZero));
         }
 
         loop_inputs
