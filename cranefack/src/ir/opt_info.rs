@@ -121,6 +121,9 @@ pub enum Cell {
 
     /// Cell value is known
     Value(u8),
+
+    /// Range of cell value is known
+    Range(u8, u8),
 }
 
 impl Cell {
@@ -235,7 +238,13 @@ impl CellAccess {
                             } else if (*v1 == 0 || *v1 == 1) && (v2 == 0 || v2 == 1) {
                                 exiting_cell.value = Cell::Bool
                             } else {
-                                exiting_cell.value = Cell::Write
+                                let min = (*v1).min(v2);
+                                let max = (*v1).max(v2);
+                                if min == 0 && max == 255 {
+                                    exiting_cell.value = Cell::Write;
+                                } else {
+                                    exiting_cell.value = Cell::Range(min, max);
+                                }
                             }
                         }
                     }
@@ -267,6 +276,65 @@ impl CellAccess {
                             exiting_cell.value = Cell::Bool
                         } else {
                             exiting_cell.value = Cell::Write
+                        }
+                    }
+                    (Cell::Range(start, end), Cell::Range(start2, end2)) => {
+                        let min = (*start).min(start2);
+                        let max = (*end).max(end2);
+                        if min == 0 && max == 255 {
+                            exiting_cell.value = Cell::Write;
+                        } else {
+                            exiting_cell.value = Cell::Range(min, max);
+                        }
+                    }
+                    (Cell::Range(start, end), Cell::Value(v)) => {
+                        let min = (*start).min(v);
+                        let max = (*end).max(v);
+                        if min == 0 && max == 255 {
+                            exiting_cell.value = Cell::Write;
+                        } else {
+                            exiting_cell.value = Cell::Range(min, max);
+                        }
+                    }
+                    (Cell::Value(v), Cell::Range(start, end)) => {
+                        let min = start.min(*v);
+                        let max = end.max(*v);
+                        if min == 0 && max == 255 {
+                            exiting_cell.value = Cell::Write;
+                        } else {
+                            exiting_cell.value = Cell::Range(min, max);
+                        }
+                    }
+                    (Cell::Range(start, end), Cell::Bool) => {
+                        let min = (*start).min(0);
+                        let max = (*end).max(1);
+                        if min == 0 && max == 255 {
+                            exiting_cell.value = Cell::Write;
+                        } else {
+                            exiting_cell.value = Cell::Range(min, max);
+                        }
+                    }
+                    (Cell::Bool, Cell::Range(start, end)) => {
+                        let min = start.min(0);
+                        let max = end.max(1);
+                        if min == 0 && max == 255 {
+                            exiting_cell.value = Cell::Write;
+                        } else {
+                            exiting_cell.value = Cell::Range(min, max);
+                        }
+                    }
+                    (Cell::Range(start, _), Cell::NonZero) => {
+                        if *start == 0 {
+                            exiting_cell.value = Cell::Write;
+                        } else {
+                            exiting_cell.value = Cell::NonZero;
+                        }
+                    }
+                    (Cell::NonZero, Cell::Range(start, _)) => {
+                        if start == 0 {
+                            exiting_cell.value = Cell::Write;
+                        } else {
+                            exiting_cell.value = Cell::NonZero;
                         }
                     }
                     (Cell::NonZero, Cell::NonZero) |

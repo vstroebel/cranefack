@@ -93,6 +93,7 @@ pub enum CellValue {
     NonZero,
     Bool,
     Value(u8),
+    Range(u8, u8),
 }
 
 impl CellValue {
@@ -100,6 +101,7 @@ impl CellValue {
         match self {
             CellValue::NonZero => true,
             CellValue::Value(v) => *v != 0,
+            CellValue::Range(start, _) => *start > 0,
             CellValue::Bool => false,
             CellValue::Unknown => false,
         }
@@ -312,6 +314,12 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                                 loop_inputs.push((cell.offset, CellValue::NonZero));
                             } else if (v1 == 0 || v1 == 1) && (v2 == 0 || v2 == 1) {
                                 loop_inputs.push((cell.offset, CellValue::Bool));
+                            } else {
+                                let min = v1.min(v2);
+                                let max = v1.max(v2);
+                                if min != 0 && max != 255 {
+                                    loop_inputs.push((cell.offset, CellValue::Range(min, max)));
+                                }
                             }
                         }
                         (Cell::NonZero, CellValue::NonZero) => {
@@ -332,6 +340,23 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                                 loop_inputs.push((cell.offset, CellValue::Bool));
                             }
                         }
+                        (Cell::Range(s1, e1), CellValue::Range(s2, e2)) => {
+                            loop_inputs.push((cell.offset, CellValue::Range(s1.min(s2), e1.max(e2))));
+                        }
+                        (Cell::Range(s1, e1), CellValue::Value(v)) |
+                        (Cell::Value(v), CellValue::Range(s1, e1)) => {
+                            loop_inputs.push((cell.offset, CellValue::Range(s1.min(v), e1.max(v))));
+                        }
+                        (Cell::Range(s1, e1), CellValue::Bool) |
+                        (Cell::Bool, CellValue::Range(s1, e1)) => {
+                            loop_inputs.push((cell.offset, CellValue::Range(s1.min(0), e1.max(1))));
+                        }
+                        (Cell::Range(s1, _), CellValue::NonZero) |
+                        (Cell::NonZero, CellValue::Range(s1, _)) => {
+                            if s1 > 0 {
+                                loop_inputs.push((cell.offset, CellValue::NonZero));
+                            }
+                        }
                         _ => {
                             // Ignore
                         }
@@ -346,10 +371,13 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                     match value {
                         CellValue::Unknown => {
                             *value = CellValue::NonZero
-                        },
+                        }
                         CellValue::Bool => {
                             *value = CellValue::Value(1)
-                        },
+                        }
+                        CellValue::Range(s, e) => {
+                            *value = CellValue::Range((*s).max(1), *e);
+                        }
                         _ => {
                             // Ignore
                         }
@@ -439,8 +467,23 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                                                         } else if (*v == 0 || *v == 1) && (*v2 == 0 || *v2 == 1) {
                                                             *value = CellValue::Bool;
                                                         } else {
-                                                            *value = CellValue::Unknown;
+                                                            let min = (*v).min(*v2);
+                                                            let max = (*v).max(*v2);
+                                                            if min != 0 && max != 255 {
+                                                                *value = CellValue::Range(min, max);
+                                                            } else {
+                                                                *value = CellValue::Unknown;
+                                                            }
                                                         }
+                                                    }
+                                                }
+                                                CellValue::Range(start, end) => {
+                                                    let start = (*start).min(*v);
+                                                    let end = (*end).max(*v);
+                                                    if start == 0 && end == 255 {
+                                                        *value = CellValue::Unknown;
+                                                    } else {
+                                                        *value = CellValue::Range(start, end);
                                                     }
                                                 }
                                                 CellValue::Bool => {
@@ -467,6 +510,67 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                                         }
                                     }
                                 }
+                                Cell::Range(s1, e1) => {
+                                    let mut found = false;
+
+                                    for (offset, value) in loop_inputs.iter_mut() {
+                                        if *offset == cell.offset {
+                                            match value {
+                                                CellValue::Unknown => {
+                                                    // Keep as is
+                                                }
+                                                CellValue::Value(v) => {
+                                                    let start = (*s1).min(*v);
+                                                    let end = (*e1).max(*v);
+                                                    if start == 0 && end == 255 {
+                                                        *value = CellValue::Unknown;
+                                                    } else {
+                                                        *value = CellValue::Range(start, end);
+                                                    }
+                                                }
+                                                CellValue::Range(start, end) => {
+                                                    let start = (*start).min(*s1);
+                                                    let end = (*end).max(*e1);
+                                                    if start == 0 && end == 255 {
+                                                        *value = CellValue::Unknown;
+                                                    } else {
+                                                        *value = CellValue::Range(start, end);
+                                                    }
+                                                }
+                                                CellValue::Bool => {
+                                                    let start = (*s1).min(0);
+                                                    let end = (*e1).max(1);
+                                                    if start == 0 && end == 255 {
+                                                        *value = CellValue::Unknown;
+                                                    } else {
+                                                        *value = CellValue::Range(start, end);
+                                                    }
+                                                }
+                                                CellValue::NonZero => {
+                                                    if *s1 > 0 {
+                                                        *value = CellValue::NonZero;
+                                                    } else {
+                                                        *value = CellValue::Unknown;
+                                                    }
+                                                }
+                                            }
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    if !found {
+                                        if access.zeroed() {
+                                            let start = 0.min(*s1);
+                                            if start == 0 && *e1 == 255 {
+                                                loop_inputs.push((cell.offset, CellValue::Unknown));
+                                            } else {
+                                                loop_inputs.push((cell.offset, CellValue::Range(start, *e1)));
+                                            }
+                                        } else {
+                                            loop_inputs.push((cell.offset, CellValue::Unknown));
+                                        }
+                                    }
+                                }
                                 Cell::NonZero => {
                                     let mut found = false;
 
@@ -478,6 +582,13 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                                                 }
                                                 CellValue::Value(v2) => {
                                                     if *v2 != 0 {
+                                                        *value = CellValue::NonZero;
+                                                    } else {
+                                                        *value = CellValue::Unknown;
+                                                    }
+                                                }
+                                                CellValue::Range(start, _) => {
+                                                    if *start > 0 {
                                                         *value = CellValue::NonZero;
                                                     } else {
                                                         *value = CellValue::Unknown;
@@ -516,6 +627,15 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                                                         *value = CellValue::Unknown;
                                                     }
                                                 }
+                                                CellValue::Range(start, end) => {
+                                                    let start = (*start).min(0);
+                                                    let end = (*end).max(1);
+                                                    if start == 0 && end == 255 {
+                                                        *value = CellValue::Unknown;
+                                                    } else {
+                                                        *value = CellValue::Range(start, end);
+                                                    }
+                                                }
                                                 CellValue::NonZero => {
                                                     *value = CellValue::Unknown;
                                                 }
@@ -549,10 +669,13 @@ fn get_loop_inputs(ops: &mut Vec<Op>, inputs: &&[(isize, CellValue)], wrapping_i
                 match value {
                     CellValue::Unknown => {
                         *value = CellValue::NonZero
-                    },
+                    }
                     CellValue::Bool => {
                         *value = CellValue::Value(1)
-                    },
+                    }
+                    CellValue::Range(s, e) => {
+                        *value = CellValue::Range((*s).max(1), *e);
+                    }
                     _ => {
                         // Ignore
                     }
@@ -612,6 +735,13 @@ pub fn find_heap_value(ops: &[Op],
                                     CellValue::Unknown
                                 }
                             }
+                            CellValue::Range(start, end) => {
+                                if 255 - end >= *v {
+                                    CellValue::Range(start + *v, end + *v)
+                                } else {
+                                    CellValue::Unknown
+                                }
+                            }
                             _ => CellValue::Unknown
                         }
                     };
@@ -657,11 +787,31 @@ pub fn find_heap_value(ops: &[Op],
                     };
                 }
             }
-            OpType::Dec(offset, _) |
+            OpType::Dec(offset, v) |
+            OpType::CSub(_, offset, v) |
+            OpType::NzCSub(_, offset, v) => {
+                if *offset == cell_offset {
+                    match find_heap_value(ops, *offset, i - 1, zeroed, inputs, wrapping_is_ub, true) {
+                        CellValue::NonZero => {
+                            if *v == 1 {
+                                return CellValue::Range(0, 254);
+                            } else {}
+                        }
+                        CellValue::Range(start, end) => {
+                            if start >= *v {
+                                return CellValue::Range(start - *v, end - *v);
+                            }
+                        }
+                        _ => {
+                            // Ignore
+                        }
+                    }
+
+                    return CellValue::Unknown;
+                }
+            }
             OpType::Add(_, offset, _) |
             OpType::NzAdd(_, offset, _) |
-            OpType::CSub(_, offset, _) |
-            OpType::NzCSub(_, offset, _) |
             OpType::GetChar(offset)
             => {
                 if *offset == cell_offset {
@@ -677,6 +827,7 @@ pub fn find_heap_value(ops: &[Op],
                         match value {
                             Cell::Write => return CellValue::Unknown,
                             Cell::Value(v) => return CellValue::Value(v),
+                            Cell::Range(start, end) => return CellValue::Range(start, end),
                             Cell::NonZero => return CellValue::NonZero,
                             Cell::Bool => return CellValue::Bool,
                             Cell::Read => {
@@ -702,7 +853,22 @@ pub fn find_heap_value(ops: &[Op],
                                 } else if loop_value != 0 && input_value != 0 {
                                     return CellValue::NonZero;
                                 } else {
+                                    let start = (input_value).min(loop_value);
+                                    let end = (input_value).max(loop_value);
+                                    if start == 0 && end == 255 {
+                                        return CellValue::Unknown;
+                                    } else {
+                                        return CellValue::Range(start, end);
+                                    }
+                                }
+                            }
+                            CellValue::Range(start, end) => {
+                                let start = (start).min(loop_value);
+                                let end = (end).max(loop_value);
+                                if start == 0 && end == 255 {
                                     return CellValue::Unknown;
+                                } else {
+                                    return CellValue::Range(start, end);
                                 }
                             }
                             CellValue::NonZero => {
@@ -716,7 +882,13 @@ pub fn find_heap_value(ops: &[Op],
                                 if loop_value == 0 || loop_value == 1 {
                                     return CellValue::Bool;
                                 } else {
-                                    return CellValue::Unknown;
+                                    let start = 0.min(loop_value);
+                                    let end = 1.max(loop_value);
+                                    if start == 0 && end == 255 {
+                                        return CellValue::Unknown;
+                                    } else {
+                                        return CellValue::Range(start, end);
+                                    }
                                 }
                             }
                             _ => return CellValue::Unknown
@@ -735,10 +907,17 @@ pub fn find_heap_value(ops: &[Op],
                                     return CellValue::Unknown;
                                 }
                             }
+                            CellValue::Range(start, _) => {
+                                if start > 0 {
+                                    return CellValue::NonZero;
+                                } else {
+                                    return CellValue::Unknown;
+                                }
+                            }
                             CellValue::NonZero => {
                                 return CellValue::NonZero;
                             }
-                            _ => return CellValue::Unknown
+                            _ => return CellValue::Unknown,
                         }
                     }
                     Some(Cell::Bool) => {
@@ -752,6 +931,15 @@ pub fn find_heap_value(ops: &[Op],
                                     return CellValue::Bool;
                                 } else {
                                     return CellValue::Unknown;
+                                }
+                            }
+                            CellValue::Range(start, end) => {
+                                let start = 0.min(start);
+                                let end = 1.max(end);
+                                if start == 0 && end == 255 {
+                                    return CellValue::Unknown;
+                                } else {
+                                    return CellValue::Range(start, end);
                                 }
                             }
                             CellValue::NonZero => {
@@ -777,6 +965,7 @@ pub fn find_heap_value(ops: &[Op],
                         match value {
                             Cell::Write => return CellValue::Unknown,
                             Cell::Value(v) => return CellValue::Value(v),
+                            Cell::Range(start, end) => return CellValue::Range(start, end),
                             Cell::NonZero => return CellValue::NonZero,
                             Cell::Bool => return CellValue::Bool,
                             Cell::Read => {
@@ -802,7 +991,22 @@ pub fn find_heap_value(ops: &[Op],
                                 } else if loop_value != 0 && input_value != 0 {
                                     return CellValue::NonZero;
                                 } else {
+                                    let start = loop_value.min(input_value);
+                                    let end = loop_value.max(input_value);
+                                    if start == 0 && end == 255 {
+                                        return CellValue::Unknown;
+                                    } else {
+                                        return CellValue::Range(start, end);
+                                    }
+                                }
+                            }
+                            CellValue::Range(start, end) => {
+                                let start = (start).min(loop_value);
+                                let end = (end).max(loop_value);
+                                if start == 0 && end == 255 {
                                     return CellValue::Unknown;
+                                } else {
+                                    return CellValue::Range(start, end);
                                 }
                             }
                             CellValue::NonZero => {
@@ -852,6 +1056,15 @@ pub fn find_heap_value(ops: &[Op],
                                     return CellValue::Bool;
                                 } else {
                                     return CellValue::Unknown;
+                                }
+                            }
+                            CellValue::Range(start, end) => {
+                                let start = 0.min(start);
+                                let end = 1.max(end);
+                                if start == 0 && end == 255 {
+                                    return CellValue::Unknown;
+                                } else {
+                                    return CellValue::Range(start, end);
                                 }
                             }
                             CellValue::NonZero => {
@@ -879,6 +1092,7 @@ pub fn find_heap_value(ops: &[Op],
                         match value {
                             Cell::Write => return CellValue::Unknown,
                             Cell::Value(v) => return CellValue::Value(v),
+                            Cell::Range(start, end) => return CellValue::Range(start, end),
                             Cell::NonZero => return CellValue::NonZero,
                             Cell::Bool => return CellValue::Bool,
                             Cell::Read => {
@@ -906,6 +1120,21 @@ pub fn find_heap_value(ops: &[Op],
                                             return CellValue::Bool;
                                         } else if v != 0 && v2 != 0 {
                                             return CellValue::NonZero;
+                                        } else {
+                                            let start = v.min(v2);
+                                            let end = v.max(v2);
+                                            if start != 0 && end != 255 {
+                                                return CellValue::Range(start, end);
+                                            }
+                                        }
+                                    }
+                                    CellValue::Range(start, end) => {
+                                        let start = (start).min(v);
+                                        let end = (end).max(v);
+                                        if start == 0 && end == 255 {
+                                            return CellValue::Unknown;
+                                        } else {
+                                            return CellValue::Range(start, end);
                                         }
                                     }
                                     CellValue::NonZero => {
@@ -929,6 +1158,54 @@ pub fn find_heap_value(ops: &[Op],
                             }
                             return CellValue::Unknown;
                         }
+                        Cell::Range(start, end) => {
+                            if i > 0 {
+                                let loop_inputs = inputs.iter().map(|(offset, cell)| {
+                                    (offset + cell_offset - start_cell_offset, *cell)
+                                }).collect::<Vec<_>>();
+
+                                match find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow) {
+                                    CellValue::Value(v2) => {
+                                        let start = (start).min(v2);
+                                        let end = (end).max(v2);
+                                        if start == 0 && end == 255 {
+                                            return CellValue::Unknown;
+                                        } else {
+                                            return CellValue::Range(start, end);
+                                        }
+                                    }
+                                    CellValue::Range(start2, end2) => {
+                                        let start = (start).min(start2);
+                                        let end = (end).max(end2);
+                                        if start == 0 && end == 255 {
+                                            return CellValue::Unknown;
+                                        } else {
+                                            return CellValue::Range(start, end);
+                                        }
+                                    }
+                                    CellValue::NonZero => {
+                                        if start > 0 {
+                                            return CellValue::NonZero;
+                                        } else {
+                                            return CellValue::Unknown;
+                                        }
+                                    }
+                                    CellValue::Bool => {
+                                        let start = (start).min(0);
+                                        let end = (end).max(1);
+                                        if start == 0 && end == 255 {
+                                            return CellValue::Unknown;
+                                        } else {
+                                            return CellValue::Range(start, end);
+                                        }
+                                    }
+                                    CellValue::Unknown => {
+                                        return CellValue::Unknown;
+                                    }
+                                }
+                            }
+                            return CellValue::Unknown;
+                        }
                         Cell::NonZero => {
                             let loop_inputs = inputs.iter().map(|(offset, cell)| {
                                 (offset + cell_offset - start_cell_offset, *cell)
@@ -936,7 +1213,8 @@ pub fn find_heap_value(ops: &[Op],
 
                             match find_heap_value(ops, cell_offset, i - 1, zeroed, &loop_inputs, wrapping_is_ub, follow) {
                                 CellValue::NonZero => return CellValue::NonZero,
-                                CellValue::Value(v) => {
+                                CellValue::Value(v) |
+                                CellValue::Range(v, _) => {
                                     if v != 0 {
                                         return CellValue::NonZero;
                                     } else {
@@ -962,6 +1240,15 @@ pub fn find_heap_value(ops: &[Op],
                                         return CellValue::Unknown;
                                     }
                                 }
+                                CellValue::Range(start, end) => {
+                                    let start = 0.min(start);
+                                    let end = 1.max(end);
+                                    if start == 0 && end == 255 {
+                                        return CellValue::Unknown;
+                                    } else {
+                                        return CellValue::Range(start, end);
+                                    }
+                                }
                                 _ => {
                                     return CellValue::Unknown;
                                 }
@@ -980,6 +1267,7 @@ pub fn find_heap_value(ops: &[Op],
                         match value {
                             Cell::Write => return CellValue::Unknown,
                             Cell::Value(v) => return CellValue::Value(v),
+                            Cell::Range(start, end) => return CellValue::Range(start, end),
                             Cell::NonZero => return CellValue::NonZero,
                             Cell::Bool => return CellValue::Bool,
                             Cell::Read => {
