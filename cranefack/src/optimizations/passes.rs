@@ -223,37 +223,43 @@ fn get_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
             }
             OpType::Inc(offset, v) => {
                 if wrapping_is_ub {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                 } else if matches!(CellAccess::get(&access, start_offset + offset), Some(Cell::Bool)) {
                     if *v > 0 && *v < 254 {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                     } else {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                     }
                 } else {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                 }
             }
             OpType::NzCAdd(_, offset, v) => {
                 if wrapping_is_ub {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                 } else if matches!(CellAccess::get(&access, start_offset + offset), Some(Cell::Bool)) {
                     if *v > 0 && *v < 254 {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                     } else {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                     }
                 } else {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                 }
             }
-            OpType::NzAdd(_, offset, _) |
-            OpType::Dec(offset, _) |
-            OpType::NzSub(_, offset, _) |
-            OpType::NzCSub(_, offset, _) |
-            OpType::NzMul(_, offset, _)
+            OpType::Dec(offset, _) => {
+                CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
+            }
+            OpType::NzAdd(src_offset, dest_offset, _) |
+            OpType::NzSub(src_offset, dest_offset, _) |
+            OpType::NzMul(src_offset, dest_offset, _)
             => {
-                CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                CellAccess::add(&mut access, start_offset + src_offset, Cell::Read);
+                CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
+            }
+            OpType::NzCSub(_, offset, _)
+            => {
+                CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
             }
             OpType::Move(src_offset, dest_offset)
             => {
@@ -262,7 +268,7 @@ fn get_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 } else {
                     CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
                 }
-                CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
+                CellAccess::add_with_read(&mut access, start_offset + src_offset, Cell::Value(0));
             }
             OpType::Copy(src_offset, dest_offset)
             => {
@@ -271,40 +277,64 @@ fn get_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 } else {
                     CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
                 }
+                CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Read);
             }
             OpType::CAdd(src_offset, dest_offset, v) => {
                 CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
                 if wrapping_is_ub {
-                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::NonZero);
+                    CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::NonZero);
                 } else if matches!(CellAccess::get(&access, start_offset + dest_offset), Some(Cell::Bool)) {
                     if *v > 0 && *v < 254 {
-                        CellAccess::add(&mut access, start_offset + dest_offset, Cell::NonZero);
+                        CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::NonZero);
                     } else {
-                        CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                        CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
                     }
                 } else {
-                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                    CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
                 }
             }
             OpType::Add(src_offset, dest_offset, _) |
             OpType::Sub(src_offset, dest_offset, _) |
-            OpType::CSub(src_offset, dest_offset, _) |
             OpType::Mul(src_offset, dest_offset, _)
             => {
+                CellAccess::add_with_read(&mut access, start_offset + src_offset, Cell::Value(0));
+                CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
+            }
+            OpType::CSub(src_offset, dest_offset, _) => {
                 CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
-                CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
             }
             OpType::LLoop(_, info) |
             OpType::ILoop(_, _, _, info) |
-            OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
                 if let Some(cell_access) = info.cell_access() {
                     for cell in cell_access {
                         if info.always_used() {
-                            CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            if cell.has_read() {
+                                CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            } else {
+                                CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            }
                         } else {
-                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
+                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value, cell.has_read());
+                        }
+                    }
+                }
+                CellAccess::add_with_read(&mut access, start_offset, Cell::Value(0));
+            }
+            OpType::CLoop(_, _, _, info)
+            => {
+                if let Some(cell_access) = info.cell_access() {
+                    for cell in cell_access {
+                        if info.always_used() {
+                            if cell.has_read() {
+                                CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            } else {
+                                CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            }
+                        } else {
+                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value, cell.has_read());
                         }
                     }
                 }
@@ -314,7 +344,7 @@ fn get_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 CellAccess::add(&mut access, start_offset + offset, Cell::Write);
             }
             OpType::PutChar(offset) => {
-                CellAccess::add(&mut access, start_offset + offset, Cell::Read);
+                CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Read);
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
             OpType::DLoop(..) => unreachable!("Must not be called with dloops in children"),
@@ -344,37 +374,44 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
             }
             OpType::Inc(offset, v) => {
                 if wrapping_is_ub {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                 } else if matches!(CellAccess::get(&access, start_offset + offset), Some(Cell::Bool)) {
                     if *v > 0 && *v < 254 {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                     } else {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                     }
                 } else {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                 }
             }
             OpType::NzCAdd(_, offset, v) => {
                 if wrapping_is_ub {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                 } else if matches!(CellAccess::get(&access, start_offset + offset), Some(Cell::Bool)) {
                     if *v > 0 && *v < 254 {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::NonZero);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::NonZero);
                     } else {
-                        CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                        CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                     }
                 } else {
-                    CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                    CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
                 }
             }
-            OpType::NzAdd(_, offset, _) |
-            OpType::Dec(offset, _) |
-            OpType::NzSub(_, offset, _) |
-            OpType::NzCSub(_, offset, _) |
-            OpType::NzMul(_, offset, _)
+            OpType::Dec(offset, _) => {
+                CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
+            }
+
+            OpType::NzAdd(src_offset, dest_offset, _) |
+            OpType::NzSub(src_offset, dest_offset, _) |
+            OpType::NzMul(src_offset, dest_offset, _)
             => {
-                CellAccess::add(&mut access, start_offset + offset, Cell::Write);
+                CellAccess::add_with_read(&mut access, start_offset + src_offset, Cell::Read);
+                CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
+            }
+            OpType::NzCSub(_, offset, _)
+            => {
+                CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Write);
             }
             OpType::Move(src_offset, dest_offset)
             => {
@@ -383,7 +420,7 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 } else {
                     CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
                 }
-                CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
+                CellAccess::add_with_read(&mut access, start_offset + src_offset, Cell::Value(0));
             }
             OpType::Copy(src_offset, dest_offset)
             => {
@@ -392,40 +429,63 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 } else {
                     CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
                 }
+                CellAccess::add_with_read(&mut access, start_offset + src_offset, Cell::Read);
             }
             OpType::CAdd(src_offset, dest_offset, v) => {
                 CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
                 if wrapping_is_ub {
-                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::NonZero);
+                    CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::NonZero);
                 } else if matches!(CellAccess::get(&access, start_offset + dest_offset), Some(Cell::Bool)) {
                     if *v > 0 && *v < 254 {
-                        CellAccess::add(&mut access, start_offset + dest_offset, Cell::NonZero);
+                        CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::NonZero);
                     } else {
-                        CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                        CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
                     }
                 } else {
-                    CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                    CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
                 }
             }
             OpType::Add(src_offset, dest_offset, _) |
             OpType::Sub(src_offset, dest_offset, _) |
-            OpType::CSub(src_offset, dest_offset, _) |
             OpType::Mul(src_offset, dest_offset, _)
             => {
+                CellAccess::add_with_read(&mut access, start_offset + src_offset, Cell::Value(0));
+                CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
+            }
+            OpType::CSub(src_offset, dest_offset, _) => {
                 CellAccess::add(&mut access, start_offset + src_offset, Cell::Value(0));
-                CellAccess::add(&mut access, start_offset + dest_offset, Cell::Write);
+                CellAccess::add_with_read(&mut access, start_offset + dest_offset, Cell::Write);
             }
             OpType::LLoop(_, info) |
             OpType::ILoop(_, _, _, info) |
-            OpType::CLoop(_, _, _, info) |
             OpType::TNz(_, info)
             => {
                 if let Some(cell_access) = info.cell_access() {
                     for cell in cell_access {
                         if info.always_used() {
-                            CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            if cell.has_read() {
+                                CellAccess::add_with_read(&mut access, start_offset + cell.offset, cell.value);
+                            } else {
+                                CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            }
                         } else {
-                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
+                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value, cell.has_read());
+                        }
+                    }
+                }
+                CellAccess::add_with_read(&mut access, start_offset, Cell::Value(0));
+            }
+            OpType::CLoop(_, _, _, info) => {
+                if let Some(cell_access) = info.cell_access() {
+                    for cell in cell_access {
+                        if info.always_used() {
+                            if cell.has_read() {
+                                CellAccess::add_with_read(&mut access, start_offset + cell.offset, cell.value);
+                            } else {
+                                CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            }
+                        } else {
+                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value, cell.has_read());
                         }
                     }
                 }
@@ -435,7 +495,7 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
                 CellAccess::add(&mut access, start_offset + offset, Cell::Write);
             }
             OpType::PutChar(offset) => {
-                CellAccess::add(&mut access, start_offset + offset, Cell::Read);
+                CellAccess::add_with_read(&mut access, start_offset + offset, Cell::Read);
             }
             OpType::Start => unreachable!("Must not be called with start in children"),
             OpType::DLoop(_, info) |
@@ -448,7 +508,11 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
 
                     if let Some(cell_access) = info.cell_access() {
                         for cell in cell_access {
-                            CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            if cell.has_read() {
+                                CellAccess::add_with_read(&mut access, start_offset + cell.offset, cell.value);
+                            } else {
+                                CellAccess::add(&mut access, start_offset + cell.offset, cell.value);
+                            }
                         }
                     }
                 } else if let Some(cell_access) = info.cell_access() {
@@ -457,22 +521,26 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
 
                     for cell in cell_access {
                         if let Some(value) = CellAccess::get(&old_access, start_offset + cell.offset) {
-                            CellAccess::add(&mut access, start_offset + cell.offset, value);
-                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value);
+                            if cell.has_read() {
+                                CellAccess::add_with_read(&mut access, start_offset + cell.offset, value);
+                            } else {
+                                CellAccess::add(&mut access, start_offset + cell.offset, value);
+                            }
+                            CellAccess::add_conditional(&mut access, start_offset + cell.offset, cell.value, cell.has_read());
                         }
                     }
                 } else {
                     access.clear();
                 }
-                CellAccess::add(&mut access, start_offset, Cell::Value(0));
+                CellAccess::add_with_read(&mut access, start_offset, Cell::Value(0));
             }
             OpType::SearchZero(step, always) => {
                 start_offset = 0;
                 access.clear();
                 was_cleared = true;
-                CellAccess::add(&mut access, start_offset, Cell::Value(0));
+                CellAccess::add_with_read(&mut access, start_offset, Cell::Value(0));
                 if *always {
-                    CellAccess::add(&mut access, -*step, Cell::NonZero);
+                    CellAccess::add_with_read(&mut access, -*step, Cell::NonZero);
                 }
             }
             OpType::PutString(..) => {
@@ -487,7 +555,7 @@ fn get_d_loop_access(ops: &[Op], wrapping_is_ub: bool) -> Vec<CellAccess> {
     }
 
     if start_offset != 0 && !was_cleared && !CellAccess::was_written(&access, -start_offset) {
-        CellAccess::add(&mut access, -start_offset, Cell::NonZero);
+        CellAccess::add_with_read(&mut access, -start_offset, Cell::NonZero);
     }
 
     access
@@ -2230,6 +2298,305 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
     progress
 }
 
+fn get_write_only_indices(op: &Op) -> Vec<isize> {
+    match &op.op_type {
+        OpType::TNz(.., info) |
+        OpType::DTNz(.., info)
+        => {
+            if let Some(cell_access) = info.cell_access() {
+                cell_access
+                    .iter()
+                    .filter(|a| a.value.is_write() && !a.read_after_write)
+                    .map(|a| a.offset)
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        }
+        OpType::LLoop(.., info)
+        | OpType::ILoop(.., info)
+        | OpType::CLoop(.., info)
+        => {
+            if let Some(cell_access) = info.cell_access() {
+                cell_access
+                    .iter()
+                    .filter(|a| a.value.is_write() && !a.has_read())
+                    .map(|a| a.offset)
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new()
+    }
+}
+
+pub fn optimize_non_local_dead_block_stores(ops: &mut Vec<Op>) -> bool {
+    let mut progress = false;
+
+    for op in ops.iter_mut() {
+        if let Some(children) = op.op_type.get_children_mut() {
+            progress |= optimize_non_local_dead_block_stores(children);
+        }
+    }
+
+    let mut i = 0;
+
+    while !ops.is_empty() && i < ops.len() - 1 {
+        for offset in get_write_only_indices(&ops[i]) {
+            if has_unread_set(ops, offset, i + 1) {
+                if remove_dead_block_sets(ops[i].op_type.get_children_mut().unwrap(), offset) {
+                    progress = true;
+                }
+            }
+        }
+        i += 1;
+    }
+
+    progress
+}
+
+fn remove_dead_block_sets(ops: &mut Vec<Op>, mut ptr_offset: isize) -> bool {
+    let mut i = ops.len() as isize - 1;
+
+    while !ops.is_empty() && i >= 0 {
+        let change = match &mut ops[i as usize].op_type {
+            OpType::IncPtr(offset) => {
+                ptr_offset += *offset as isize;
+                Change::Ignore
+            }
+            OpType::DecPtr(offset) => {
+                ptr_offset -= *offset as isize;
+                Change::Ignore
+            }
+            OpType::Set(offset, _)
+            | OpType::Inc(offset, _)
+            | OpType::Dec(offset, _)
+            | OpType::NzAdd(_, offset, _)
+            | OpType::NzSub(_, offset, _)
+            | OpType::NzMul(_, offset, _)
+            | OpType::NzCAdd(_, offset, _)
+            | OpType::NzCSub(_, offset, _)
+            | OpType::Copy(offset, _)
+            => {
+                if *offset == ptr_offset {
+                    Change::Remove
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::Add(src_offset, dest_offset, v)
+            => {
+                if *src_offset == ptr_offset {
+                    Change::Replace(vec![OpType::NzAdd(*src_offset, *dest_offset, *v)])
+                } else if *dest_offset == ptr_offset {
+                    Change::Replace(vec![OpType::Set(*src_offset, 0)])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::Sub(src_offset, dest_offset, v)
+            => {
+                if *src_offset == ptr_offset {
+                    Change::Replace(vec![OpType::NzSub(*src_offset, *dest_offset, *v)])
+                } else if *dest_offset == ptr_offset {
+                    Change::Replace(vec![OpType::Set(*src_offset, 0)])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::CAdd(src_offset, dest_offset, v)
+            => {
+                if *src_offset == ptr_offset {
+                    Change::Replace(vec![OpType::NzCAdd(*src_offset, *dest_offset, *v)])
+                } else if *dest_offset == ptr_offset {
+                    Change::Replace(vec![OpType::Set(*src_offset, 0)])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::CSub(src_offset, dest_offset, v)
+            => {
+                if *src_offset == ptr_offset {
+                    Change::Replace(vec![OpType::NzCSub(*src_offset, *dest_offset, *v)])
+                } else if *dest_offset == ptr_offset {
+                    Change::Replace(vec![OpType::Set(*src_offset, 0)])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::Mul(src_offset, dest_offset, v)
+            => {
+                if *src_offset == ptr_offset {
+                    Change::Replace(vec![OpType::NzMul(*src_offset, *dest_offset, *v)])
+                } else if *dest_offset == ptr_offset {
+                    Change::Replace(vec![OpType::Set(*src_offset, 0)])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::Move(src_offset, dest_offset)
+            => {
+                if *src_offset == ptr_offset {
+                    Change::Replace(vec![OpType::Copy(*src_offset, *dest_offset)])
+                } else if *dest_offset == ptr_offset {
+                    Change::Replace(vec![OpType::Set(*src_offset, 0)])
+                } else {
+                    Change::Ignore
+                }
+            }
+            OpType::TNz(children, info)
+            | OpType::DTNz(children, _, info)
+            => {
+                if let Some(value) = info.get_access(ptr_offset) {
+                    if value.value.is_write() && !value.read_after_write {
+                        return remove_dead_block_sets(children, ptr_offset);
+                    } else {
+                        return false;
+                    }
+                }
+                Change::Ignore
+            }
+            OpType::LLoop(children, info)
+            | OpType::ILoop(children, .., info)
+            | OpType::CLoop(children, .., info)
+            => {
+                if let Some(value) = info.get_access(ptr_offset) {
+                    if value.value.is_write() && !value.has_read() {
+                        return remove_dead_block_sets(children, ptr_offset);
+                    } else {
+                        return false;
+                    }
+                }
+                Change::Ignore
+            }
+            OpType::Start
+            | OpType::GetChar(_)
+            | OpType::PutChar(_)
+            | OpType::PutString(_)
+            => {
+                Change::Ignore
+            }
+            OpType::DLoop(..)
+            | OpType::SearchZero(..)
+            => return false,
+        };
+
+        if change.apply(ops, i as usize, 1).0 {
+            return true;
+        } else {
+            i -= 1;
+        }
+    }
+
+    false
+}
+
+fn has_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) -> bool {
+    let mut i = start_index;
+
+    while i < ops.len() {
+        match &ops[i as usize].op_type {
+            OpType::IncPtr(offset) => cell_offset += *offset as isize,
+            OpType::DecPtr(offset) => cell_offset -= *offset as isize,
+            OpType::Set(offset, _) => {
+                if *offset == cell_offset {
+                    return true;
+                }
+            }
+            OpType::Inc(offset, _) |
+            OpType::Dec(offset, _) => {
+                if *offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::Add(src_offset, dest_offset, _) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::CAdd(src_offset, dest_offset, _) => {
+                if *dest_offset == cell_offset {
+                    return true;
+                } else if *src_offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::Sub(src_offset, dest_offset, _) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::CSub(src_offset, dest_offset, _) => {
+                if *dest_offset == cell_offset {
+                    return true;
+                } else if *src_offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::Mul(src_offset, dest_offset, _) => {
+                if *dest_offset == cell_offset {
+                    break;
+                } else if *src_offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::Move(src_offset, dest_offset) |
+            OpType::Copy(src_offset, dest_offset)
+            => {
+                if *dest_offset == cell_offset {
+                    return true;
+                } else if *src_offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::NzAdd(src_offset, dest_offset, _) |
+            OpType::NzCAdd(src_offset, dest_offset, _) |
+            OpType::NzSub(src_offset, dest_offset, _) |
+            OpType::NzCSub(src_offset, dest_offset, _) |
+            OpType::NzMul(src_offset, dest_offset, _)
+            => {
+                if *src_offset == cell_offset {
+                    break;
+                } else if *dest_offset == cell_offset {
+                    return false;
+                }
+            }
+            OpType::GetChar(offset) => {
+                if cell_offset == *offset {
+                    return false;
+                }
+            }
+            OpType::LLoop(_, info) |
+            OpType::ILoop(_, _, _, info) |
+            OpType::CLoop(_, _, _, info) |
+            OpType::TNz(_, info)
+            => {
+                if cell_offset == 0 || info.was_cell_accessed(cell_offset) {
+                    return false;
+                }
+            }
+            OpType::PutChar(offset) => {
+                if cell_offset == *offset {
+                    return false;
+                }
+            }
+            OpType::PutString(_) => {
+                // Ignore
+            }
+            _ => break,
+        }
+
+        i += 1
+    }
+
+    false
+}
+
 pub fn unroll_constant_loops(ops: &mut Vec<Op>, limit: usize) -> bool {
     let mut progress = false;
 
@@ -3336,7 +3703,10 @@ mod tests {
                 Op::dec(1..2, 1),
                 Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], BlockInfo::new_access(vec![CellAccess::new_write(0), CellAccess::new_write(1)]))
+            ], BlockInfo::new_access(vec![
+                CellAccess::new_write(0, true, false),
+                CellAccess::new_write(1, true, false)]
+            ))
         ])
     }
 
@@ -3360,7 +3730,10 @@ mod tests {
             Op::i_loop(0..1, vec![
                 Op::inc_ptr(2..3, 1),
                 Op::dec(3..4, 2),
-            ], 1, BlockInfo::new_access(vec![CellAccess::new_write(0), CellAccess::new_write(1)]))
+            ], 1, BlockInfo::new_access(vec![
+                CellAccess::new_write(0, true, false),
+                CellAccess::new_write(1, true, false)
+            ]))
         ])
     }
 
@@ -3384,7 +3757,10 @@ mod tests {
             Op::i_loop(0..1, vec![
                 Op::dec_ptr(1..2, 1),
                 Op::dec(2..3, 3),
-            ], 2, BlockInfo::new_access(vec![CellAccess::new_write(-1), CellAccess::new_write(0)]))
+            ], 2, BlockInfo::new_access(vec![
+                CellAccess::new_write(-1, true, false),
+                CellAccess::new_write(0, true, false)
+            ]))
         ])
     }
 
@@ -3408,7 +3784,10 @@ mod tests {
         assert_eq!(ops, vec![
             Op::c_loop(0..1, vec![
                 Op::dec_with_offset(2..3, -1, 3),
-            ], 3, BlockInfo::new_access(vec![CellAccess::new_write(-1), CellAccess::new_write(0)]))
+            ], 3, BlockInfo::new_access(vec![
+                CellAccess::new_write(-1, true, false),
+                CellAccess::new_write(0, true, false)
+            ]))
         ])
     }
 
@@ -3875,7 +4254,7 @@ mod tests {
             Op::d_loop(0..4, vec![
                 Op::set(1..2, 2),
                 Op::inc_ptr(2..3, 1),
-            ], BlockInfo::new_access(vec![CellAccess::new_value(-1, 2)])),
+            ], BlockInfo::new_access(vec![CellAccess::new_value(-1, 2, false, false)])),
         ]);
     }
 }

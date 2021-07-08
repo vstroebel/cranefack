@@ -516,7 +516,7 @@ impl OpType {
         }
     }
 
-    pub fn get_block_info(&mut self) -> Option<&BlockInfo> {
+    pub fn get_block_info(&self) -> Option<&BlockInfo> {
         match self {
             OpType::DLoop(_, info) |
             OpType::LLoop(_, info) |

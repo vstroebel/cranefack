@@ -50,6 +50,17 @@ impl BlockInfo {
         None
     }
 
+    pub fn get_access(&self, offset: isize) -> Option<&CellAccess> {
+        if let Some(cell_access) = &self.cell_access {
+            for cell in cell_access {
+                if cell.offset == offset {
+                    return Some(cell);
+                }
+            }
+        }
+        None
+    }
+
     pub fn was_cell_written(&self, offset: isize) -> bool {
         if let Some(cell_access) = &self.cell_access {
             for cell in cell_access {
@@ -120,17 +131,16 @@ impl Cell {
     pub fn is_write(&self) -> bool {
         !self.is_read()
     }
-
-    pub fn is_constant_write(&self) -> bool {
-        matches!(self, Cell::Value(_))
-    }
 }
 
 /// Hold information about a known modified cell
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CellAccess {
-    /// Cell is only written
-    pub write_only: bool,
+    /// Cell was read before modified
+    pub read_before_write: bool,
+
+    /// Cell was read after modification
+    pub read_after_write: bool,
 
     /// Offset of the cell relative to the surrounding scope (typically the counter ptr of a local loop)
     pub offset: isize,
@@ -140,50 +150,81 @@ pub struct CellAccess {
 }
 
 impl CellAccess {
-    pub fn new_read(offset: isize) -> CellAccess {
+    pub fn new_read(offset: isize, read_before_write: bool, read_after_write: bool) -> CellAccess {
         CellAccess {
-            write_only: false,
+            read_before_write,
+            read_after_write,
             offset,
             value: Cell::Read,
         }
     }
 
-    pub fn new_write(offset: isize) -> CellAccess {
+    pub fn new_write(offset: isize, read_before_write: bool, read_after_write: bool) -> CellAccess {
         CellAccess {
-            write_only: false,
+            read_before_write,
+            read_after_write,
             offset,
             value: Cell::Write,
         }
     }
 
-    pub fn new_value(offset: isize, value: u8) -> CellAccess {
+    pub fn new_value(offset: isize, value: u8, read_before_write: bool, read_after_write: bool) -> CellAccess {
         CellAccess {
-            write_only: true,
+            read_before_write,
+            read_after_write,
             offset,
             value: Cell::Value(value),
         }
     }
 
+    pub fn has_read(&self) -> bool {
+        self.read_before_write || self.read_after_write || self.value.is_read()
+    }
+
     pub fn add(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
         for exiting_cell in cells.iter_mut() {
             if exiting_cell.offset == offset {
-                if !value.is_read() {
-                    exiting_cell.value = value;
+                if value.is_read() {
+                    if exiting_cell.value.is_write() {
+                        exiting_cell.read_after_write = true;
+                    }
                 } else {
-                    exiting_cell.write_only = false;
+                    exiting_cell.value = value;
                 }
                 return;
             }
         }
 
         cells.push(CellAccess {
-            write_only: value.is_constant_write(),
+            read_before_write: value.is_read(),
+            read_after_write: false,
             offset,
             value,
         });
     }
 
-    pub fn add_conditional(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
+    pub fn add_with_read(cells: &mut Vec<CellAccess>, offset: isize, value: Cell) {
+        for exiting_cell in cells.iter_mut() {
+            if exiting_cell.offset == offset {
+                if exiting_cell.value.is_write() {
+                    exiting_cell.read_after_write = true;
+                }
+                if !value.is_read() {
+                    exiting_cell.value = value;
+                }
+                return;
+            }
+        }
+
+        cells.push(CellAccess {
+            read_before_write: true,
+            read_after_write: false,
+            offset,
+            value,
+        });
+    }
+
+    pub fn add_conditional(cells: &mut Vec<CellAccess>, offset: isize, value: Cell, has_read: bool) {
         for exiting_cell in cells.iter_mut() {
             if exiting_cell.offset == offset {
                 match (&exiting_cell.value, value) {
@@ -240,15 +281,16 @@ impl CellAccess {
                     }
                 }
 
-                if !value.is_constant_write() {
-                    exiting_cell.write_only = false;
+                if (has_read || value.is_read()) && exiting_cell.value.is_write() {
+                    exiting_cell.read_after_write = true;
                 }
                 return;
             }
         }
 
         cells.push(CellAccess {
-            write_only: value.is_constant_write(),
+            read_before_write: value.is_read() || has_read,
+            read_after_write: false,
             offset,
             value,
         });
@@ -262,7 +304,8 @@ impl CellAccess {
         }
 
         cells.push(CellAccess {
-            write_only: value.is_constant_write(),
+            read_before_write: true,
+            read_after_write: true,
             offset,
             value,
         });
@@ -278,7 +321,6 @@ impl CellAccess {
                 return cell.value.is_write();
             }
         }
-
 
         false
     }

@@ -222,6 +222,12 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
             }
             print_debug(program, config, "Optimize non local dead stores");
 
+            if optimize_non_local_dead_block_stores(&mut program.ops) {
+                update_loop_access(&mut program.ops, config.wrapping_is_ub);
+                progress = true;
+            }
+            print_debug(program, config, "Optimize non local dead blocks stores");
+
             if remove_useless_loops(&mut program.ops) {
                 update_loop_access(&mut program.ops, config.wrapping_is_ub);
                 progress = true;
