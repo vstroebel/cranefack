@@ -1,14 +1,21 @@
-use std::error::Error;
 use crate::utils::read_input;
+use cranefack::CompiledJitModule;
+use cranefack::{
+    optimize_with_config, parse, CraneFackError, Interpreter, OptimizeConfig, Program,
+};
+use std::error::Error;
 use std::ffi::OsStr;
-use cranefack::{parse, CraneFackError, OptimizeConfig, optimize_with_config, Program, Interpreter};
 use std::io::Cursor;
 use std::time::SystemTime;
-use cranefack::CompiledJitModule;
 
-pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize, optimized_only: bool, jit_only: bool) -> Result<(), Box<dyn Error>> {
+pub fn benchmark_file(
+    path: &OsStr,
+    iterations: usize,
+    runs: usize,
+    optimized_only: bool,
+    jit_only: bool,
+) -> Result<(), Box<dyn Error>> {
     let source = read_input(path)?;
-
 
     let program = match parse(&source) {
         Ok(program) => program,
@@ -50,10 +57,12 @@ pub fn benchmark_file(path: &OsStr, iterations: usize, runs: usize, optimized_on
 
     let mut results = [0u128; 12];
 
-
     let total = iterations * runs;
 
-    println!("Starting benchmark with {} iterations and {} runs per iteration", iterations, runs);
+    println!(
+        "Starting benchmark with {} iterations and {} runs per iteration",
+        iterations, runs
+    );
 
     for iteration in 0..iterations {
         println!("Iteration {} ", iteration + 1);
@@ -156,7 +165,11 @@ fn run_interpreter(program: &Program, runs: usize) -> Result<u128, Box<dyn Error
     Ok(ts.elapsed()?.as_nanos())
 }
 
-fn run_jit(program: &Program, runs: usize, opt_mode: &OptimizeConfig) -> Result<u128, Box<dyn Error>> {
+fn run_jit(
+    program: &Program,
+    runs: usize,
+    opt_mode: &OptimizeConfig,
+) -> Result<u128, Box<dyn Error>> {
     let mut input = Cursor::new(b"");
     let mut output = Vec::new();
 

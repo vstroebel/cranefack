@@ -3,7 +3,9 @@ use passes::*;
 use crate::ir::ops::{Op, OpType};
 use crate::optimizations::peephole::run_peephole_pass;
 use crate::parser::Program;
-use codespan_reporting::term::termcolor::{ColorChoice, ColorSpec, StandardStream, WriteColor, Color};
+use codespan_reporting::term::termcolor::{
+    Color, ColorChoice, ColorSpec, StandardStream, WriteColor,
+};
 use std::io::Write;
 
 mod passes;
@@ -247,12 +249,20 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
                 }
                 print_debug(program, config, "Unroll constant loops");
 
-                progress |= unroll_scanning_d_loops(&mut program.ops, config.unroll_loop_limit, config.wrapping_is_ub);
+                progress |= unroll_scanning_d_loops(
+                    &mut program.ops,
+                    config.unroll_loop_limit,
+                    config.wrapping_is_ub,
+                );
                 print_debug(program, config, "Unroll scanning dynamic loops");
             }
 
             if config.partially_unroll_loops_limit > 0 && (!progress || count > 10) {
-                if partially_unroll_loops(&mut program.ops, config.partially_unroll_loops_limit, config.wrapping_is_ub) {
+                if partially_unroll_loops(
+                    &mut program.ops,
+                    config.partially_unroll_loops_limit,
+                    config.wrapping_is_ub,
+                ) {
                     non_local_remove_dead_loops(&mut program.ops, config.wrapping_is_ub);
                     update_loop_access(&mut program.ops, config.wrapping_is_ub);
                     progress = true;
@@ -282,19 +292,19 @@ pub fn optimize_with_config(program: &mut Program, config: &OptimizeConfig) -> u
 fn print_debug(program: &Program, config: &OptimizeConfig, pass: &str) {
     if config.debug {
         let mut writer = StandardStream::stderr(ColorChoice::Auto);
-        writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow))).unwrap();
+        writer
+            .set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))
+            .unwrap();
 
-        let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) = program.get_statistics();
+        let (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count) =
+            program.get_statistics();
 
-        writeln!(writer, "Pass {} with {} instructions ({},{},{},{}) loops and {} ifs",
-                 pass,
-                 op_count,
-                 dloop_count,
-                 lloop_count,
-                 iloop_count,
-                 cloop_count,
-                 if_count,
-        ).unwrap();
+        writeln!(
+            writer,
+            "Pass {} with {} instructions ({},{},{},{}) loops and {} ifs",
+            pass, op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count,
+        )
+        .unwrap();
         writer.reset().unwrap();
     }
 }
@@ -302,7 +312,9 @@ fn print_debug(program: &Program, config: &OptimizeConfig, pass: &str) {
 fn print_debug_iteration(config: &OptimizeConfig, iteration: usize) {
     if config.debug {
         let mut writer = StandardStream::stderr(ColorChoice::Auto);
-        writer.set_color(ColorSpec::new().set_fg(Some(Color::Yellow))).unwrap();
+        writer
+            .set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))
+            .unwrap();
 
         writeln!(writer, "Iteration {}", iteration).unwrap();
         writer.reset().unwrap();

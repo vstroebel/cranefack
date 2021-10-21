@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::Write;
 
-use crate::ir::ops::{Op, OpType, LoopDecrement};
+use crate::ir::ops::{LoopDecrement, Op, OpType};
 use crate::parser::Program;
 
 /// Compile program into a rust file that can be compiled with rustc
@@ -24,18 +24,52 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
             OpType::Inc(offset, count) => writeln!(out, "rt.inc({}, {});", offset, count)?,
             OpType::Dec(offset, count) => writeln!(out, "rt.dec({}, {});", offset, count)?,
             OpType::Set(offset, value) => writeln!(out, "rt.set({}, {});", offset, value)?,
-            OpType::Add(src_offset, dest_offset, multi) => writeln!(out, "rt.add({}, {}, {});", src_offset, dest_offset, multi)?,
-            OpType::NzAdd(src_offset, dest_offset, multi) => writeln!(out, "rt.nz_add({}, {}, {});", src_offset, dest_offset, multi)?,
-            OpType::CAdd(src_offset, dest_offset, count) => writeln!(out, "rt.c_add({}, {}, {});", src_offset, dest_offset, count)?,
-            OpType::NzCAdd(src_offset, dest_offset, count) => writeln!(out, "rt.nz_c_add({}, {}, {});", src_offset, dest_offset, count)?,
-            OpType::Sub(src_offset, dest_offset, multi) => writeln!(out, "rt.sub({}, {}, {});", src_offset, dest_offset, multi)?,
-            OpType::NzSub(src_offset, dest_offset, multi) => writeln!(out, "rt.nz_sub({}, {}, {});", src_offset, dest_offset, multi)?,
-            OpType::CSub(src_offset, dest_offset, count) => writeln!(out, "rt.c_sub({}, {}, {});", src_offset, dest_offset, count)?,
-            OpType::NzCSub(src_offset, dest_offset, count) => writeln!(out, "rt.nz_c_sub({}, {}, {});", src_offset, dest_offset, count)?,
-            OpType::Move(src_offset, dest_offset) => writeln!(out, "rt.move({}, {});", src_offset, dest_offset)?,
-            OpType::Copy(src_offset, dest_offset) => writeln!(out, "rt.copy({}, {});", src_offset, dest_offset)?,
-            OpType::Mul(src_offset, dest_offset, multi) => writeln!(out, "rt.mul({}, {}, {});", src_offset, dest_offset, multi)?,
-            OpType::NzMul(src_offset, dest_offset, multi) => writeln!(out, "rt.nz_mul({}, {}, {});", src_offset, dest_offset, multi)?,
+            OpType::Add(src_offset, dest_offset, multi) => {
+                writeln!(out, "rt.add({}, {}, {});", src_offset, dest_offset, multi)?
+            }
+            OpType::NzAdd(src_offset, dest_offset, multi) => writeln!(
+                out,
+                "rt.nz_add({}, {}, {});",
+                src_offset, dest_offset, multi
+            )?,
+            OpType::CAdd(src_offset, dest_offset, count) => {
+                writeln!(out, "rt.c_add({}, {}, {});", src_offset, dest_offset, count)?
+            }
+            OpType::NzCAdd(src_offset, dest_offset, count) => writeln!(
+                out,
+                "rt.nz_c_add({}, {}, {});",
+                src_offset, dest_offset, count
+            )?,
+            OpType::Sub(src_offset, dest_offset, multi) => {
+                writeln!(out, "rt.sub({}, {}, {});", src_offset, dest_offset, multi)?
+            }
+            OpType::NzSub(src_offset, dest_offset, multi) => writeln!(
+                out,
+                "rt.nz_sub({}, {}, {});",
+                src_offset, dest_offset, multi
+            )?,
+            OpType::CSub(src_offset, dest_offset, count) => {
+                writeln!(out, "rt.c_sub({}, {}, {});", src_offset, dest_offset, count)?
+            }
+            OpType::NzCSub(src_offset, dest_offset, count) => writeln!(
+                out,
+                "rt.nz_c_sub({}, {}, {});",
+                src_offset, dest_offset, count
+            )?,
+            OpType::Move(src_offset, dest_offset) => {
+                writeln!(out, "rt.move({}, {});", src_offset, dest_offset)?
+            }
+            OpType::Copy(src_offset, dest_offset) => {
+                writeln!(out, "rt.copy({}, {});", src_offset, dest_offset)?
+            }
+            OpType::Mul(src_offset, dest_offset, multi) => {
+                writeln!(out, "rt.mul({}, {}, {});", src_offset, dest_offset, multi)?
+            }
+            OpType::NzMul(src_offset, dest_offset, multi) => writeln!(
+                out,
+                "rt.nz_mul({}, {}, {});",
+                src_offset, dest_offset, multi
+            )?,
             OpType::GetChar(offset) => writeln!(out, "rt.get_char({});", offset)?,
             OpType::PutString(array) => writeln!(out, "rt.put_string({:?});", array)?,
             OpType::PutChar(offset) => writeln!(out, "rt.put_char({});", offset)?,
@@ -75,8 +109,7 @@ fn print_ops(out: &mut String, ops: &[Op]) -> Result<(), Box<dyn Error>> {
                         writeln!(out, "rt.pointer = heap_pointer;")?;
                         writeln!(out, "*rt.heap_value() = 0;")?;
                     }
-                    LoopDecrement::Post |
-                    LoopDecrement::Auto => {
+                    LoopDecrement::Post | LoopDecrement::Auto => {
                         writeln!(out, "let heap_pointer = rt.pointer;")?;
                         writeln!(out, "let mut left = *rt.heap_value();")?;
                         writeln!(out, "while left > 0 {{")?;

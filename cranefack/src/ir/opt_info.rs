@@ -171,7 +171,12 @@ impl CellAccess {
         }
     }
 
-    pub fn new_value(offset: isize, value: u8, read_before_write: bool, read_after_write: bool) -> CellAccess {
+    pub fn new_value(
+        offset: isize,
+        value: u8,
+        read_before_write: bool,
+        read_after_write: bool,
+    ) -> CellAccess {
         CellAccess {
             read_before_write,
             read_after_write,
@@ -227,7 +232,12 @@ impl CellAccess {
         });
     }
 
-    pub fn add_conditional(cells: &mut Vec<CellAccess>, offset: isize, value: Cell, has_read: bool) {
+    pub fn add_conditional(
+        cells: &mut Vec<CellAccess>,
+        offset: isize,
+        value: Cell,
+        has_read: bool,
+    ) {
         for exiting_cell in cells.iter_mut() {
             if exiting_cell.offset == offset {
                 match (&exiting_cell.value, value) {
@@ -255,8 +265,7 @@ impl CellAccess {
                             exiting_cell.value = Cell::Write
                         }
                     }
-                    (Cell::Value(v), Cell::NonZero)
-                    => {
+                    (Cell::Value(v), Cell::NonZero) => {
                         if *v != 0 {
                             exiting_cell.value = Cell::NonZero
                         } else {
@@ -270,8 +279,7 @@ impl CellAccess {
                             exiting_cell.value = Cell::Write
                         }
                     }
-                    (Cell::Value(v), Cell::Bool)
-                    => {
+                    (Cell::Value(v), Cell::Bool) => {
                         if *v == 0 || *v == 1 {
                             exiting_cell.value = Cell::Bool
                         } else {
@@ -337,16 +345,11 @@ impl CellAccess {
                             exiting_cell.value = Cell::NonZero;
                         }
                     }
-                    (Cell::NonZero, Cell::NonZero) |
-                    (_, Cell::Read) => {
+                    (Cell::NonZero, Cell::NonZero) | (_, Cell::Read) => {
                         // Ignore
                     }
-                    (Cell::Read, new) => {
-                        exiting_cell.value = new
-                    }
-                    _ => {
-                        exiting_cell.value = Cell::Write
-                    }
+                    (Cell::Read, new) => exiting_cell.value = new,
+                    _ => exiting_cell.value = Cell::Write,
                 }
 
                 if (has_read || value.is_read()) && exiting_cell.value.is_write() {

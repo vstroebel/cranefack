@@ -33,12 +33,14 @@ impl Warning {
         }
     }
 
-    pub fn pretty_print(warnings: &[Warning], source: &str, filename: Option<&str>) -> Result<(), Box<dyn Error>> {
+    pub fn pretty_print(
+        warnings: &[Warning],
+        source: &str,
+        filename: Option<&str>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut files = SimpleFiles::new();
 
-        let file_id = files.add(
-            filename.unwrap_or(""),
-            source);
+        let file_id = files.add(filename.unwrap_or(""), source);
 
         let writer = StandardStream::stderr(ColorChoice::Always);
         let config = codespan_reporting::term::Config::default();
@@ -47,13 +49,9 @@ impl Warning {
             let span = warning.span.clone();
 
             let diagnostic = match &warning.warning_type {
-                WarningType::InfiniteLoop => {
-                    Diagnostic::warning()
-                        .with_message("Possible infinite loop")
-                        .with_labels(vec![
-                            Label::primary(file_id, span)
-                        ])
-                }
+                WarningType::InfiniteLoop => Diagnostic::warning()
+                    .with_message("Possible infinite loop")
+                    .with_labels(vec![Label::primary(file_id, span)]),
             };
 
             codespan_reporting::term::emit(&mut writer.lock(), &config, &files, &diagnostic)?;
@@ -85,15 +83,15 @@ fn analyze_ops(warnings: &mut Vec<Warning>, ops: &[Op]) {
 }
 
 fn check_infinite_loop(warnings: &mut Vec<Warning>, op1: &Op, op2: &Op) {
-    if matches!(op2.op_type, OpType::ILoop(_,0,_, _)) && !op1.op_type.is_zeroing(0) {
+    if matches!(op2.op_type, OpType::ILoop(_, 0, _, _)) && !op1.op_type.is_zeroing(0) {
         warnings.push(Warning::infinite_loop(op2.span.clone()));
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{optimize, parse};
     use crate::analyzer::{analyze, Warning};
+    use crate::{optimize, parse};
 
     #[test]
     fn test_infinite_loop_check() {

@@ -49,17 +49,17 @@
 //! # }
 //! ```
 
-mod parser;
-mod errors;
-mod optimizations;
-mod backends;
 mod analyzer;
+mod backends;
+mod errors;
 mod ir;
+mod optimizations;
+mod parser;
 
-pub use backends::interpreter::Interpreter;
-pub use backends::cranelift::CompiledJitModule;
-pub use backends::rust::compile_to_rust;
-pub use errors::{CraneFackError, ParserError, RuntimeError, CompilerError};
 pub use analyzer::{analyze, Warning, WarningType};
+pub use backends::cranelift::CompiledJitModule;
+pub use backends::interpreter::Interpreter;
+pub use backends::rust::compile_to_rust;
+pub use errors::{CompilerError, CraneFackError, ParserError, RuntimeError};
 pub use optimizations::{optimize, optimize_with_config, OptimizeConfig};
 pub use parser::{parse, Program};

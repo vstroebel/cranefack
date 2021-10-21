@@ -1,9 +1,9 @@
-use std::io::{ErrorKind, Read};
 use std::io::Write;
+use std::io::{ErrorKind, Read};
 use std::ops::Range;
 
 use crate::errors::RuntimeError;
-use crate::ir::ops::{Op, OpType, LoopDecrement};
+use crate::ir::ops::{LoopDecrement, Op, OpType};
 use crate::parser::Program;
 
 const MAX_HEAP_SIZE: usize = 16 * 1024 * 1024;
@@ -136,88 +136,84 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     self.pointer = heap_pointer;
                 }
             }
-            OpType::ILoop(ops, step, decrement, _) => {
-                match decrement {
-                    LoopDecrement::Pre => {
-                        let heap_pointer = self.pointer;
+            OpType::ILoop(ops, step, decrement, _) => match decrement {
+                LoopDecrement::Pre => {
+                    let heap_pointer = self.pointer;
 
-                        let mut left = *self.heap_value(&op.span)?;
-                        while left > 0 {
-                            left = left.wrapping_sub(*step);
-                            *self.heap_value(&op.span)? = left;
-                            self.execute_ops(ops)?;
-                            self.pointer = heap_pointer;
-                        }
-
-                        *self.heap_value(&op.span)? = 0;
+                    let mut left = *self.heap_value(&op.span)?;
+                    while left > 0 {
+                        left = left.wrapping_sub(*step);
+                        *self.heap_value(&op.span)? = left;
+                        self.execute_ops(ops)?;
+                        self.pointer = heap_pointer;
                     }
-                    LoopDecrement::Post => {
-                        let heap_pointer = self.pointer;
 
-                        let mut left = *self.heap_value(&op.span)?;
-                        while left > 0 {
-                            self.execute_ops(ops)?;
-                            left = left.wrapping_sub(*step);
-                            *self.heap_value(&op.span)? = left;
-                            self.pointer = heap_pointer;
-                        }
-
-                        *self.heap_value(&op.span)? = 0;
-                    }
-                    LoopDecrement::Auto => {
-                        let heap_pointer = self.pointer;
-
-                        let mut left = *self.heap_value(&op.span)?;
-                        while left > 0 {
-                            self.execute_ops(ops)?;
-                            left = left.wrapping_sub(*step);
-                            self.pointer = heap_pointer;
-                        }
-
-                        *self.heap_value(&op.span)? = 0;
-                    }
+                    *self.heap_value(&op.span)? = 0;
                 }
-            }
-            OpType::CLoop(ops, iterations, decrement, _) => {
-                match decrement {
-                    LoopDecrement::Pre => {
-                        let heap_pointer = self.pointer;
+                LoopDecrement::Post => {
+                    let heap_pointer = self.pointer;
 
-                        *self.heap_value(&op.span)? = *iterations;
-                        let mut left = *self.heap_value(&op.span)?;
-                        while left > 0 {
-                            left = left.wrapping_sub(1);
-                            *self.heap_value(&op.span)? = left;
-                            self.execute_ops(ops)?;
-                            self.pointer = heap_pointer;
-                        }
-
-                        *self.heap_value(&op.span)? = 0;
+                    let mut left = *self.heap_value(&op.span)?;
+                    while left > 0 {
+                        self.execute_ops(ops)?;
+                        left = left.wrapping_sub(*step);
+                        *self.heap_value(&op.span)? = left;
+                        self.pointer = heap_pointer;
                     }
-                    LoopDecrement::Post => {
-                        let heap_pointer = self.pointer;
 
-                        *self.heap_value(&op.span)? = *iterations;
-                        let mut left = *self.heap_value(&op.span)?;
-                        while left > 0 {
-                            self.execute_ops(ops)?;
-                            self.pointer = heap_pointer;
-                            left = left.wrapping_sub(1);
-                            *self.heap_value(&op.span)? = left;
-                        }
-
-                        *self.heap_value(&op.span)? = 0;
-                    }
-                    LoopDecrement::Auto => {
-                        let heap_pointer = self.pointer;
-                        for _ in 0..*iterations {
-                            self.execute_ops(ops)?;
-                            self.pointer = heap_pointer;
-                        }
-                        *self.heap_value(&op.span)? = 0;
-                    }
+                    *self.heap_value(&op.span)? = 0;
                 }
-            }
+                LoopDecrement::Auto => {
+                    let heap_pointer = self.pointer;
+
+                    let mut left = *self.heap_value(&op.span)?;
+                    while left > 0 {
+                        self.execute_ops(ops)?;
+                        left = left.wrapping_sub(*step);
+                        self.pointer = heap_pointer;
+                    }
+
+                    *self.heap_value(&op.span)? = 0;
+                }
+            },
+            OpType::CLoop(ops, iterations, decrement, _) => match decrement {
+                LoopDecrement::Pre => {
+                    let heap_pointer = self.pointer;
+
+                    *self.heap_value(&op.span)? = *iterations;
+                    let mut left = *self.heap_value(&op.span)?;
+                    while left > 0 {
+                        left = left.wrapping_sub(1);
+                        *self.heap_value(&op.span)? = left;
+                        self.execute_ops(ops)?;
+                        self.pointer = heap_pointer;
+                    }
+
+                    *self.heap_value(&op.span)? = 0;
+                }
+                LoopDecrement::Post => {
+                    let heap_pointer = self.pointer;
+
+                    *self.heap_value(&op.span)? = *iterations;
+                    let mut left = *self.heap_value(&op.span)?;
+                    while left > 0 {
+                        self.execute_ops(ops)?;
+                        self.pointer = heap_pointer;
+                        left = left.wrapping_sub(1);
+                        *self.heap_value(&op.span)? = left;
+                    }
+
+                    *self.heap_value(&op.span)? = 0;
+                }
+                LoopDecrement::Auto => {
+                    let heap_pointer = self.pointer;
+                    for _ in 0..*iterations {
+                        self.execute_ops(ops)?;
+                        self.pointer = heap_pointer;
+                    }
+                    *self.heap_value(&op.span)? = 0;
+                }
+            },
             OpType::TNz(ops, _) => {
                 if *self.heap_value(&op.span)? != 0 {
                     let heap_pointer = self.pointer;
@@ -268,7 +264,11 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         Ok(&mut self.heap[self.pointer])
     }
 
-    fn heap_value_at(&mut self, span: &Range<usize>, pointer: isize) -> Result<&mut u8, RuntimeError> {
+    fn heap_value_at(
+        &mut self,
+        span: &Range<usize>,
+        pointer: isize,
+    ) -> Result<&mut u8, RuntimeError> {
         let pointer = pointer.max(0) as usize;
 
         if pointer >= self.max_heap_size {
@@ -285,7 +285,11 @@ impl<R: Read, W: Write> Interpreter<R, W> {
         Ok(&mut self.heap[pointer])
     }
 
-    fn heap_value_at_offset(&mut self, span: &Range<usize>, ptr_offset: isize) -> Result<&mut u8, RuntimeError> {
+    fn heap_value_at_offset(
+        &mut self,
+        span: &Range<usize>,
+        ptr_offset: isize,
+    ) -> Result<&mut u8, RuntimeError> {
         let pointer = self.pointer as isize + ptr_offset;
 
         let pointer = pointer.max(0) as usize;
@@ -329,7 +333,8 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             write!(self.output, "{}", ch as char)
         } else {
             write!(self.output, "\\0x{:x}", ch)
-        }.map_err(|error| RuntimeError::IoError {
+        }
+        .map_err(|error| RuntimeError::IoError {
             span: span.clone(),
             error,
         })
@@ -341,7 +346,8 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 write!(self.output, "{}", ch as char)
             } else {
                 write!(self.output, "\\0x{:x}", ch)
-            }.map_err(|error| RuntimeError::IoError {
+            }
+            .map_err(|error| RuntimeError::IoError {
                 span: span.clone(),
                 error,
             })?;
@@ -351,27 +357,27 @@ impl<R: Read, W: Write> Interpreter<R, W> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
 
     use crate::backends::interpreter::Interpreter;
-    use crate::parser::parse;
-    use crate::{Program, optimize_with_config, OptimizeConfig};
-    use crate::ir::ops::{Op, LoopDecrement};
+    use crate::ir::ops::{LoopDecrement, Op};
     use crate::ir::opt_info::BlockInfo;
+    use crate::parser::parse;
+    use crate::{optimize_with_config, OptimizeConfig, Program};
 
     #[test]
     fn test_out_1() {
         let mut program = parse(">+.").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"\x01");
     }
@@ -384,7 +390,9 @@ mod tests {
         let input = b"a";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"c");
     }
@@ -394,29 +402,33 @@ mod tests {
         let mut program = parse("+++[>+<-]>.").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"\x03");
     }
 
     #[test]
     fn test_hello_world() {
-        let mut program = parse("
+        let mut program = parse(
+            "
                 >+++++++++[<++++++++>-]<.>+++++++[<++++>-]<+.+++++++..+++.[-]
                 >++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++
-                .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++."
-        ).unwrap();
+                .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++.",
+        )
+        .unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"Hello world!\n");
     }
@@ -426,11 +438,12 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/hello_world.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"Hello World!\n");
     }
@@ -439,7 +452,6 @@ mod tests {
     fn test_count_loop() {
         let mut program = parse("++++[->++<]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -457,7 +469,6 @@ mod tests {
         let mut program = parse("++++[->++<]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -474,7 +485,6 @@ mod tests {
         let mut program = parse("").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -490,7 +500,6 @@ mod tests {
         let mut program = parse("[>+++++<-]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -505,7 +514,6 @@ mod tests {
     fn test_multiply() {
         let mut program = parse(">>++<<++[>+++++<-]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -523,7 +531,6 @@ mod tests {
         let mut program = parse(">>++<<++++++++++++[>+<---]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -539,7 +546,6 @@ mod tests {
     fn test_pow_5_3() {
         let mut program = parse("+++++[>+++++[>+++++<-]<-]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -558,7 +564,6 @@ mod tests {
         let mut program = parse("++++++++[---->+<++]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -574,7 +579,6 @@ mod tests {
     fn test_conditional_set() {
         let mut program = parse("+>>++<<[->[-]++++++<]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -593,7 +597,6 @@ mod tests {
         let mut program = parse("++++[-]++").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -609,11 +612,12 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/fizz.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"1W\n");
     }
@@ -623,11 +627,12 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/fizzbuzz.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"987654321");
     }
@@ -637,13 +642,17 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/bottles.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
-        assert_eq!(output, include_bytes!("../../../test_programs/bottles.bf.out"));
+        assert_eq!(
+            output,
+            include_bytes!("../../../test_programs/bottles.bf.out")
+        );
     }
 
     #[test]
@@ -651,13 +660,17 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/factor.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = include_bytes!("../../../test_programs/factor.bf.in");
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
-        assert_eq!(output, include_bytes!("../../../test_programs/factor.bf.out"));
+        assert_eq!(
+            output,
+            include_bytes!("../../../test_programs/factor.bf.out")
+        );
     }
 
     #[test]
@@ -665,11 +678,12 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/life.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = include_bytes!("../../../test_programs/life.bf.in");
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, include_bytes!("../../../test_programs/life.bf.out"));
     }
@@ -679,11 +693,12 @@ mod tests {
         let mut program = parse(",[.,]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"0123456789aZ";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"0123456789aZ");
     }
@@ -693,11 +708,12 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/cell_size.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
         assert_eq!(output, b"8 bit cells\n");
     }
@@ -710,9 +726,14 @@ mod tests {
         let input = include_bytes!("../../../test_programs/mandelbrot.bf");
         let mut output = Vec::new();
 
-        Interpreter::new(Cursor::new(input), &mut output).execute(&program).unwrap();
+        Interpreter::new(Cursor::new(input), &mut output)
+            .execute(&program)
+            .unwrap();
 
-        assert_eq!(output, include_bytes!("../../../test_programs/mandelbrot.c"));
+        assert_eq!(
+            output,
+            include_bytes!("../../../test_programs/mandelbrot.c")
+        );
     }
 
     #[test]
@@ -720,13 +741,19 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 5),
-                Op::i_loop_with_decrement(1..4, vec![
-                    Op::inc_ptr(1..2, 1),
-                    Op::inc(1..2, 1),
-                    Op::dec_ptr(1..2, 1),
-                    Op::put_char(1..2),
-                ], 1, LoopDecrement::Pre, BlockInfo::new_empty()),
-            ]
+                Op::i_loop_with_decrement(
+                    1..4,
+                    vec![
+                        Op::inc_ptr(1..2, 1),
+                        Op::inc(1..2, 1),
+                        Op::dec_ptr(1..2, 1),
+                        Op::put_char(1..2),
+                    ],
+                    1,
+                    LoopDecrement::Pre,
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -745,10 +772,14 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 5),
-                Op::i_loop_with_decrement(1..4, vec![
-                    Op::put_char(1..2),
-                ], 1, LoopDecrement::Post, BlockInfo::new_empty()),
-            ]
+                Op::i_loop_with_decrement(
+                    1..4,
+                    vec![Op::put_char(1..2)],
+                    1,
+                    LoopDecrement::Post,
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -764,14 +795,18 @@ mod tests {
     #[test]
     fn test_c_loop_pre() {
         let program = Program {
-            ops: vec![
-                Op::c_loop_with_decrement(1..4, vec![
+            ops: vec![Op::c_loop_with_decrement(
+                1..4,
+                vec![
                     Op::inc_ptr(1..2, 1),
                     Op::inc(1..2, 1),
                     Op::dec_ptr(1..2, 1),
                     Op::put_char(1..2),
-                ], 5, LoopDecrement::Pre, BlockInfo::new_empty()),
-            ]
+                ],
+                5,
+                LoopDecrement::Pre,
+                BlockInfo::new_empty(),
+            )],
         };
 
         let input = b"";
@@ -788,11 +823,13 @@ mod tests {
     #[test]
     fn test_c_loop_post() {
         let program = Program {
-            ops: vec![
-                Op::c_loop_with_decrement(1..4, vec![
-                    Op::put_char(1..2),
-                ], 5, LoopDecrement::Post, BlockInfo::new_empty()),
-            ]
+            ops: vec![Op::c_loop_with_decrement(
+                1..4,
+                vec![Op::put_char(1..2)],
+                5,
+                LoopDecrement::Post,
+                BlockInfo::new_empty(),
+            )],
         };
 
         let input = b"";

@@ -1,10 +1,11 @@
 use std::mem::MaybeUninit;
 
-use crate::optimizations::utils::Change;
 use crate::ir::ops::Op;
+use crate::optimizations::utils::Change;
 
 pub fn run_peephole_pass<F, const WINDOW: usize>(mut ops: &mut Vec<Op>, func: F) -> bool
-    where F: Fn([&Op; WINDOW]) -> Change + Copy
+where
+    F: Fn([&Op; WINDOW]) -> Change + Copy,
 {
     let mut i = 0;
 

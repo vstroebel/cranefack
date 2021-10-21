@@ -1,5 +1,5 @@
-use std::ops::Range;
 use crate::ir::opt_info::BlockInfo;
+use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Op {
@@ -120,7 +120,13 @@ impl Op {
         }
     }
 
-    pub fn i_loop_with_decrement(span: Range<usize>, ops: Vec<Op>, step: u8, decrement: LoopDecrement, info: BlockInfo) -> Op {
+    pub fn i_loop_with_decrement(
+        span: Range<usize>,
+        ops: Vec<Op>,
+        step: u8,
+        decrement: LoopDecrement,
+        info: BlockInfo,
+    ) -> Op {
         Op {
             op_type: OpType::ILoop(ops, step, decrement, info),
             span,
@@ -134,7 +140,13 @@ impl Op {
         }
     }
 
-    pub fn c_loop_with_decrement(span: Range<usize>, ops: Vec<Op>, iterations: u8, decrement: LoopDecrement, info: BlockInfo) -> Op {
+    pub fn c_loop_with_decrement(
+        span: Range<usize>,
+        ops: Vec<Op>,
+        iterations: u8,
+        decrement: LoopDecrement,
+        info: BlockInfo,
+    ) -> Op {
         Op {
             op_type: OpType::CLoop(ops, iterations, decrement, info),
             span,
@@ -162,7 +174,12 @@ impl Op {
         }
     }
 
-    pub fn add_with_offset(span: Range<usize>, src_offset: isize, dest_offset: isize, multi: u8) -> Op {
+    pub fn add_with_offset(
+        span: Range<usize>,
+        src_offset: isize,
+        dest_offset: isize,
+        multi: u8,
+    ) -> Op {
         Op {
             op_type: OpType::Add(src_offset, dest_offset, multi),
             span,
@@ -190,7 +207,12 @@ impl Op {
         }
     }
 
-    pub fn c_add_with_offset(span: Range<usize>, src_offset: isize, dest_offset: isize, value: u8) -> Op {
+    pub fn c_add_with_offset(
+        span: Range<usize>,
+        src_offset: isize,
+        dest_offset: isize,
+        value: u8,
+    ) -> Op {
         Op {
             op_type: OpType::CAdd(src_offset, dest_offset, value),
             span,
@@ -218,7 +240,12 @@ impl Op {
         }
     }
 
-    pub fn nz_sub_with_offset(span: Range<usize>, src_offset: isize, dest_offset: isize, multi: u8) -> Op {
+    pub fn nz_sub_with_offset(
+        span: Range<usize>,
+        src_offset: isize,
+        dest_offset: isize,
+        multi: u8,
+    ) -> Op {
         Op {
             op_type: OpType::NzSub(src_offset, dest_offset, multi),
             span,
@@ -253,7 +280,12 @@ impl Op {
         }
     }
 
-    pub fn d_t_nz(span: Range<usize>, ops: Vec<Op>, end_offset: Option<isize>, info: BlockInfo) -> Op {
+    pub fn d_t_nz(
+        span: Range<usize>,
+        ops: Vec<Op>,
+        end_offset: Option<isize>,
+        info: BlockInfo,
+    ) -> Op {
         Op {
             op_type: OpType::DTNz(ops, end_offset, info),
             span,
@@ -281,7 +313,6 @@ pub enum LoopDecrement {
     /// The counter isn't accessed during loop invocation
     Auto,
 }
-
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpType {
@@ -401,44 +432,37 @@ impl OpType {
 
     /// Test for arithmetic ops without offsets
     pub fn is_simple_arithmetic(&self) -> bool {
-        matches!(self,
-            OpType::Set(_, _) |
-            OpType::Inc(_, _) |
-            OpType::Dec(_, _) |
-            OpType::IncPtr(_) |
-            OpType::DecPtr(_)
+        matches!(
+            self,
+            OpType::Set(_, _)
+                | OpType::Inc(_, _)
+                | OpType::Dec(_, _)
+                | OpType::IncPtr(_)
+                | OpType::DecPtr(_)
         )
     }
 
     /// Test for arithmetic ops
     pub fn is_arithmetic(&self) -> bool {
-        matches!(self,
-            OpType::Set(..) |
-            OpType::Inc(..) |
-            OpType::Dec(..)
-        )
+        matches!(self, OpType::Set(..) | OpType::Inc(..) | OpType::Dec(..))
     }
 
     /// Test if op zeros the src offset
     pub fn is_zeroing(&self, test_offset: isize) -> bool {
         match self {
-            OpType::Add(offset, ..) |
-            OpType::CAdd(offset, ..) |
-            OpType::Sub(offset, ..) |
-            OpType::CSub(offset, ..) |
-            OpType::Move(offset, ..) |
-            OpType::Set(offset, 0) => {
-                test_offset == *offset
-            }
-            OpType::DLoop(..) |
-            OpType::LLoop(..) |
-            OpType::ILoop(..) |
-            OpType::CLoop(..) |
-            OpType::TNz(..) |
-            OpType::DTNz(..) |
-            OpType::SearchZero(..) => {
-                test_offset == 0
-            }
+            OpType::Add(offset, ..)
+            | OpType::CAdd(offset, ..)
+            | OpType::Sub(offset, ..)
+            | OpType::CSub(offset, ..)
+            | OpType::Move(offset, ..)
+            | OpType::Set(offset, 0) => test_offset == *offset,
+            OpType::DLoop(..)
+            | OpType::LLoop(..)
+            | OpType::ILoop(..)
+            | OpType::CLoop(..)
+            | OpType::TNz(..)
+            | OpType::DTNz(..)
+            | OpType::SearchZero(..) => test_offset == 0,
             OpType::Start => true,
             _ => false,
         }
@@ -447,14 +471,10 @@ impl OpType {
     /// Test if op zeros the src offset without reading/using the value
     pub fn is_zeroing_unread(&self, test_offset: isize) -> bool {
         match self {
-            OpType::CAdd(offset, ..) |
-            OpType::CSub(offset, ..) |
-            OpType::Set(offset, 0) => {
+            OpType::CAdd(offset, ..) | OpType::CSub(offset, ..) | OpType::Set(offset, 0) => {
                 test_offset == *offset
             }
-            OpType::CLoop(..) => {
-                test_offset == 0
-            }
+            OpType::CLoop(..) => test_offset == 0,
             _ => false,
         }
     }
@@ -462,13 +482,10 @@ impl OpType {
     /// Returns the destination offset for ops that overwrites a cell
     pub fn get_overwriting_dest_offset(&self) -> Option<isize> {
         match self {
-            OpType::Move(_, dest_offset) |
-            OpType::Copy(_, dest_offset) |
-            OpType::Set(dest_offset, _) |
-            OpType::GetChar(dest_offset)
-            => {
-                Some(*dest_offset)
-            }
+            OpType::Move(_, dest_offset)
+            | OpType::Copy(_, dest_offset)
+            | OpType::Set(dest_offset, _)
+            | OpType::GetChar(dest_offset) => Some(*dest_offset),
 
             _ => None,
         }
@@ -477,112 +494,91 @@ impl OpType {
     /// Returns the source offset for ops that set it to zero without reading the value
     pub fn get_unread_zeroing_src_offset(&self) -> Option<isize> {
         match self {
-            OpType::CAdd(offset, ..) |
-            OpType::CSub(offset, ..) |
-            OpType::Set(offset, 0) |
-            OpType::GetChar(offset) => {
-                Some(*offset)
-            }
-            OpType::CLoop(..) => {
-                Some(0)
-            }
+            OpType::CAdd(offset, ..)
+            | OpType::CSub(offset, ..)
+            | OpType::Set(offset, 0)
+            | OpType::GetChar(offset) => Some(*offset),
+            OpType::CLoop(..) => Some(0),
             _ => None,
         }
     }
 
     pub fn get_children(&self) -> Option<&Vec<Op>> {
         match self {
-            OpType::DLoop(children, ..) |
-            OpType::LLoop(children, ..) |
-            OpType::ILoop(children, ..) |
-            OpType::CLoop(children, ..) |
-            OpType::TNz(children, ..) |
-            OpType::DTNz(children, ..)
-            => Some(children),
+            OpType::DLoop(children, ..)
+            | OpType::LLoop(children, ..)
+            | OpType::ILoop(children, ..)
+            | OpType::CLoop(children, ..)
+            | OpType::TNz(children, ..)
+            | OpType::DTNz(children, ..) => Some(children),
             _ => None,
         }
     }
 
     pub fn get_children_mut(&mut self) -> Option<&mut Vec<Op>> {
         match self {
-            OpType::DLoop(children, ..) |
-            OpType::LLoop(children, ..) |
-            OpType::ILoop(children, ..) |
-            OpType::CLoop(children, ..) |
-            OpType::TNz(children, ..) |
-            OpType::DTNz(children, ..)
-            => Some(children),
+            OpType::DLoop(children, ..)
+            | OpType::LLoop(children, ..)
+            | OpType::ILoop(children, ..)
+            | OpType::CLoop(children, ..)
+            | OpType::TNz(children, ..)
+            | OpType::DTNz(children, ..) => Some(children),
             _ => None,
         }
     }
 
     pub fn get_block_info(&self) -> Option<&BlockInfo> {
         match self {
-            OpType::DLoop(_, info) |
-            OpType::LLoop(_, info) |
-            OpType::ILoop(_, _, _, info) |
-            OpType::CLoop(_, _, _, info) |
-            OpType::TNz(_, info) |
-            OpType::DTNz(_, _, info)
-            => Some(info),
+            OpType::DLoop(_, info)
+            | OpType::LLoop(_, info)
+            | OpType::ILoop(_, _, _, info)
+            | OpType::CLoop(_, _, _, info)
+            | OpType::TNz(_, info)
+            | OpType::DTNz(_, _, info) => Some(info),
             _ => None,
         }
     }
 
     pub fn get_block_info_mut(&mut self) -> Option<&mut BlockInfo> {
         match self {
-            OpType::DLoop(_, info) |
-            OpType::LLoop(_, info) |
-            OpType::ILoop(_, _, _, info) |
-            OpType::CLoop(_, _, _, info) |
-            OpType::TNz(_, info) |
-            OpType::DTNz(_, _, info)
-            => Some(info),
+            OpType::DLoop(_, info)
+            | OpType::LLoop(_, info)
+            | OpType::ILoop(_, _, _, info)
+            | OpType::CLoop(_, _, _, info)
+            | OpType::TNz(_, info)
+            | OpType::DTNz(_, _, info) => Some(info),
             _ => None,
         }
     }
 
     pub fn is_possible_write(&self, test_offset: isize) -> bool {
         match self {
-            OpType::Inc(offset, _) |
-            OpType::Dec(offset, _) |
-            OpType::Set(offset, _) |
-            OpType::GetChar(offset) |
-            OpType::NzAdd(_, offset, _) |
-            OpType::NzCAdd(_, offset, _) |
-            OpType::NzSub(_, offset, _) |
-            OpType::NzCSub(_, offset, _) |
-            OpType::NzMul(_, offset, _) |
-            OpType::Copy(_, offset)
-            => {
-                *offset == test_offset
-            }
-            OpType::Add(src_offset, dest_offset, _) |
-            OpType::CAdd(src_offset, dest_offset, _) |
-            OpType::Sub(src_offset, dest_offset, _) |
-            OpType::CSub(src_offset, dest_offset, _) |
-            OpType::Mul(src_offset, dest_offset, _) |
-            OpType::Move(src_offset, dest_offset)
-            => {
+            OpType::Inc(offset, _)
+            | OpType::Dec(offset, _)
+            | OpType::Set(offset, _)
+            | OpType::GetChar(offset)
+            | OpType::NzAdd(_, offset, _)
+            | OpType::NzCAdd(_, offset, _)
+            | OpType::NzSub(_, offset, _)
+            | OpType::NzCSub(_, offset, _)
+            | OpType::NzMul(_, offset, _)
+            | OpType::Copy(_, offset) => *offset == test_offset,
+            OpType::Add(src_offset, dest_offset, _)
+            | OpType::CAdd(src_offset, dest_offset, _)
+            | OpType::Sub(src_offset, dest_offset, _)
+            | OpType::CSub(src_offset, dest_offset, _)
+            | OpType::Mul(src_offset, dest_offset, _)
+            | OpType::Move(src_offset, dest_offset) => {
                 *src_offset == test_offset || *dest_offset == test_offset
             }
-            OpType::PutString(_) |
-            OpType::PutChar(_) |
-            OpType::IncPtr(_) |
-            OpType::DecPtr(_)
-            => false,
-            OpType::Start |
-            OpType::SearchZero(_, _) |
-            OpType::DLoop(..) |
-            OpType::DTNz(..)
-            => true,
-            OpType::LLoop(.., info) |
-            OpType::ILoop(.., info) |
-            OpType::CLoop(.., info) |
-            OpType::TNz(.., info)
-            => {
-                test_offset == 0 || info.was_cell_written(test_offset)
+            OpType::PutString(_) | OpType::PutChar(_) | OpType::IncPtr(_) | OpType::DecPtr(_) => {
+                false
             }
+            OpType::Start | OpType::SearchZero(_, _) | OpType::DLoop(..) | OpType::DTNz(..) => true,
+            OpType::LLoop(.., info)
+            | OpType::ILoop(.., info)
+            | OpType::CLoop(.., info)
+            | OpType::TNz(.., info) => test_offset == 0 || info.was_cell_written(test_offset),
         }
     }
 }

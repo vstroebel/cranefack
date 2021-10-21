@@ -10,9 +10,9 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
 
 use crate::errors::CompilerError;
-use crate::ir::ops::{Op, OpType, LoopDecrement};
-use crate::OptimizeConfig;
+use crate::ir::ops::{LoopDecrement, Op, OpType};
 use crate::parser::Program;
+use crate::OptimizeConfig;
 
 struct Builder<'a> {
     pointer_type: Type,
@@ -35,22 +35,44 @@ impl<'a> Builder<'a> {
                 OpType::Inc(offset, value) => self.inc(*offset, *value),
                 OpType::Dec(offset, value) => self.dec(*offset, *value),
                 OpType::Set(offset, value) => self.set(*offset, *value),
-                OpType::Add(src_offset, dest_offset, multi) => self.add(*src_offset, *dest_offset, *multi),
-                OpType::NzAdd(src_offset, dest_offset, multi) => self.nz_add(*src_offset, *dest_offset, *multi),
-                OpType::CAdd(src_offset, dest_offset, value) => self.c_add(*src_offset, *dest_offset, *value),
-                OpType::NzCAdd(src_offset, dest_offset, value) => self.nz_c_add(*src_offset, *dest_offset, *value),
-                OpType::Sub(src_offset, dest_offset, multi) => self.sub(*src_offset, *dest_offset, *multi),
-                OpType::NzSub(src_offset, dest_offset, multi) => self.nz_sub(*src_offset, *dest_offset, *multi),
-                OpType::CSub(src_offset, dest_offset, value) => self.c_sub(*src_offset, *dest_offset, *value),
-                OpType::NzCSub(src_offset, dest_offset, value) => self.nz_c_sub(*src_offset, *dest_offset, *value),
-                OpType::Mul(src_offset, dest_offset, multi) => self.mul(*src_offset, *dest_offset, *multi),
-                OpType::NzMul(src_offset, dest_offset, multi) => self.nz_mul(*src_offset, *dest_offset, *multi),
+                OpType::Add(src_offset, dest_offset, multi) => {
+                    self.add(*src_offset, *dest_offset, *multi)
+                }
+                OpType::NzAdd(src_offset, dest_offset, multi) => {
+                    self.nz_add(*src_offset, *dest_offset, *multi)
+                }
+                OpType::CAdd(src_offset, dest_offset, value) => {
+                    self.c_add(*src_offset, *dest_offset, *value)
+                }
+                OpType::NzCAdd(src_offset, dest_offset, value) => {
+                    self.nz_c_add(*src_offset, *dest_offset, *value)
+                }
+                OpType::Sub(src_offset, dest_offset, multi) => {
+                    self.sub(*src_offset, *dest_offset, *multi)
+                }
+                OpType::NzSub(src_offset, dest_offset, multi) => {
+                    self.nz_sub(*src_offset, *dest_offset, *multi)
+                }
+                OpType::CSub(src_offset, dest_offset, value) => {
+                    self.c_sub(*src_offset, *dest_offset, *value)
+                }
+                OpType::NzCSub(src_offset, dest_offset, value) => {
+                    self.nz_c_sub(*src_offset, *dest_offset, *value)
+                }
+                OpType::Mul(src_offset, dest_offset, multi) => {
+                    self.mul(*src_offset, *dest_offset, *multi)
+                }
+                OpType::NzMul(src_offset, dest_offset, multi) => {
+                    self.nz_mul(*src_offset, *dest_offset, *multi)
+                }
                 OpType::Move(src_offset, dest_offset) => self._move(*src_offset, *dest_offset),
                 OpType::Copy(src_offset, dest_offset) => self.copy(*src_offset, *dest_offset),
                 OpType::DLoop(ops, _) => self.d_loop(ops),
                 OpType::LLoop(ops, _) => self.l_loop(ops),
                 OpType::ILoop(ops, step, decrement, _) => self.i_loop(ops, *step, *decrement),
-                OpType::CLoop(ops, iterations, decrement, _) => self.c_loop(ops, *iterations, *decrement),
+                OpType::CLoop(ops, iterations, decrement, _) => {
+                    self.c_loop(ops, *iterations, *decrement)
+                }
                 OpType::TNz(ops, _) => self.tnz(ops),
                 OpType::DTNz(ops, _, _) => self.d_tnz(ops),
                 OpType::SearchZero(step, _) => self.search_zero(*step),
@@ -66,11 +88,15 @@ impl<'a> Builder<'a> {
     }
 
     fn load(&mut self, offset: isize) -> Value {
-        self.bcx.ins().load(types::I8, MemFlags::new(), self.heap_ptr, offset as i32)
+        self.bcx
+            .ins()
+            .load(types::I8, MemFlags::new(), self.heap_ptr, offset as i32)
     }
 
     fn store(&mut self, offset: isize, value: Value) {
-        self.bcx.ins().store(MemFlags::new(), value, self.heap_ptr, offset as i32);
+        self.bcx
+            .ins()
+            .store(MemFlags::new(), value, self.heap_ptr, offset as i32);
     }
 
     fn inc_ptr(&mut self, value: usize) {
@@ -319,7 +345,6 @@ impl<'a> Builder<'a> {
         let next = self.bcx.create_block();
         self.bcx.append_block_param(next, self.pointer_type);
 
-
         let value = self.load(0);
 
         self.bcx.ins().fallthrough(head, &[self.heap_ptr, value]);
@@ -383,7 +408,9 @@ impl<'a> Builder<'a> {
             self.store(0, iterations);
         }
 
-        self.bcx.ins().fallthrough(head, &[self.heap_ptr, iterations]);
+        self.bcx
+            .ins()
+            .fallthrough(head, &[self.heap_ptr, iterations]);
 
         // Head with condition
         self.bcx.switch_to_block(head);
@@ -505,10 +532,7 @@ struct Environment<'a, 'b> {
 
 impl<'a, 'b> Environment<'a, 'b> {
     pub fn new(input: &'a mut dyn Read, output: &'b mut dyn Write) -> Environment<'a, 'b> {
-        Environment {
-            input,
-            output,
-        }
+        Environment { input, output }
     }
 }
 
@@ -548,7 +572,10 @@ pub struct CompiledJitModule {
 
 impl CompiledJitModule {
     /// Compile program
-    pub fn new(program: &Program, opt_mode: &OptimizeConfig) -> Result<CompiledJitModule, CompilerError> {
+    pub fn new(
+        program: &Program,
+        opt_mode: &OptimizeConfig,
+    ) -> Result<CompiledJitModule, CompilerError> {
         let mut flag_builder = settings::builder();
 
         if let Some(jit_level) = &opt_mode.jit_level {
@@ -576,20 +603,23 @@ impl CompiledJitModule {
         get_char_sig.params.push(AbiParam::new(pointer_type));
         get_char_sig.returns.push(AbiParam::new(types::I8));
 
-        let get_char_func = module.declare_function("get_char", Linkage::Import, &get_char_sig).unwrap();
+        let get_char_func = module
+            .declare_function("get_char", Linkage::Import, &get_char_sig)
+            .unwrap();
 
         let mut put_char_sig = module.make_signature();
         put_char_sig.params.push(AbiParam::new(pointer_type));
         put_char_sig.params.push(AbiParam::new(types::I8));
 
-        let put_char_func = module.declare_function("put_char", Linkage::Import, &put_char_sig).unwrap();
+        let put_char_func = module
+            .declare_function("put_char", Linkage::Import, &put_char_sig)
+            .unwrap();
 
         let mut ctx = module.make_context();
         let mut func_ctx = FunctionBuilderContext::new();
 
         let mut trap_sink = NullTrapSink {};
         let mut stack_map_sink = NullStackMapSink {};
-
 
         let mut sig = module.make_signature();
         sig.params.push(AbiParam::new(pointer_type));
@@ -638,7 +668,7 @@ impl CompiledJitModule {
                 if let Err((_inst, msg)) = bcx.func.is_block_basic(block) {
                     println!("{}", bcx.func);
                     return Err(CompilerError::InternalCompilerError {
-                        message: format!("Bad block: {}, {}", msg, block)
+                        message: format!("Bad block: {}, {}", msg, block),
                     });
                 }
             }
@@ -703,22 +733,23 @@ impl Drop for CompiledJitModule {
 mod tests {
     use std::io::{Cursor, Read, Write};
 
-    use crate::{OptimizeConfig, parse, optimize_with_config};
-    use crate::ir::ops::{Op, LoopDecrement};
+    use crate::ir::ops::{LoopDecrement, Op};
     use crate::parser::Program;
+    use crate::{optimize_with_config, parse, OptimizeConfig};
 
     use super::CompiledJitModule;
     use crate::ir::opt_info::BlockInfo;
 
     fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {
-        CompiledJitModule::new(program, &OptimizeConfig::o2()).unwrap().execute(input, output)
+        CompiledJitModule::new(program, &OptimizeConfig::o2())
+            .unwrap()
+            .execute(input, output)
     }
 
     #[test]
     fn test_simple() {
         let mut program = parse("++>>++++-<-").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -735,7 +766,6 @@ mod tests {
         let mut program = parse(",+.").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"a";
         let mut output = Vec::new();
 
@@ -746,13 +776,14 @@ mod tests {
 
     #[test]
     fn test_hello_world() {
-        let mut program = parse("
+        let mut program = parse(
+            "
                 >+++++++++[<++++++++>-]<.>+++++++[<++++>-]<+.+++++++..+++.[-]
                 >++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++
-                .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++."
-        ).unwrap();
+                .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++.",
+        )
+        .unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -764,10 +795,8 @@ mod tests {
 
     #[test]
     fn test_dloop() {
-        let mut program = parse(">,<++[->+<]>."
-        ).unwrap();
+        let mut program = parse(">,<++[->+<]>.").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"1";
         let mut output = Vec::new();
@@ -782,7 +811,6 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/hello_world.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -795,7 +823,6 @@ mod tests {
     fn test_count_loop() {
         let mut program = parse("++++[->++<]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -811,7 +838,6 @@ mod tests {
         let mut program = parse("++++[->++<]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -826,7 +852,6 @@ mod tests {
         let mut program = parse("").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -840,7 +865,6 @@ mod tests {
         let mut program = parse("[>+++++<-]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -853,7 +877,6 @@ mod tests {
     fn test_multiply() {
         let mut program = parse(">>++<<++[>+++++<-]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -869,7 +892,6 @@ mod tests {
         let mut program = parse(">>++<<++++++++++++[>+<---]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -883,7 +905,6 @@ mod tests {
     fn test_pow_5_3() {
         let mut program = parse("+++++[>+++++[>+++++<-]<-]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -900,7 +921,6 @@ mod tests {
         let mut program = parse("++++++++[---->+<++]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -914,7 +934,6 @@ mod tests {
     fn test_conditional_set() {
         let mut program = parse("+>>++<<[->[-]++++++<]").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -931,7 +950,6 @@ mod tests {
         let mut program = parse("++++[-]++").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -944,7 +962,6 @@ mod tests {
     fn test_constant_loop() {
         let mut program = parse("+++++++++++++[>+>++>>+++<<<<-]->>>>>>+").unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -965,7 +982,6 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/fizz.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
@@ -978,7 +994,6 @@ mod tests {
     fn test_hello_fizzbuzz() {
         let mut program = parse(include_str!("../../../test_programs/fizzbuzz.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();
@@ -993,13 +1008,15 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/bottles.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = b"";
         let mut output = Vec::new();
 
         let _heap = run(&program, Cursor::new(input), &mut output);
 
-        assert_eq!(output, include_bytes!("../../../test_programs/bottles.bf.out"));
+        assert_eq!(
+            output,
+            include_bytes!("../../../test_programs/bottles.bf.out")
+        );
     }
 
     #[test]
@@ -1007,20 +1024,21 @@ mod tests {
         let mut program = parse(include_str!("../../../test_programs/factor.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
-
         let input = include_bytes!("../../../test_programs/factor.bf.in");
         let mut output = Vec::new();
 
         let _heap = run(&program, Cursor::new(input), &mut output);
 
-        assert_eq!(output, include_bytes!("../../../test_programs/factor.bf.out"));
+        assert_eq!(
+            output,
+            include_bytes!("../../../test_programs/factor.bf.out")
+        );
     }
 
     #[test]
     fn test_life() {
         let mut program = parse(include_str!("../../../test_programs/life.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = include_bytes!("../../../test_programs/life.bf.in");
         let mut output = Vec::new();
@@ -1039,7 +1057,7 @@ mod tests {
                 Op::set(0..1, 3),
                 Op::dec_ptr(1..2, 1),
                 Op::set(0..1, 2),
-            ]
+            ],
         };
 
         let input = b"";
@@ -1059,8 +1077,8 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 5),
                 Op::nz_add(1..2, 1, 1),
-                Op::nz_add(2..3, 3, 2)
-            ]
+                Op::nz_add(2..3, 3, 2),
+            ],
         };
 
         let input = b"";
@@ -1077,11 +1095,7 @@ mod tests {
     #[test]
     fn test_add() {
         let program = Program {
-            ops: vec![
-                Op::set(0..1, 5),
-                Op::add(1..2, 1, 2),
-                Op::add(2..3, 3, 1)
-            ]
+            ops: vec![Op::set(0..1, 5), Op::add(1..2, 1, 2), Op::add(2..3, 3, 1)],
         };
 
         let input = b"";
@@ -1102,8 +1116,8 @@ mod tests {
                 Op::set(0..1, 5),
                 Op::nz_add(1..2, 1, 1),
                 Op::nz_add(2..3, 3, 2),
-                Op::add(2..3, 4, 3)
-            ]
+                Op::add(2..3, 4, 3),
+            ],
         };
 
         let input = b"";
@@ -1124,8 +1138,8 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 2),
                 Op::nz_c_add(1..2, 1, 4),
-                Op::nz_c_add(2..3, 3, 8)
-            ]
+                Op::nz_c_add(2..3, 3, 8),
+            ],
         };
 
         let input = b"";
@@ -1145,8 +1159,8 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 2),
                 Op::c_add(1..2, 1, 4),
-                Op::c_add(2..3, 3, 8)
-            ]
+                Op::c_add(2..3, 3, 8),
+            ],
         };
 
         let input = b"";
@@ -1163,11 +1177,7 @@ mod tests {
     #[test]
     fn test_sub() {
         let program = Program {
-            ops: vec![
-                Op::set(0..1, 5),
-                Op::sub(1..2, 1, 2),
-                Op::sub(2..3, 3, 1)
-            ]
+            ops: vec![Op::set(0..1, 5), Op::sub(1..2, 1, 2), Op::sub(2..3, 3, 1)],
         };
 
         let input = b"";
@@ -1188,8 +1198,8 @@ mod tests {
                 Op::set(0..1, 5),
                 Op::nz_sub(1..2, 1, 1),
                 Op::nz_sub(2..3, 3, 2),
-                Op::sub(2..3, 4, 3)
-            ]
+                Op::sub(2..3, 4, 3),
+            ],
         };
 
         let input = b"";
@@ -1210,8 +1220,8 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 2),
                 Op::nz_c_sub(1..2, 1, 4),
-                Op::nz_c_sub(2..3, 3, 8)
-            ]
+                Op::nz_c_sub(2..3, 3, 8),
+            ],
         };
 
         let input = b"";
@@ -1231,8 +1241,8 @@ mod tests {
             ops: vec![
                 Op::set(0..1, 2),
                 Op::c_sub(1..2, 1, 4),
-                Op::c_sub(2..3, 3, 8)
-            ]
+                Op::c_sub(2..3, 3, 8),
+            ],
         };
 
         let input = b"";
@@ -1249,11 +1259,7 @@ mod tests {
     #[test]
     fn test_mul() {
         let program = Program {
-            ops: vec![
-                Op::set(0..1, 5),
-                Op::mul(1..2, 1, 2),
-                Op::mul(2..3, 3, 1)
-            ]
+            ops: vec![Op::set(0..1, 5), Op::mul(1..2, 1, 2), Op::mul(2..3, 3, 1)],
         };
 
         let input = b"";
@@ -1271,8 +1277,8 @@ mod tests {
                 Op::set(0..1, 5),
                 Op::nz_mul(1..2, 1, 2),
                 Op::nz_mul(2..3, 3, 3),
-                Op::mul(2..3, 4, 4)
-            ]
+                Op::mul(2..3, 4, 4),
+            ],
         };
 
         let input = b"";
@@ -1286,10 +1292,7 @@ mod tests {
     #[test]
     fn test_move() {
         let program = Program {
-            ops: vec![
-                Op::set(0..1, 2),
-                Op::_move(1..2, 0, 1),
-            ]
+            ops: vec![Op::set(0..1, 2), Op::_move(1..2, 0, 1)],
         };
 
         let input = b"";
@@ -1305,10 +1308,7 @@ mod tests {
     #[test]
     fn test_copy() {
         let program = Program {
-            ops: vec![
-                Op::set(0..1, 2),
-                Op::copy(1..2, 0, 1),
-            ]
+            ops: vec![Op::set(0..1, 2), Op::copy(1..2, 0, 1)],
         };
 
         let input = b"";
@@ -1324,9 +1324,7 @@ mod tests {
     #[test]
     fn test_get_char() {
         let program = Program {
-            ops: vec![
-                Op::get_char(0..1),
-            ]
+            ops: vec![Op::get_char(0..1)],
         };
 
         let input = b"\x02";
@@ -1341,10 +1339,7 @@ mod tests {
     #[test]
     fn test_put_char() {
         let program = Program {
-            ops: vec![
-                Op::set(0..1, 2),
-                Op::put_char(1..2),
-            ]
+            ops: vec![Op::set(0..1, 2), Op::put_char(1..2)],
         };
 
         let input = b"";
@@ -1361,14 +1356,18 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 5),
-                Op::d_loop(1..4, vec![
-                    Op::dec(1..2, 1),
-                    Op::inc_ptr(1..2, 1),
-                    Op::inc(1..2, 1),
-                    Op::inc(1..2, 1),
-                    Op::dec_ptr(1..2, 1),
-                ], BlockInfo::new_empty()),
-            ]
+                Op::d_loop(
+                    1..4,
+                    vec![
+                        Op::dec(1..2, 1),
+                        Op::inc_ptr(1..2, 1),
+                        Op::inc(1..2, 1),
+                        Op::inc(1..2, 1),
+                        Op::dec_ptr(1..2, 1),
+                    ],
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1385,15 +1384,19 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 5),
-                Op::l_loop(1..4, vec![
-                    Op::inc_ptr(1..2, 1),
-                    Op::dec_ptr(1..2, 1),
-                    Op::dec(1..2, 1),
-                    Op::inc_ptr(1..2, 2),
-                    Op::inc(1..2, 1),
-                    Op::inc(1..2, 1),
-                ], BlockInfo::new_empty()),
-            ]
+                Op::l_loop(
+                    1..4,
+                    vec![
+                        Op::inc_ptr(1..2, 1),
+                        Op::dec_ptr(1..2, 1),
+                        Op::dec(1..2, 1),
+                        Op::inc_ptr(1..2, 2),
+                        Op::inc(1..2, 1),
+                        Op::inc(1..2, 1),
+                    ],
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1411,12 +1414,13 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 5),
-                Op::i_loop(1..4, vec![
-                    Op::inc_ptr(1..2, 2),
-                    Op::inc(1..2, 1),
-                    Op::inc(1..2, 1),
-                ], 1, BlockInfo::new_empty()),
-            ]
+                Op::i_loop(
+                    1..4,
+                    vec![Op::inc_ptr(1..2, 2), Op::inc(1..2, 1), Op::inc(1..2, 1)],
+                    1,
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1434,12 +1438,13 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 10),
-                Op::i_loop(1..4, vec![
-                    Op::inc_ptr(1..2, 2),
-                    Op::inc(1..2, 1),
-                    Op::inc(1..2, 1),
-                ], 2, BlockInfo::new_empty()),
-            ]
+                Op::i_loop(
+                    1..4,
+                    vec![Op::inc_ptr(1..2, 2), Op::inc(1..2, 1), Op::inc(1..2, 1)],
+                    2,
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1457,13 +1462,19 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 5),
-                Op::i_loop_with_decrement(1..4, vec![
-                    Op::inc_ptr(1..2, 1),
-                    Op::inc(1..2, 1),
-                    Op::dec_ptr(1..2, 1),
-                    Op::put_char(1..2),
-                ], 1, LoopDecrement::Pre, BlockInfo::new_empty()),
-            ]
+                Op::i_loop_with_decrement(
+                    1..4,
+                    vec![
+                        Op::inc_ptr(1..2, 1),
+                        Op::inc(1..2, 1),
+                        Op::dec_ptr(1..2, 1),
+                        Op::put_char(1..2),
+                    ],
+                    1,
+                    LoopDecrement::Pre,
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1481,10 +1492,14 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 5),
-                Op::i_loop_with_decrement(1..4, vec![
-                    Op::put_char(1..2),
-                ], 1, LoopDecrement::Post, BlockInfo::new_empty()),
-            ]
+                Op::i_loop_with_decrement(
+                    1..4,
+                    vec![Op::put_char(1..2)],
+                    1,
+                    LoopDecrement::Post,
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1501,11 +1516,16 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 10),
-                Op::c_loop(1..4, vec![
-                    Op::inc_with_offset(1..2, 2, 1),
-                    Op::inc_with_offset(1..2, 2, 1),
-                ], 5, BlockInfo::new_empty()),
-            ]
+                Op::c_loop(
+                    1..4,
+                    vec![
+                        Op::inc_with_offset(1..2, 2, 1),
+                        Op::inc_with_offset(1..2, 2, 1),
+                    ],
+                    5,
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1521,14 +1541,18 @@ mod tests {
     #[test]
     fn test_c_loop_pre() {
         let program = Program {
-            ops: vec![
-                Op::c_loop_with_decrement(1..4, vec![
+            ops: vec![Op::c_loop_with_decrement(
+                1..4,
+                vec![
                     Op::inc_ptr(1..2, 1),
                     Op::inc(1..2, 1),
                     Op::dec_ptr(1..2, 1),
                     Op::put_char(1..2),
-                ], 5, LoopDecrement::Pre, BlockInfo::new_empty()),
-            ]
+                ],
+                5,
+                LoopDecrement::Pre,
+                BlockInfo::new_empty(),
+            )],
         };
 
         let input = b"";
@@ -1544,11 +1568,13 @@ mod tests {
     #[test]
     fn test_c_loop_post() {
         let program = Program {
-            ops: vec![
-                Op::c_loop_with_decrement(1..4, vec![
-                    Op::put_char(1..2),
-                ], 5, LoopDecrement::Post, BlockInfo::new_empty()),
-            ]
+            ops: vec![Op::c_loop_with_decrement(
+                1..4,
+                vec![Op::put_char(1..2)],
+                5,
+                LoopDecrement::Post,
+                BlockInfo::new_empty(),
+            )],
         };
 
         let input = b"";
@@ -1565,10 +1591,12 @@ mod tests {
         let program = Program {
             ops: vec![
                 Op::set(0..1, 1),
-                Op::t_nz(1..4, vec![
-                    Op::set_with_offset(1..2, 2, 10),
-                ], BlockInfo::new_empty()),
-            ]
+                Op::t_nz(
+                    1..4,
+                    vec![Op::set_with_offset(1..2, 2, 10)],
+                    BlockInfo::new_empty(),
+                ),
+            ],
         };
 
         let input = b"";
@@ -1584,11 +1612,11 @@ mod tests {
     #[test]
     fn test_tnz_false() {
         let program = Program {
-            ops: vec![
-                Op::t_nz(1..4, vec![
-                    Op::set_with_offset(1..2, 2, 10),
-                ], BlockInfo::new_empty()),
-            ]
+            ops: vec![Op::t_nz(
+                1..4,
+                vec![Op::set_with_offset(1..2, 2, 10)],
+                BlockInfo::new_empty(),
+            )],
         };
 
         let input = b"";
@@ -1613,7 +1641,7 @@ mod tests {
                 Op::set(1..2, 3),
                 Op::search_zero(0..1, -1),
                 Op::set(1..2, 4),
-            ]
+            ],
         };
 
         let input = b"";
@@ -1637,12 +1665,10 @@ mod tests {
         assert_eq!(output, b"0123456789aZ");
     }
 
-
     #[test]
     fn test_cell_size() {
         let mut program = parse(include_str!("../../../test_programs/cell_size.bf")).unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
-
 
         let input = b"";
         let mut output = Vec::new();

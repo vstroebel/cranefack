@@ -28,7 +28,8 @@ impl Program {
             op_count += 1;
             match &op.op_type {
                 OpType::DLoop(children, ..) => {
-                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) =
+                        self.get_ops_statistics(children);
                     op_count += ops;
                     dloop_count += 1;
                     dloop_count += dloops;
@@ -38,7 +39,8 @@ impl Program {
                     if_count += ifs;
                 }
                 OpType::LLoop(children, ..) => {
-                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) =
+                        self.get_ops_statistics(children);
                     op_count += ops;
                     lloop_count += 1;
                     dloop_count += dloops;
@@ -48,7 +50,8 @@ impl Program {
                     if_count += ifs;
                 }
                 OpType::ILoop(children, ..) => {
-                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) =
+                        self.get_ops_statistics(children);
                     op_count += ops;
                     iloop_count += 1;
                     dloop_count += dloops;
@@ -58,7 +61,8 @@ impl Program {
                     if_count += ifs;
                 }
                 OpType::CLoop(children, ..) => {
-                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) =
+                        self.get_ops_statistics(children);
                     op_count += ops;
                     cloop_count += 1;
                     dloop_count += dloops;
@@ -68,7 +72,8 @@ impl Program {
                     if_count += ifs;
                 }
                 OpType::TNz(children, ..) => {
-                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) =
+                        self.get_ops_statistics(children);
                     op_count += ops;
                     if_count += 1;
                     dloop_count += dloops;
@@ -78,7 +83,8 @@ impl Program {
                     if_count += ifs;
                 }
                 OpType::DTNz(children, ..) => {
-                    let (ops, dloops, lloop, iloops, cloops, ifs) = self.get_ops_statistics(children);
+                    let (ops, dloops, lloop, iloops, cloops, ifs) =
+                        self.get_ops_statistics(children);
                     op_count += ops;
                     if_count += 1;
                     dloop_count += dloops;
@@ -91,7 +97,14 @@ impl Program {
             }
         }
 
-        (op_count, dloop_count, lloop_count, iloop_count, cloop_count, if_count)
+        (
+            op_count,
+            dloop_count,
+            lloop_count,
+            iloop_count,
+            cloop_count,
+            if_count,
+        )
     }
 
     /// Dump program into a assembly like structure
@@ -99,7 +112,13 @@ impl Program {
         self.dump_ops(&mut output, &self.ops, 0, debug)
     }
 
-    fn dump_ops<W: Write>(&self, output: &mut W, ops: &[Op], indent: usize, debug: bool) -> Result<(), Box<dyn Error>> {
+    fn dump_ops<W: Write>(
+        &self,
+        output: &mut W,
+        ops: &[Op],
+        indent: usize,
+        debug: bool,
+    ) -> Result<(), Box<dyn Error>> {
         let mut ptr_offset = 0;
 
         for op in ops {
@@ -132,7 +151,6 @@ impl Program {
                 }
             }
 
-
             match &op.op_type {
                 OpType::Start => writeln!(output, "START")?,
                 OpType::IncPtr(value) => writeln!(output, "INC_PTR {}", value)?,
@@ -140,34 +158,69 @@ impl Program {
 
                 OpType::Inc(offset, value) => writeln!(output, "INC {} offset: {}", value, offset)?,
                 OpType::Dec(offset, value) => writeln!(output, "DEC {} offset: {}", value, offset)?,
-                OpType::Set(offset, value) => writeln!(output, "SET {} offset: {}", value, offset)?
-                ,
-                OpType::Add(src_offset, dest_offset, multi) =>
-                    writeln!(output, "ADD src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
-                OpType::NzAdd(src_offset, dest_offset, multi) =>
-                    writeln!(output, "NZ_ADD src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
-                OpType::CAdd(src_offset, dest_offset, value) =>
-                    writeln!(output, "CADD src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
-                OpType::NzCAdd(src_offset, dest_offset, value) =>
-                    writeln!(output, "NZ_CADD src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
-                OpType::Sub(src_offset, dest_offset, multi) =>
-                    writeln!(output, "SUB src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
-                OpType::NzSub(src_offset, dest_offset, multi) =>
-                    writeln!(output, "NZ_SUB src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
-                OpType::CSub(src_offset, dest_offset, value) =>
-                    writeln!(output, "CSUB src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
-                OpType::NzCSub(src_offset, dest_offset, value) =>
-                    writeln!(output, "NZ_CSUB src_offset: {} dest_offset: {} value: {}", src_offset, dest_offset, value)?,
+                OpType::Set(offset, value) => writeln!(output, "SET {} offset: {}", value, offset)?,
+                OpType::Add(src_offset, dest_offset, multi) => writeln!(
+                    output,
+                    "ADD src_offset: {} dest_offset: {} multiply: {}",
+                    src_offset, dest_offset, multi
+                )?,
+                OpType::NzAdd(src_offset, dest_offset, multi) => writeln!(
+                    output,
+                    "NZ_ADD src_offset: {} dest_offset: {} multiply: {}",
+                    src_offset, dest_offset, multi
+                )?,
+                OpType::CAdd(src_offset, dest_offset, value) => writeln!(
+                    output,
+                    "CADD src_offset: {} dest_offset: {} value: {}",
+                    src_offset, dest_offset, value
+                )?,
+                OpType::NzCAdd(src_offset, dest_offset, value) => writeln!(
+                    output,
+                    "NZ_CADD src_offset: {} dest_offset: {} value: {}",
+                    src_offset, dest_offset, value
+                )?,
+                OpType::Sub(src_offset, dest_offset, multi) => writeln!(
+                    output,
+                    "SUB src_offset: {} dest_offset: {} multiply: {}",
+                    src_offset, dest_offset, multi
+                )?,
+                OpType::NzSub(src_offset, dest_offset, multi) => writeln!(
+                    output,
+                    "NZ_SUB src_offset: {} dest_offset: {} multiply: {}",
+                    src_offset, dest_offset, multi
+                )?,
+                OpType::CSub(src_offset, dest_offset, value) => writeln!(
+                    output,
+                    "CSUB src_offset: {} dest_offset: {} value: {}",
+                    src_offset, dest_offset, value
+                )?,
+                OpType::NzCSub(src_offset, dest_offset, value) => writeln!(
+                    output,
+                    "NZ_CSUB src_offset: {} dest_offset: {} value: {}",
+                    src_offset, dest_offset, value
+                )?,
 
-                OpType::Mul(src_offset, dest_offset, multi) =>
-                    writeln!(output, "MUL src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
-                OpType::NzMul(src_offset, dest_offset, multi) =>
-                    writeln!(output, "NZ_MUL src_offset: {} dest_offset: {} multiply: {}", src_offset, dest_offset, multi)?,
+                OpType::Mul(src_offset, dest_offset, multi) => writeln!(
+                    output,
+                    "MUL src_offset: {} dest_offset: {} multiply: {}",
+                    src_offset, dest_offset, multi
+                )?,
+                OpType::NzMul(src_offset, dest_offset, multi) => writeln!(
+                    output,
+                    "NZ_MUL src_offset: {} dest_offset: {} multiply: {}",
+                    src_offset, dest_offset, multi
+                )?,
 
-                OpType::Move(src_offset, dest_offset) =>
-                    writeln!(output, "MOVE src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
-                OpType::Copy(src_offset, dest_offset) =>
-                    writeln!(output, "COPY src_offset: {} dest_offset: {}", src_offset, dest_offset)?,
+                OpType::Move(src_offset, dest_offset) => writeln!(
+                    output,
+                    "MOVE src_offset: {} dest_offset: {}",
+                    src_offset, dest_offset
+                )?,
+                OpType::Copy(src_offset, dest_offset) => writeln!(
+                    output,
+                    "COPY src_offset: {} dest_offset: {}",
+                    src_offset, dest_offset
+                )?,
 
                 OpType::PutChar(offset) => writeln!(output, "PUT offset: {}", offset)?,
                 OpType::PutString(array) => {
@@ -200,11 +253,23 @@ impl Program {
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::ILoop(children, step, increment, info) => {
-                    writeln!(output, "ILOOP step: {} increment: {:?} info: {}", step, increment, info.asm(debug))?;
+                    writeln!(
+                        output,
+                        "ILOOP step: {} increment: {:?} info: {}",
+                        step,
+                        increment,
+                        info.asm(debug)
+                    )?;
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::CLoop(children, iterations, increment, info) => {
-                    writeln!(output, "CLOOP iterations: {} increment: {:?} info: {}", iterations, increment, info.asm(debug))?;
+                    writeln!(
+                        output,
+                        "CLOOP iterations: {} increment: {:?} info: {}",
+                        iterations,
+                        increment,
+                        info.asm(debug)
+                    )?;
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
                 OpType::TNz(children, info) => {
@@ -213,9 +278,14 @@ impl Program {
                 }
                 OpType::DTNz(children, end_offset, info) => {
                     if let Some(end_offset) = end_offset {
-                        writeln!(output, "D_TNZ info: {} end offset:{}", info.asm(debug), end_offset)?;
+                        writeln!(
+                            output,
+                            "D_TNZ info: {} end offset:{}",
+                            info.asm(debug),
+                            end_offset
+                        )?;
                     } else {
-                        writeln!(output, "D_TNZ info: {}", info.asm(debug), )?;
+                        writeln!(output, "D_TNZ info: {}", info.asm(debug),)?;
                     }
                     self.dump_ops(output, children, indent + 1, debug)?;
                 }
@@ -272,12 +342,14 @@ impl Parser {
 
         if tos > 0 {
             let ops = self.stack.remove(tos);
-            self.push_op(Op::d_loop(ops.0..position + 1, ops.1, BlockInfo::new_empty()));
+            self.push_op(Op::d_loop(
+                ops.0..position + 1,
+                ops.1,
+                BlockInfo::new_empty(),
+            ));
             Ok(())
         } else {
-            Err(ParserError::BadlyClosedLoop {
-                position,
-            })
+            Err(ParserError::BadlyClosedLoop { position })
         }
     }
 
