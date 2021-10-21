@@ -1,6 +1,6 @@
 [package]
 name = "cranefack-cli"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -16,6 +16,6 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-cranefack = { path = "../cranefack", version = "0.3" }
+cranefack = { path = "../cranefack", version = "0.4" }
 clap = "2.33"
 codespan-reporting = "0.11"
