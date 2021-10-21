@@ -2,12 +2,13 @@ use std::io::{ErrorKind, Read, Write};
 use std::mem;
 use std::process::exit;
 
+use cranelift::codegen::settings::SetError;
 use cranelift::prelude::*;
 use cranelift_codegen::binemit::{NullStackMapSink, NullTrapSink};
 use cranelift_codegen::ir::FuncRef;
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{default_libcall_names, FuncId, Linkage, Module};
+use cranelift_module::{default_libcall_names, FuncId, Linkage, Module, ModuleError};
 
 use crate::errors::CompilerError;
 use crate::ir::ops::{LoopDecrement, Op, OpType};
@@ -563,6 +564,22 @@ fn put_char(env: *mut Environment, value: u8) {
     }
 }
 
+impl From<SetError> for CompilerError {
+    fn from(e: SetError) -> Self {
+        CompilerError::InternalCompilerError {
+            message: e.to_string(),
+        }
+    }
+}
+
+impl From<ModuleError> for CompilerError {
+    fn from(e: ModuleError) -> Self {
+        CompilerError::InternalCompilerError {
+            message: e.to_string(),
+        }
+    }
+}
+
 /// A compiled program that can be executed
 pub struct CompiledJitModule {
     module: Option<JITModule>,
@@ -579,11 +596,11 @@ impl CompiledJitModule {
         let mut flag_builder = settings::builder();
 
         if let Some(jit_level) = &opt_mode.jit_level {
-            flag_builder.set("opt_level", jit_level).unwrap();
+            flag_builder.set("opt_level", jit_level)?;
         } else if opt_mode.optimize() {
-            flag_builder.set("opt_level", "speed").unwrap();
+            flag_builder.set("opt_level", "speed")?;
         } else {
-            flag_builder.set("opt_level", "none").unwrap();
+            flag_builder.set("opt_level", "none")?;
         }
 
         let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
@@ -603,17 +620,13 @@ impl CompiledJitModule {
         get_char_sig.params.push(AbiParam::new(pointer_type));
         get_char_sig.returns.push(AbiParam::new(types::I8));
 
-        let get_char_func = module
-            .declare_function("get_char", Linkage::Import, &get_char_sig)
-            .unwrap();
+        let get_char_func = module.declare_function("get_char", Linkage::Import, &get_char_sig)?;
 
         let mut put_char_sig = module.make_signature();
         put_char_sig.params.push(AbiParam::new(pointer_type));
         put_char_sig.params.push(AbiParam::new(types::I8));
 
-        let put_char_func = module
-            .declare_function("put_char", Linkage::Import, &put_char_sig)
-            .unwrap();
+        let put_char_func = module.declare_function("put_char", Linkage::Import, &put_char_sig)?;
 
         let mut ctx = module.make_context();
         let mut func_ctx = FunctionBuilderContext::new();
@@ -625,9 +638,7 @@ impl CompiledJitModule {
         sig.params.push(AbiParam::new(pointer_type));
         sig.params.push(AbiParam::new(pointer_type));
 
-        let func = module
-            .declare_function("main", Linkage::Local, &sig)
-            .unwrap();
+        let func = module.declare_function("main", Linkage::Local, &sig)?;
 
         ctx.func.signature = sig;
         ctx.func.name = ExternalName::user(0, func.as_u32());
@@ -678,9 +689,7 @@ impl CompiledJitModule {
             format!("{:?}", bcx.func)
         };
 
-        module
-            .define_function(func, &mut ctx, &mut trap_sink, &mut stack_map_sink)
-            .unwrap();
+        module.define_function(func, &mut ctx, &mut trap_sink, &mut stack_map_sink)?;
         module.clear_context(&mut ctx);
 
         module.finalize_definitions();
@@ -734,11 +743,11 @@ mod tests {
     use std::io::{Cursor, Read, Write};
 
     use crate::ir::ops::{LoopDecrement, Op};
+    use crate::ir::opt_info::BlockInfo;
     use crate::parser::Program;
     use crate::{optimize_with_config, parse, OptimizeConfig};
 
     use super::CompiledJitModule;
-    use crate::ir::opt_info::BlockInfo;
 
     fn run<R: Read, W: Write>(program: &Program, input: R, output: W) -> Vec<u8> {
         CompiledJitModule::new(program, &OptimizeConfig::o2())
