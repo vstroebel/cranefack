@@ -147,8 +147,8 @@ fn is_verbose(matches: &ArgMatches) -> bool {
 
 fn run(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let path = matches.value_of_os("FILE").unwrap();
-    let verbose = is_verbose(&matches);
-    let opt_mode = get_optimize_config_from_args(&matches);
+    let verbose = is_verbose(matches);
+    let opt_mode = get_optimize_config_from_args(matches);
     let jit = matches.is_present("JIT");
 
     run_file(opt_mode, jit, verbose, path)
@@ -156,8 +156,8 @@ fn run(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 
 fn compile(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let path = matches.value_of_os("FILE").unwrap();
-    let verbose = is_verbose(&matches);
-    let opt_mode = get_optimize_config_from_args(&matches);
+    let verbose = is_verbose(matches);
+    let opt_mode = get_optimize_config_from_args(matches);
     let format = matches.value_of("FORMAT").unwrap_or("dump");
 
     compile_file(opt_mode, verbose, format, path)

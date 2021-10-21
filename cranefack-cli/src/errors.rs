@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum CliError {
     SourceFileNotFound(OsString),
     SourceFilePermissionDenied(OsString),

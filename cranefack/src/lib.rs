@@ -49,6 +49,8 @@
 //! # }
 //! ```
 
+#![allow(clippy::collapsible_if)]
+
 mod analyzer;
 mod backends;
 mod errors;

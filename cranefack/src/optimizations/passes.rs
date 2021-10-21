@@ -1597,7 +1597,7 @@ pub fn optimize_non_local_static_count_loops_pass(
         let count = match &op.op_type {
             OpType::ILoop(_, step, ..) => {
                 if let CellValue::Value(v) = utils::find_heap_value(
-                    &ops,
+                    ops,
                     0,
                     i as isize - 1,
                     zeroing,
@@ -1669,7 +1669,7 @@ fn optimize_non_local_conditional_loops_pass(
             OpType::ILoop(_, step, ..) => {
                 if *step == 1 {
                     let v = utils::find_heap_value(
-                        &ops,
+                        ops,
                         0,
                         i as isize - 1,
                         zeroing,
@@ -1801,7 +1801,7 @@ pub fn is_zeroing_d_loop(
     }
 
     find_heap_value(
-        &parent_ops,
+        parent_ops,
         -ptr_offset,
         parent_index - 1,
         zeroing,
@@ -2485,7 +2485,7 @@ fn optimize_non_local_arithmetics_pass(
                 if let Some((index, mut value2)) = find_last_put_string(ops, i as isize - 1) {
                     let remove_index = index - (i as isize);
 
-                    value2.extend_from_slice(&value);
+                    value2.extend_from_slice(value);
 
                     Change::RemoveAndReplace(remove_index, vec![OpType::PutString(value2)])
                 } else {
@@ -2871,11 +2871,11 @@ pub fn optimize_non_local_dead_stores(ops: &mut Vec<Op>) -> bool {
             | OpType::Copy(_, offset)
             | OpType::Mul(_, offset, _)
             | OpType::NzMul(_, offset, _)
-            | OpType::GetChar(offset) => find_last_unread_set(&ops, *offset, i - 1),
+            | OpType::GetChar(offset) => find_last_unread_set(ops, *offset, i - 1),
             OpType::CAdd(offset, ..) | OpType::CSub(offset, ..) => {
-                find_last_unread_set(&ops, *offset, i - 1)
+                find_last_unread_set(ops, *offset, i - 1)
             }
-            OpType::CLoop(..) => find_last_unread_set(&ops, 0, i - 1),
+            OpType::CLoop(..) => find_last_unread_set(ops, 0, i - 1),
             _ => None,
         };
 
