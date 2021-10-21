@@ -2,7 +2,7 @@
 name = "cranefack-cli"
 version = "0.3.0"
 authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Commandline utility for the cranefack brainfuck compiler"
 categories = ["compilers"]
