@@ -87,26 +87,26 @@ pub fn benchmark_file(
             println!("Run jit with O0");
             results[4] += run_jit(&program_o0, runs, &o0)?;
 
-            println!("Run jit with O0 fast");
+            println!("Run jit with O0 speed");
             results[5] += run_jit(&program_o0, runs, &o0_fast)?;
         }
 
         println!("Run jit with O1");
         results[6] += run_jit(&program_o1, runs, &o1)?;
 
-        println!("Run jit with O1 fast");
+        println!("Run jit with O1 speed");
         results[7] += run_jit(&program_o1, runs, &o1_fast)?;
 
         println!("Run jit with O2");
         results[8] += run_jit(&program_o2, runs, &o2)?;
 
-        println!("Run jit with O2 fast");
+        println!("Run jit with O2 speed");
         results[9] += run_jit(&program_o2, runs, &o2_fast)?;
 
         println!("Run jit with O3");
         results[10] += run_jit(&program_o3, runs, &o3)?;
 
-        println!("Run jit with O3 fast");
+        println!("Run jit with O3 speed");
         results[11] += run_jit(&program_o3, runs, &o3_fast)?;
     }
 
