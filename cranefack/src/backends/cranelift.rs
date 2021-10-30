@@ -243,7 +243,7 @@ impl<'a> Builder<'a> {
         let next = self.bcx.create_block();
         self.bcx.append_block_param(next, self.pointer_type);
 
-        self.bcx.ins().fallthrough(head, &[self.heap_ptr]);
+        self.bcx.ins().jump(head, &[self.heap_ptr]);
 
         // Head with condition
         self.bcx.switch_to_block(head);
@@ -251,7 +251,7 @@ impl<'a> Builder<'a> {
 
         let value = self.load(0);
         self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[self.heap_ptr]);
+        self.bcx.ins().jump(body, &[self.heap_ptr]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -275,7 +275,7 @@ impl<'a> Builder<'a> {
         let next = self.bcx.create_block();
         self.bcx.append_block_param(next, self.pointer_type);
 
-        self.bcx.ins().fallthrough(head, &[self.heap_ptr]);
+        self.bcx.ins().jump(head, &[self.heap_ptr]);
 
         // Head with condition
         self.bcx.switch_to_block(head);
@@ -283,12 +283,12 @@ impl<'a> Builder<'a> {
 
         let value = self.load(0);
         self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[self.heap_ptr]);
+        self.bcx.ins().jump(body, &[self.heap_ptr]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
         self.append_ops(ops);
-        self.bcx.ins().fallthrough(next, &[self.heap_ptr]);
+        self.bcx.ins().jump(next, &[self.heap_ptr]);
 
         // Start next block after loop
         self.bcx.switch_to_block(next);
@@ -307,7 +307,7 @@ impl<'a> Builder<'a> {
         let next = self.bcx.create_block();
         self.bcx.append_block_param(next, self.pointer_type);
 
-        self.bcx.ins().fallthrough(head, &[self.heap_ptr]);
+        self.bcx.ins().jump(head, &[self.heap_ptr]);
 
         // Head with condition
         self.bcx.switch_to_block(head);
@@ -317,7 +317,7 @@ impl<'a> Builder<'a> {
 
         let value = self.load(0);
         self.bcx.ins().brz(value, next, &[init_heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[init_heap_ptr]);
+        self.bcx.ins().jump(body, &[init_heap_ptr]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -348,7 +348,7 @@ impl<'a> Builder<'a> {
 
         let value = self.load(0);
 
-        self.bcx.ins().fallthrough(head, &[self.heap_ptr, value]);
+        self.bcx.ins().jump(head, &[self.heap_ptr, value]);
 
         // Head with condition
         self.bcx.switch_to_block(head);
@@ -358,7 +358,7 @@ impl<'a> Builder<'a> {
         let init_heap_ptr = self.heap_ptr;
 
         self.bcx.ins().brz(counter, next, &[init_heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[init_heap_ptr, counter]);
+        self.bcx.ins().jump(body, &[init_heap_ptr, counter]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -411,7 +411,7 @@ impl<'a> Builder<'a> {
 
         self.bcx
             .ins()
-            .fallthrough(head, &[self.heap_ptr, iterations]);
+            .jump(head, &[self.heap_ptr, iterations]);
 
         // Head with condition
         self.bcx.switch_to_block(head);
@@ -421,7 +421,7 @@ impl<'a> Builder<'a> {
         let init_heap_ptr = self.heap_ptr;
 
         self.bcx.ins().brz(counter, next, &[init_heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[init_heap_ptr, counter]);
+        self.bcx.ins().jump(body, &[init_heap_ptr, counter]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -464,7 +464,7 @@ impl<'a> Builder<'a> {
 
         let value = self.load(0);
         self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[self.heap_ptr]);
+        self.bcx.ins().jump(body, &[self.heap_ptr]);
 
         // Condition body
         self.bcx.switch_to_block(body);
@@ -477,7 +477,7 @@ impl<'a> Builder<'a> {
         self.heap_ptr = init_heap_ptr;
         self.set(0, 0);
 
-        self.bcx.ins().fallthrough(next, &[self.heap_ptr]);
+        self.bcx.ins().jump(next, &[self.heap_ptr]);
 
         // Start next block after loop
         self.bcx.switch_to_block(next);
@@ -494,7 +494,7 @@ impl<'a> Builder<'a> {
         let next = self.bcx.create_block();
         self.bcx.append_block_param(next, self.pointer_type);
 
-        self.bcx.ins().fallthrough(head, &[self.heap_ptr]);
+        self.bcx.ins().jump(head, &[self.heap_ptr]);
 
         // Head with condition
         self.bcx.switch_to_block(head);
@@ -502,7 +502,7 @@ impl<'a> Builder<'a> {
 
         let value = self.load(0);
         self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().fallthrough(body, &[self.heap_ptr]);
+        self.bcx.ins().jump(body, &[self.heap_ptr]);
 
         // Body
         self.bcx.switch_to_block(body);
