@@ -603,9 +603,11 @@ impl CompiledJitModule {
             flag_builder.set("opt_level", "none")?;
         }
 
-        let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
-            panic!("host machine is not supported: {}", msg);
-        });
+        let isa_builder = cranelift_native::builder().map_err(|msg| {
+            CompilerError::InternalCompilerError {
+                message: msg.to_string()
+            }
+        })?;
 
         let isa = isa_builder.finish(settings::Flags::new(flag_builder));
 
