@@ -2370,7 +2370,7 @@ pub fn optimize_non_local_arithmetics(ops: &mut Vec<Op>, wrapping_is_ub: bool) -
 }
 
 fn optimize_non_local_arithmetics_pass(
-    mut ops: &mut Vec<Op>,
+    ops: &mut Vec<Op>,
     zeroed: bool,
     inputs: &[(isize, CellValue)],
     wrapping_is_ub: bool,
@@ -2841,7 +2841,7 @@ fn optimize_non_local_arithmetics_pass(
             _ => Change::Ignore,
         };
 
-        let (changed, removed) = change.apply(&mut ops, i, 1);
+        let (changed, removed) = change.apply(ops, i, 1);
         progress |= changed;
         i -= removed;
 

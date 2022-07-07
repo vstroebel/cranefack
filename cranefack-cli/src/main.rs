@@ -25,7 +25,7 @@ fn main() {
             Ok(())
         }
     } {
-        eprintln!("{}", error.to_string());
+        eprintln!("{}", error);
         exit(1)
     }
 }

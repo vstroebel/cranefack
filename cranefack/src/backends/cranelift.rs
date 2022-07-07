@@ -656,8 +656,8 @@ impl CompiledJitModule {
             let heap_ptr = bcx.block_params(block)[0];
             let env = bcx.block_params(block)[1];
 
-            let get_char_func = module.declare_func_in_func(get_char_func, &mut bcx.func);
-            let put_char_func = module.declare_func_in_func(put_char_func, &mut bcx.func);
+            let get_char_func = module.declare_func_in_func(get_char_func, bcx.func);
+            let put_char_func = module.declare_func_in_func(put_char_func, bcx.func);
 
             let mut builder = Builder {
                 pointer_type,
