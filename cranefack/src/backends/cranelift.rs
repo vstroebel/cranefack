@@ -4,7 +4,6 @@ use std::process::exit;
 
 use cranelift::codegen::settings::SetError;
 use cranelift::prelude::*;
-use cranelift_codegen::binemit::{NullStackMapSink, NullTrapSink};
 use cranelift_codegen::ir::FuncRef;
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_jit::{JITBuilder, JITModule};
@@ -609,7 +608,11 @@ impl CompiledJitModule {
             }
         })?;
 
-        let isa = isa_builder.finish(settings::Flags::new(flag_builder));
+        let isa = isa_builder
+            .finish(settings::Flags::new(flag_builder))
+            .map_err(|msg| CompilerError::InternalCompilerError {
+                message: msg.to_string(),
+            })?;
 
         let mut jit_builder = JITBuilder::with_isa(isa, default_libcall_names());
         jit_builder.symbol("get_char", get_char as *const u8);
@@ -632,9 +635,6 @@ impl CompiledJitModule {
 
         let mut ctx = module.make_context();
         let mut func_ctx = FunctionBuilderContext::new();
-
-        let mut trap_sink = NullTrapSink {};
-        let mut stack_map_sink = NullStackMapSink {};
 
         let mut sig = module.make_signature();
         sig.params.push(AbiParam::new(pointer_type));
@@ -691,7 +691,7 @@ impl CompiledJitModule {
             format!("{:?}", bcx.func)
         };
 
-        module.define_function(func, &mut ctx, &mut trap_sink, &mut stack_map_sink)?;
+        module.define_function(func, &mut ctx)?;
         module.clear_context(&mut ctx);
 
         module.finalize_definitions();
@@ -793,7 +793,7 @@ mod tests {
                 >++++++++[<++++>-] <.>+++++++++++[<++++++++>-]<-.--------.+++
                 .------.--------.[-]>++++++++[<++++>- ]<+.[-]++++++++++.",
         )
-        .unwrap();
+            .unwrap();
         optimize_with_config(&mut program, &OptimizeConfig::o3());
 
         let input = b"";
