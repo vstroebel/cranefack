@@ -55,6 +55,7 @@ mod analyzer;
 mod backends;
 mod errors;
 mod ir;
+pub mod limiters;
 mod optimizations;
 mod parser;
 
