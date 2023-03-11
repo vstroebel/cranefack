@@ -17,5 +17,5 @@ doc = false
 
 [dependencies]
 cranefack = { path = "../cranefack", version = "0.4.1" }
-clap = "2.33"
+clap = { version = "4.1.8", features = ['cargo'] }
 codespan-reporting = "0.11"

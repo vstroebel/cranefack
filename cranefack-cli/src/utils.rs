@@ -32,7 +32,7 @@ pub fn read_input(path: &OsStr) -> Result<String, Box<dyn Error>> {
 }
 
 pub fn get_optimize_config_from_args(matches: &ArgMatches) -> OptimizeConfig {
-    let mut cfg = match matches.value_of("OPT_MODE").unwrap_or("2") {
+    let mut cfg = match matches.get_one::<String>("OPT_MODE").map(|s| s.as_str()).unwrap_or("2") {
         "1" => OptimizeConfig::o1(),
         "2" => OptimizeConfig::o2(),
         "3" => OptimizeConfig::o3(),
@@ -41,15 +41,15 @@ pub fn get_optimize_config_from_args(matches: &ArgMatches) -> OptimizeConfig {
         _ => OptimizeConfig::o0(),
     };
 
-    if let Some(jit_level) = &matches.value_of("JIT_LEVEL") {
+    if let Some(jit_level) = &matches.get_one::<u8>("JIT_LEVEL") {
         cfg.jit_level = Some(jit_level.to_string());
     }
 
-    if matches.is_present("WRAPPING_IS_UB") {
+    if matches.contains_id("WRAPPING_IS_UB") {
         cfg.wrapping_is_ub = true;
     }
 
-    if matches.is_present("DEBUG_OPT") {
+    if matches.contains_id("DEBUG_OPT") {
         cfg.debug = true;
     }
 
