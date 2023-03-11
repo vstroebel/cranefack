@@ -249,8 +249,9 @@ impl<'a> Builder<'a> {
         self.heap_ptr = self.bcx.block_params(head)[0];
 
         let value = self.load(0);
-        self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().jump(body, &[self.heap_ptr]);
+        self.bcx.ins().brif(value,
+                            body, &[self.heap_ptr],
+                            next, &[self.heap_ptr]);
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -281,8 +282,11 @@ impl<'a> Builder<'a> {
         self.heap_ptr = self.bcx.block_params(head)[0];
 
         let value = self.load(0);
-        self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().jump(body, &[self.heap_ptr]);
+
+        self.bcx.ins().brif(value,
+                            body, &[self.heap_ptr],
+                            next, &[self.heap_ptr],
+        );
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -315,8 +319,11 @@ impl<'a> Builder<'a> {
         let init_heap_ptr = self.heap_ptr;
 
         let value = self.load(0);
-        self.bcx.ins().brz(value, next, &[init_heap_ptr]);
-        self.bcx.ins().jump(body, &[init_heap_ptr]);
+
+        self.bcx.ins().brif(value,
+                            body, &[init_heap_ptr],
+                            next, &[init_heap_ptr],
+        );
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -356,8 +363,10 @@ impl<'a> Builder<'a> {
 
         let init_heap_ptr = self.heap_ptr;
 
-        self.bcx.ins().brz(counter, next, &[init_heap_ptr]);
-        self.bcx.ins().jump(body, &[init_heap_ptr, counter]);
+        self.bcx.ins().brif(counter,
+                            body, &[init_heap_ptr, counter],
+                            next, &[init_heap_ptr],
+        );
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -419,8 +428,10 @@ impl<'a> Builder<'a> {
 
         let init_heap_ptr = self.heap_ptr;
 
-        self.bcx.ins().brz(counter, next, &[init_heap_ptr]);
-        self.bcx.ins().jump(body, &[init_heap_ptr, counter]);
+        self.bcx.ins().brif(counter,
+                            body, &[init_heap_ptr, counter],
+                            next, &[init_heap_ptr],
+        );
 
         // Loop Body
         self.bcx.switch_to_block(body);
@@ -462,8 +473,11 @@ impl<'a> Builder<'a> {
         self.bcx.append_block_param(next, self.pointer_type);
 
         let value = self.load(0);
-        self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().jump(body, &[self.heap_ptr]);
+
+        self.bcx.ins().brif(value,
+                            body, &[self.heap_ptr],
+                            next, &[self.heap_ptr],
+        );
 
         // Condition body
         self.bcx.switch_to_block(body);
@@ -500,8 +514,11 @@ impl<'a> Builder<'a> {
         self.heap_ptr = self.bcx.block_params(head)[0];
 
         let value = self.load(0);
-        self.bcx.ins().brz(value, next, &[self.heap_ptr]);
-        self.bcx.ins().jump(body, &[self.heap_ptr]);
+
+        self.bcx.ins().brif(value,
+                            body, &[self.heap_ptr],
+                            next, &[self.heap_ptr],
+        );
 
         // Body
         self.bcx.switch_to_block(body);
@@ -643,7 +660,6 @@ impl CompiledJitModule {
         let func = module.declare_function("main", Linkage::Local, &sig)?;
 
         ctx.func.signature = sig;
-        ctx.func.name = ExternalName::user(0, func.as_u32());
 
         let clir = {
             let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
@@ -686,15 +702,17 @@ impl CompiledJitModule {
                 }
             }
 
+            let clir = format!("{:?}", bcx.func);
+
             bcx.finalize();
 
-            format!("{:?}", bcx.func)
+            clir
         };
 
         module.define_function(func, &mut ctx)?;
         module.clear_context(&mut ctx);
 
-        module.finalize_definitions();
+        module.finalize_definitions()?;
 
         Ok(CompiledJitModule {
             module: Some(module),
