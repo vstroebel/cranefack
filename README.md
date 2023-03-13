@@ -99,7 +99,7 @@ ARGS:
 To use cranefack as a library add the following to your Cargo.toml dependencies:
 
 ```toml
-cranefack = "0.2"
+cranefack = "0.4"
 ```
 
 To run a program with jit compilation:
