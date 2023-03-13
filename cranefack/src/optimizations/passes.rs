@@ -133,7 +133,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
             let replaced = match &child.op_type {
                 OpType::Inc(offset, multi) => {
                     if replacement_indices.contains(offset) {
-                        replacements.push(OpType::NzAdd(0, *offset as isize, *multi));
+                        replacements.push(OpType::NzAdd(0, *offset, *multi));
                         true
                     } else {
                         false
@@ -141,7 +141,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                 }
                 OpType::Dec(offset, multi) => {
                     if replacement_indices.contains(offset) {
-                        replacements.push(OpType::NzSub(0, *offset as isize, *multi));
+                        replacements.push(OpType::NzSub(0, *offset, *multi));
                         true
                     } else {
                         false
@@ -149,7 +149,7 @@ pub fn optimize_arithmetic_loops(ops: [&Op; 1]) -> Change {
                 }
                 OpType::Set(offset, v) => {
                     if replacement_indices.contains(offset) {
-                        replacements.insert(0, OpType::Set(*offset as isize, *v));
+                        replacements.insert(0, OpType::Set(*offset, *v));
                         true
                     } else {
                         false
@@ -3075,7 +3075,7 @@ fn has_unread_set(ops: &[Op], mut cell_offset: isize, start_index: usize) -> boo
     let mut i = start_index;
 
     while i < ops.len() {
-        match &ops[i as usize].op_type {
+        match &ops[i].op_type {
             OpType::IncPtr(offset) => cell_offset += *offset as isize,
             OpType::DecPtr(offset) => cell_offset -= *offset as isize,
             OpType::Set(offset, _) => {

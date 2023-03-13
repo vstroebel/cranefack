@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use crate::ir::ops::Op;
 use crate::optimizations::utils::Change;
 
-pub fn run_peephole_pass<F, const WINDOW: usize>(mut ops: &mut Vec<Op>, func: F) -> bool
+pub fn run_peephole_pass<F, const WINDOW: usize>(ops: &mut Vec<Op>, func: F) -> bool
 where
     F: Fn([&Op; WINDOW]) -> Change + Copy,
 {
@@ -25,7 +25,7 @@ where
 
         let change = func(window);
 
-        let (changed, removed) = change.apply(&mut ops, i, WINDOW);
+        let (changed, removed) = change.apply(ops, i, WINDOW);
         i -= removed;
         if changed {
             progress = true;
