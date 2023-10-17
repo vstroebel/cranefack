@@ -1,4 +1,3 @@
-use std::mem::MaybeUninit;
 
 use crate::ir::ops::Op;
 use crate::optimizations::utils::Change;
@@ -12,16 +11,8 @@ where
     let mut progress = false;
 
     while ops.len() >= WINDOW && i < ops.len() - (WINDOW - 1) {
-        let window = unsafe {
-            // Unsafe hackery to initialize window array with parameterized length
-            let mut window: MaybeUninit<[&Op; WINDOW]> = MaybeUninit::uninit().assume_init();
 
-            for index in 0..WINDOW {
-                window.as_mut_ptr().as_mut().unwrap()[index] = &ops[i + index];
-            }
-
-            window.assume_init()
-        };
+        let window = core::array::from_fn(|index| &ops[i + index]);
 
         let change = func(window);
 
