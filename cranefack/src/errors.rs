@@ -99,6 +99,11 @@ impl CraneFackError for ParserError {
 /// Runtime errors for interpreter invocations
 #[derive(Debug)]
 pub enum RuntimeError {
+    /// The interpreter's configured [`Limiter`][crate::limiters::Limiter] triggered
+    LimiterTriggered {
+        span: Range<usize>,
+    },
+
     /// The program tries to use a heap cell beyond the maximu allowed size
     MaxHeapSizeReached {
         span: Range<usize>,
@@ -125,6 +130,7 @@ impl Error for RuntimeError {
 impl Display for RuntimeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            RuntimeError::LimiterTriggered { .. } => write!(f, "Max number of cycles reached"),
             RuntimeError::MaxHeapSizeReached {
                 max_heap_size,
                 required,
@@ -142,6 +148,7 @@ impl Display for RuntimeError {
 impl CraneFackError for RuntimeError {
     fn get_message(&self) -> (Option<Range<usize>>, String, Option<String>) {
         match self {
+            RuntimeError::LimiterTriggered { span } => (Some(span.clone()), self.to_string(), None),
             RuntimeError::MaxHeapSizeReached { span, .. } => {
                 (Some(span.clone()), self.to_string(), None)
             }

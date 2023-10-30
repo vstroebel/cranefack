@@ -4,12 +4,14 @@ use std::ops::Range;
 
 use crate::errors::RuntimeError;
 use crate::ir::ops::{LoopDecrement, Op, OpType};
+use crate::limiters::{Limiter, LimiterResult, Unlimited};
 use crate::parser::Program;
 
 const MAX_HEAP_SIZE: usize = 16 * 1024 * 1024;
 
 /// Interpreter to execute a program
-pub struct Interpreter<R: Read, W: Write> {
+pub struct Interpreter<R: Read, W: Write, L: Limiter> {
+    limiter: L,
     max_heap_size: usize,
     pub(crate) heap: Vec<u8>,
     pointer: usize,
@@ -17,10 +19,25 @@ pub struct Interpreter<R: Read, W: Write> {
     output: W,
 }
 
-impl<R: Read, W: Write> Interpreter<R, W> {
+impl<R: Read, W: Write> Interpreter<R, W, Unlimited> {
     /// Create a default interpreter
-    pub fn new(input: R, output: W) -> Interpreter<R, W> {
+    pub fn new(input: R, output: W) -> Interpreter<R, W, Unlimited> {
         Interpreter {
+            limiter: Unlimited,
+            max_heap_size: MAX_HEAP_SIZE,
+            heap: vec![0; 1024],
+            pointer: 0,
+            input,
+            output,
+        }
+    }
+}
+
+impl<R: Read, W: Write, L: Limiter> Interpreter<R, W, L> {
+    /// Create an interpreter with specific limiter
+    pub fn with_limiter(input: R, output: W, limiter: L) -> Interpreter<R, W, L> {
+        Interpreter {
+            limiter,
             max_heap_size: MAX_HEAP_SIZE,
             heap: vec![0; 1024],
             pointer: 0,
@@ -31,10 +48,16 @@ impl<R: Read, W: Write> Interpreter<R, W> {
 
     /// Execute program
     pub fn execute(&mut self, program: &Program) -> Result<(), RuntimeError> {
-        self.execute_ops(&program.ops)
+        self.execute_ops(&program.ops, &(0..1))
     }
 
-    fn execute_ops(&mut self, ops: &[Op]) -> Result<(), RuntimeError> {
+    fn execute_ops(&mut self, ops: &[Op], span: &Range<usize>) -> Result<(), RuntimeError> {
+        if let LimiterResult::Halt = self.limiter.execute_op() {
+            return Err(RuntimeError::LimiterTriggered {
+                span: span.clone(),
+            });
+        }
+
         for op in ops {
             self.execute_op(op)?;
         }
@@ -43,6 +66,12 @@ impl<R: Read, W: Write> Interpreter<R, W> {
     }
 
     fn execute_op(&mut self, op: &Op) -> Result<(), RuntimeError> {
+        if let LimiterResult::Halt = self.limiter.execute_op() {
+            return Err(RuntimeError::LimiterTriggered {
+                span: op.span.clone(),
+            });
+        }
+
         match &op.op_type {
             OpType::Start => {
                 // ignore
@@ -125,14 +154,14 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             OpType::PutString(array) => self.put_string(&op.span, array)?,
             OpType::DLoop(ops, _) => {
                 while *self.heap_value(&op.span)? > 0 {
-                    self.execute_ops(ops)?;
+                    self.execute_ops(ops, &op.span)?;
                 }
             }
             OpType::LLoop(ops, _) => {
                 let heap_pointer = self.pointer;
 
                 while *self.heap_value(&op.span)? > 0 {
-                    self.execute_ops(ops)?;
+                    self.execute_ops(ops, &op.span)?;
                     self.pointer = heap_pointer;
                 }
             }
@@ -144,7 +173,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     while left > 0 {
                         left = left.wrapping_sub(*step);
                         *self.heap_value(&op.span)? = left;
-                        self.execute_ops(ops)?;
+                        self.execute_ops(ops, &op.span)?;
                         self.pointer = heap_pointer;
                     }
 
@@ -155,7 +184,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
 
                     let mut left = *self.heap_value(&op.span)?;
                     while left > 0 {
-                        self.execute_ops(ops)?;
+                        self.execute_ops(ops, &op.span)?;
                         left = left.wrapping_sub(*step);
                         *self.heap_value(&op.span)? = left;
                         self.pointer = heap_pointer;
@@ -168,7 +197,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
 
                     let mut left = *self.heap_value(&op.span)?;
                     while left > 0 {
-                        self.execute_ops(ops)?;
+                        self.execute_ops(ops, &op.span)?;
                         left = left.wrapping_sub(*step);
                         self.pointer = heap_pointer;
                     }
@@ -185,7 +214,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     while left > 0 {
                         left = left.wrapping_sub(1);
                         *self.heap_value(&op.span)? = left;
-                        self.execute_ops(ops)?;
+                        self.execute_ops(ops, &op.span)?;
                         self.pointer = heap_pointer;
                     }
 
@@ -197,7 +226,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                     *self.heap_value(&op.span)? = *iterations;
                     let mut left = *self.heap_value(&op.span)?;
                     while left > 0 {
-                        self.execute_ops(ops)?;
+                        self.execute_ops(ops, &op.span)?;
                         self.pointer = heap_pointer;
                         left = left.wrapping_sub(1);
                         *self.heap_value(&op.span)? = left;
@@ -208,7 +237,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 LoopDecrement::Auto => {
                     let heap_pointer = self.pointer;
                     for _ in 0..*iterations {
-                        self.execute_ops(ops)?;
+                        self.execute_ops(ops, &op.span)?;
                         self.pointer = heap_pointer;
                     }
                     *self.heap_value(&op.span)? = 0;
@@ -218,7 +247,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
                 if *self.heap_value(&op.span)? != 0 {
                     let heap_pointer = self.pointer;
 
-                    self.execute_ops(ops)?;
+                    self.execute_ops(ops, &op.span)?;
 
                     self.pointer = heap_pointer;
                     *self.heap_value(&op.span)? = 0;
@@ -226,7 +255,7 @@ impl<R: Read, W: Write> Interpreter<R, W> {
             }
             OpType::DTNz(ops, _, _) => {
                 if *self.heap_value(&op.span)? > 0 {
-                    self.execute_ops(ops)?;
+                    self.execute_ops(ops, &op.span)?;
                 }
             }
             OpType::SearchZero(step, _) => {
